@@ -348,6 +348,32 @@
       "license": "CC-BY-4.0 to the extent applicable",
       "kind": "AI-generated cinematic imagined railway park",
       "prompt": "Use case: photorealistic-natural. Asset type: original wide 16:9 cinematic environment illustration for the immersive homepage of a Taiwan railway maths game for children age 3–8. Create a magnificent, calm, welcoming imagined Taiwan mountain-and-sea railway discovery park, photographed with realistic film production quality, not a cartoon or miniature toy. Elevated panoramic three-quarter viewpoint. Composition for UI: left third is quiet open deep green wooded hills with soft shadow for white title overlay; right two-thirds show four clear walkable learning landmarks arranged around realistic curving railway lines: a warm red-brick clock-tower railway station toward the upper middle, a wooden forest goods depot with neat wooden crates in the lower middle, a teal-roof locomotive roundhouse toward the right middle, and a small coastal platform at the lower right. A recognizable orange and white Taiwan 700T high speed train travels on a distant concrete viaduct behind the park, with believable engineering; a short blue diesel forest train sits beside the wooden depot. Taiwan lush mountains behind, blue sea at far right, golden late-afternoon sunlight, delicate haze, detailed trees and warm architectural textures, elegant cinematic color grading. Broad usable margins; landmarks stay inside frame. This is an imagined educational world, not a map of a real station. Railway tracks separate from pedestrian paths; no people on tracks. No words, signage lettering, numbers, logos, labels, UI, watermarks, fantasy machines, cartoon rendering or oversaturated plastic surfaces."
+    },
+    {
+      "id": "star-express-v3",
+      "file": "assets/images/star-express-v3.webp",
+      "width": 1024,
+      "height": 1536,
+      "bytes": 93674,
+      "creator": "mars-tw / OpenAI ImageGen",
+      "created": "2026-10-04",
+      "license": "CC-BY-4.0 to the extent applicable",
+      "kind": "AI-generated fictional story train, transparent sprite",
+      "transparent": true,
+      "prompt": "Use case: stylized-concept. Asset type: premium cinematic photorealistic 3D train sprite with a completely transparent alpha background for a children's railway story animation. Primary request: a beautiful high-end high-speed electric train inspired by Taiwan's white and orange high speed trains, called a fictional star express without any lettering. View: centered symmetrical elevated FRONT three-quarter aerial view, looking down on the nose and roof, train facing straight toward the BOTTOM of the image with its connected carriages extending straight toward the TOP. No horizontal yaw or diagonal orientation. The entire train is visible including a long elegant rounded aerodynamic nose and three connected passenger cars behind; foreshortened perspective, luxurious polished pearl-white body, rich amber-orange stripe on the lower side, subtle champagne-gold accent, dark navy wraparound cockpit glass, delicate roof and window details, realistic carriage joints. Warm cinema light, physically believable silver and glass material, crisp clean edges, sophisticated realistic engineering, inviting child-friendly appearance. Portrait composition, generous transparent padding, no ground, track, landscape, smoke, platform, shadow rectangle, logo, words, numbers, watermark, people or cartoon character face. Transparent background, only the train with a very soft isolated translucent contact shadow if appropriate. This is a fictional story vehicle, not an exact engineering model."
+    },
+    {
+      "id": "story-coast-v3",
+      "file": "assets/images/story-coast-v3.webp",
+      "width": 1672,
+      "height": 941,
+      "bytes": 444136,
+      "creator": "mars-tw / OpenAI ImageGen",
+      "created": "2026-10-04",
+      "license": "CC-BY-4.0 to the extent applicable",
+      "kind": "AI-generated imagined cinematic story landscape",
+      "transparent": false,
+      "prompt": "Use case: photorealistic-natural. Asset type: cinematic 16:9 background plate for a children's immersive Taiwan railway story animation; NO train in this plate because a train will be composited later. Imagine a beautiful Taiwan mountain-to-sea railway corridor seen from a high elevated almost overhead aerial viewpoint. A SINGLE straight double-rail track runs VERTICALLY from the TOP edge toward the BOTTOM edge at 68 percent of the frame width, in the right two-thirds, absolutely continuous without curves or forks; slight believable perspective taper, clear clean track unobstructed for a downward-moving train sprite. On its left: lush forest canopy, warm misty mountains and a gentle small river, the left 35 percent is shadowy spacious greenery reserved for title text. On its right: emerald fields transitioning into a sheltered blue sea coastline, and a tiny cream lighthouse by the sea near the lower right. Warm early-evening golden sun rays, softly atmospheric but detailed realistically engineered railroad sleepers, refined muted film color grading, peaceful inviting premium documentary-cinema aesthetic. Rail line is elevated over the small river with safe barriers but is still perfectly straight and vertical in frame. This is an imagined educational story landscape, not a real map. No trains, people on tracks, signs, text, logos, watermark, UI, cartoon style, miniature toys, extra intersecting rails, roads crossing the track or buildings obstructing the central rail corridor. Compose so the unobstructed rail line is usable throughout top-to-bottom animation."
     }
   ]
 }

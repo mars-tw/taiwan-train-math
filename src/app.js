@@ -11,9 +11,25 @@ import {
   clockLabel,
   newMemoryState,
   memoryTurn,
-} from "./engine.js?v=1.1.0";
-import { homeMarkup } from "./home.js?v=1.1.0";
-import { activityScene, patternToken, patternName } from "./activities.js?v=1.1.0";
+} from "./engine.js?v=1.2.0";
+import { homeMarkup } from "./home.js?v=1.2.0";
+import {
+  activityScene,
+  patternToken,
+  patternName,
+} from "./activities.js?v=1.2.0";
+import { mountStory, newStoryState } from "./story.js?v=1.2.0";
+import {
+  newAdventureState,
+  trackConnected,
+  changeShare,
+  pickSouvenir,
+} from "./adventure.js?v=1.2.0";
+import {
+  adventureScene,
+  souvenirMarkup,
+  souvenirCollection,
+} from "./adventure-ui.js?v=1.2.0";
 
 const main = document.querySelector("#main");
 const esc = (value) =>
@@ -25,6 +41,13 @@ const esc = (value) =>
       ],
   );
 const $ = (selector) => document.querySelector(selector);
+const storySession = newStoryState();
+const motionPreference = window.matchMedia("(prefers-reduced-motion: reduce)");
+let storyHandle = null;
+function stopStory() {
+  storyHandle?.destroy();
+  storyHandle = null;
+}
 let catalogue,
   trains = [],
   progress,
@@ -76,6 +99,7 @@ function applyPreferences() {
   );
   $("#sound-toggle").setAttribute("aria-pressed", String(progress.voice));
   if ($("#station-bell")) $("#station-bell").disabled = !progress.effects;
+  storyHandle?.setReduced(progress.reduceMotion || motionPreference.matches);
 }
 function speak(text, force = false) {
   if (!("speechSynthesis" in window) || (!progress.voice && !force)) return;
@@ -172,6 +196,7 @@ function renderCards() {
   $("#result-count").textContent = `${list.length} 款列車與名稱`;
 }
 function renderHome() {
+  stopStory();
   main.innerHTML = homeMarkup({
     trains,
     selected,
@@ -181,6 +206,14 @@ function renderHome() {
     esc,
     image,
     levelButtons,
+  });
+  storyHandle = mountStory($("#story-scene"), {
+    state: storySession,
+    reduced: progress.reduceMotion || motionPreference.matches,
+    onRead: (text) => speak(text, true),
+    onSound: chime,
+    onGame: (id) => chooseMission(id, "mission"),
+    onAnnounce: announce,
   });
 }
 function clearDeparture() {
@@ -238,15 +271,20 @@ function renderCollection() {
 }
 function renderStamps() {
   const completed = progress.completed.map(byId).filter(Boolean);
-  main.innerHTML = `<div class="content-wrap stamps-page"><div class="page-intro"><div class="eyebrow dark">MY RAILWAY PASSPORT</div><h1>我的鐵道護照</h1><p>已完成 <strong>${progress.trips}</strong> 趟旅程，留下 <strong>${completed.length}</strong> 款列車的紀念章。</p></div>${completed.length ? `<div class="stamp-grid">${completed.map((t) => `<button class="stamp-card" data-detail="${t.id}"><div class="stamp-image">${image(t)}<span aria-hidden="true">✦</span></div><strong>${esc(t.name)}</strong><small>${esc(t.model)}</small><span class="stamp-seal">旅程完成 ✓</span></button>`).join("")}</div>` : '<div class="empty-passport"><span aria-hidden="true">🎟</span><h2>你的第一枚紀念章在等你</h2><p>選一台喜歡的火車，完成一趟小旅程就能收藏。</p><a href="#home" class="primary-btn">出發旅行 →</a></div>'}<p class="fineprint">護照存在這台裝置；清除瀏覽器資料會一起清除。所有列車都能自由選擇。</p></div>`;
+  main.innerHTML = `<div class="content-wrap stamps-page"><div class="page-intro"><div class="eyebrow dark">MY RAILWAY PASSPORT</div><h1>我的鐵道護照</h1><p>已完成 <strong>${progress.trips}</strong> 趟旅程，留下 <strong>${completed.length}</strong> 款列車的紀念章。</p></div>${completed.length ? `<div class="stamp-grid">${completed.map((t) => `<button class="stamp-card" data-detail="${t.id}"><div class="stamp-image">${image(t)}<span aria-hidden="true">✦</span></div><strong>${esc(t.name)}</strong><small>${esc(t.model)}</small><span class="stamp-seal">旅程完成 ✓</span></button>`).join("")}</div>` : '<div class="empty-passport"><span aria-hidden="true">🎟</span><h2>你的第一枚紀念章在等你</h2><p>選一台喜歡的火車，完成一趟小旅程就能收藏。</p><a href="#home" class="primary-btn">出發旅行 →</a></div>'}${souvenirCollection(progress)}<p class="fineprint">護照存在這台裝置；清除瀏覽器資料會一起清除。所有列車都能自由選擇。</p></div>`;
 }
 function route() {
   cancelVoice();
   clearDeparture();
   const hash = location.hash.slice(1);
-  if (hash === "departure" && view === "home" && $("#departure")) {
+  if (
+    ["departure", "railway-map"].includes(hash) &&
+    view === "home" &&
+    $(`#${hash}`)
+  ) {
     return;
   }
+  stopStory();
   view = ["collection", "stamps"].includes(hash) ? hash : "home";
   trip = null;
   document
@@ -256,10 +294,11 @@ function route() {
   else if (view === "stamps") renderStamps();
   else renderHome();
   applyPreferences();
-  if (hash === "departure")
-    $("#departure")?.scrollIntoView({ behavior: "instant" });
+  if (["departure", "railway-map"].includes(hash))
+    $(`#${hash}`)?.scrollIntoView({ behavior: "instant" });
 }
 function detail(id) {
+  storyHandle?.pause();
   const t = byId(id);
   if (!t) return;
   $("#detail-content").innerHTML =
@@ -267,6 +306,7 @@ function detail(id) {
   $("#detail-dialog").showModal();
 }
 function settings() {
+  storyHandle?.pause();
   cancelVoice();
   clearDeparture();
   $("#settings-content").innerHTML =
@@ -274,6 +314,7 @@ function settings() {
   $("#settings-dialog").showModal();
 }
 function startTrip() {
+  stopStory();
   clearDeparture();
   cancelVoice();
   view = "game";
@@ -300,6 +341,7 @@ function startTrip() {
     boardingPhase: "before",
     feedback: "",
   };
+  Object.assign(trip, newAdventureState(trip.questions[0]));
   renderQuestion();
   speak(`${train.intro} ${trip.questions[0].prompt}`);
   main.focus();
@@ -321,6 +363,8 @@ function ticketPile(n) {
   return `<div class="ticket-pile">${Array.from({ length: n }, () => '<span class="tiny-ticket" aria-hidden="true">🎟</span>').join("")}</div>`;
 }
 function gameScene(q) {
+  if (["tracks", "sharing", "treasure"].includes(q.game))
+    return adventureScene(q, trip);
   if (["pattern", "cargo", "memory", "clock"].includes(q.game))
     return activityScene(q, trip, { byId, image, esc });
   if (q.game === "count")
@@ -339,7 +383,12 @@ function gameScene(q) {
   return "";
 }
 function answerMarkup(q) {
-  if (["order", "cargo", "memory"].includes(q.game)) return "";
+  if (
+    ["order", "cargo", "memory", "tracks", "sharing", "treasure"].includes(
+      q.game,
+    )
+  )
+    return "";
   return `<div class="answers ${q.game === "identify" ? "picture-answers" : ""}">${q.choices
     .map((value) => {
       const disabled =
@@ -399,6 +448,8 @@ function hint() {
   if (q.game === "order")
     trip.feedback = `${q.hint} 小提示：${q.answer.join("、")}。`;
   if (q.game === "memory") trip.memoryPeek = true;
+  if (q.game === "tracks") trip.trackHint = true;
+  if (q.game === "treasure") trip.treasureHint = true;
   renderQuestion();
   speak(trip.feedback);
 }
@@ -434,6 +485,7 @@ function next() {
       boardingPhase: "before",
       feedback: "",
     });
+    Object.assign(trip, newAdventureState(trip.questions[trip.index]));
     renderQuestion();
     speak(trip.questions[trip.index].prompt);
     $("#question-title").setAttribute("tabindex", "-1");
@@ -450,7 +502,7 @@ function finishTrip() {
     persist();
   }
   const t = trip.train;
-  main.innerHTML = `<div class="finish-wrap"><div class="eyebrow dark">JOURNEY COMPLETED</div><h1>抵達終點，做得好！</h1><p>每一次發現，都值得一枚紀念章。</p><div class="finish-stamp">${image(t, "", false)}<span class="finish-stars" aria-hidden="true">✦</span><h2>${esc(t.name)}</h2><p>${esc(t.model)}</p><div class="stamp-seal">我的鐵道旅程 · 完成 ✓</div></div><p class="finish-note">今天認識了${esc(t.name)}。下次再一起出發吧！</p><div class="finish-actions"><button id="trip-again" class="primary-btn">再坐一趟 →</button><a href="#stamps" class="secondary-btn">看看我的集章</a><a href="#home" class="text-btn">休息一下</a></div></div>`;
+  main.innerHTML = `<div class="finish-wrap"><div class="eyebrow dark">JOURNEY COMPLETED</div><h1>抵達終點，做得好！</h1><p>每一次發現，都值得一枚紀念章。</p><div class="finish-stamp">${image(t, "", false)}<span class="finish-stars" aria-hidden="true">✦</span><h2>${esc(t.name)}</h2><p>${esc(t.model)}</p><div class="stamp-seal">我的鐵道旅程 · 完成 ✓</div></div><p class="finish-note">今天認識了${esc(t.name)}。下次再一起出發吧！</p><div id="trip-gift">${souvenirMarkup(trip)}</div><div class="finish-actions"><button id="trip-again" class="primary-btn">再坐一趟 →</button><a href="#stamps" class="secondary-btn">看看我的集章</a><a href="#home" class="text-btn">休息一下</a></div></div>`;
   speak(`抵達終點，做得好！今天一起搭乘了${t.name}。`);
   main.focus();
 }
@@ -573,6 +625,46 @@ document.addEventListener("click", (event) => {
     return;
   }
   const q = trip?.questions[trip.index];
+  if (b.dataset.rotate !== undefined && q?.game === "tracks" && !trip.solved) {
+    const index = Number(b.dataset.rotate);
+    if (q.tiles[index]?.kind !== "empty")
+      trip.rotations[index] = (trip.rotations[index] + 1) % 4;
+    renderQuestion();
+    document.querySelector(`[data-rotate="${index}"]`)?.focus();
+    announce(`第 ${index + 1} 格軌道轉好了。`);
+    return;
+  }
+  if (
+    (b.dataset.share !== undefined || b.dataset.returnSnack !== undefined) &&
+    q?.game === "sharing" &&
+    !trip.solved
+  ) {
+    const putting = b.dataset.share !== undefined,
+      index = Number(putting ? b.dataset.share : b.dataset.returnSnack);
+    trip.shares = changeShare(q, trip.shares, index, putting ? 1 : -1);
+    renderQuestion();
+    const shareButton = document.querySelector(`[data-share="${index}"]`);
+    (shareButton?.disabled ? $("#sharing-submit") : shareButton)?.focus();
+    announce(`第 ${index + 1} 位朋友有 ${trip.shares[index]} 份點心。`);
+    return;
+  }
+  if (b.dataset.find !== undefined && q?.game === "treasure" && !trip.solved) {
+    const index = Number(b.dataset.find);
+    if (q.items[index] !== q.target) {
+      trip.feedback = "這也是風景裡的小發現。再看看，我們要找題目中的寶物。";
+      $(".feedback").textContent = trip.feedback;
+      announce(trip.feedback);
+      return;
+    }
+    trip.found.add(index);
+    if (trip.found.size === q.answer) answer(q.answer);
+    else {
+      renderQuestion();
+      document.querySelector("[data-find]:not(:disabled)")?.focus();
+      announce(`找到第 ${trip.found.size} 個寶物！`);
+    }
+    return;
+  }
   if (b.dataset.load !== undefined && q?.game === "cargo" && !trip.solved) {
     const amount = Number(b.dataset.load);
     if (trip.cargo + amount <= q.max) trip.cargo += amount;
@@ -613,6 +705,40 @@ document.addEventListener("click", (event) => {
     return;
   }
   switch (b.id) {
+    case "tracks-submit":
+      if (q?.game === "tracks")
+        answer(
+          trackConnected(q, trip.rotations) ? "connected" : "disconnected",
+        );
+      break;
+    case "tracks-reset":
+      if (q?.game !== "tracks" || trip.solved) break;
+      trip.rotations = q.tiles.map((tile) => tile.initial);
+      renderQuestion();
+      document.querySelector("[data-rotate]:not(:disabled)")?.focus();
+      break;
+    case "sharing-submit":
+      if (q?.game === "sharing") answer(trip.shares);
+      break;
+    case "sharing-reset":
+      if (q?.game !== "sharing" || trip.solved) break;
+      trip.shares = Array(q.friends).fill(0);
+      renderQuestion();
+      document.querySelector("[data-share]")?.focus();
+      announce("點心都放回籃子了。");
+      break;
+    case "gift-open":
+      if (!trip?.awarded || trip.gift) break;
+      trip.gift = pickSouvenir(progress, trip.train.id);
+      if (!progress.souvenirs.includes(trip.gift.id))
+        progress.souvenirs.push(trip.gift.id);
+      persist();
+      $("#trip-gift").innerHTML = souvenirMarkup(trip);
+      $("#trip-gift").setAttribute("tabindex", "-1");
+      $("#trip-gift").focus();
+      chime();
+      speak(`${trip.gift.name}。${trip.gift.story}`);
+      break;
     case "trip-start":
     case "map-depart":
       depart();
@@ -678,6 +804,7 @@ document.addEventListener("click", (event) => {
       else cancelVoice();
       break;
     case "about-open":
+      storyHandle?.pause();
       $("#about-dialog").showModal();
       break;
     case "clear-progress":
@@ -724,6 +851,7 @@ for (const d of document.querySelectorAll("dialog"))
     if (e.target === d) d.close();
   });
 window.addEventListener("hashchange", route);
+motionPreference.addEventListener("change", applyPreferences);
 try {
   const response = await fetch("data/trains.json");
   if (!response.ok) throw new Error("Content unavailable");

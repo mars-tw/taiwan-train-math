@@ -1,4 +1,4 @@
-import { SHAPES, clockLabel } from "./engine.js?v=1.1.0";
+import { SHAPES, clockLabel } from "./engine.js?v=1.2.0";
 
 export function patternToken(q, value) {
   return q.kind === "number"

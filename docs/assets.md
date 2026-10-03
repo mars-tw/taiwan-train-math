@@ -2,20 +2,23 @@
 
 ## 已製作素材
 
-29 張 ImageGen 真實電影風情境插圖，輸出 WebP，總計約 5.9 MiB。v1.1 首頁為山海鐵道樂園想像場景，原 700T 高架線素材保留供圖鑑使用；每張列車卡以三分之四視角、明亮自然光、無人物危險行為的情境呈現。
+31 張 ImageGen 真實電影風情境插圖，輸出 WebP，總計約 6.4 MiB。v1.1 首頁為山海鐵道樂園想像場景，原 700T 高架線素材保留供圖鑑使用；每張列車卡以三分之四視角、明亮自然光、無人物危險行為的情境呈現。
 
 完整生成提示、尺寸、檔案、作者與授權見 [assets/manifest.json](../assets/manifest.json)。生成原圖保留在生成工具原輸出位置，專案收錄壓縮版；只改尺寸與壓縮，不添加官方文字與商標。
 
+v1.2 新增透明白金色星光高鐵與無車山海背景，列車和背景獨立合成，車頭朝畫面下方。星光高鐵為想像故事車，不代表實際 700T 外觀。詳見 [故事與新冒險規劃](story-adventure-v3.md)。
+
 ## 素材用途
 
-| 群組         | 圖片                                                                             |
-| ------------ | -------------------------------------------------------------------------------- |
-| 首頁探索場景 | railway-world-v2（想像樂園，非實際路線圖）                                       |
-| 高鐵與海外   | hero（700T）、e5、n700s、maglev                                                  |
-| 台鐵電聯車   | emu3000、temu1000、temu2000、emu900、emu800、emu700、commuter                    |
-| 台鐵動力車   | e500、r200、classic-loco、electric-loco、e1000、diesel-railcar、dr3100、switcher |
-| 林鐵         | alishan、shay、tourism-forest                                                    |
-| 觀光與糖鐵   | tourism-blue、tourism-black、tourism-green、sugar、sugar-steam                   |
+| 群組           | 圖片                                                                             |
+| -------------- | -------------------------------------------------------------------------------- |
+| 故事前景與背景 | star-express-v3（透明想像高鐵）、story-coast-v3（山海背景）                      |
+| 首頁探索場景   | railway-world-v2（想像樂園，非實際路線圖）                                       |
+| 高鐵與海外     | hero（700T）、e5、n700s、maglev                                                  |
+| 台鐵電聯車     | emu3000、temu1000、temu2000、emu900、emu800、emu700、commuter                    |
+| 台鐵動力車     | e500、r200、classic-loco、electric-loco、e1000、diesel-railcar、dr3100、switcher |
+| 林鐵           | alishan、shay、tourism-forest                                                    |
+| 觀光與糖鐵     | tourism-blue、tourism-black、tourism-green、sugar、sugar-steam                   |
 
 這些是情境教材，並非精確實車照片。EMU500／EMU600、E200／E300／E400、R 系列、林鐵車號、各觀光服務共用家族示意。圖鑑必須保留此標示，不以相同圖片出互相區分的配對題。莒光號應使用一般橘色機車牽引客車家族圖；N700ST 的日本 N700S 家族圖不能當成實際台灣塗裝。
 

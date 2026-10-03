@@ -1,3 +1,4 @@
+import { createAdventureQuestion, SOUVENIRS } from "./adventure.js?v=1.2.0";
 export const LEVELS = {
   small: {
     name: "小小站長",
@@ -76,6 +77,24 @@ export const GAMES = {
     description: "看時針和分針，找到出發時間。",
     levels: ["medium", "large"],
   },
+  tracks: {
+    name: "路線小工程師",
+    icon: "⌁",
+    description: "轉轉軌道，接通列車到小站的路。",
+    levels: ["small", "medium", "large"],
+  },
+  sharing: {
+    name: "列車點心派對",
+    icon: "🍎",
+    description: "親手分點心，讓朋友們一樣多。",
+    levels: ["small", "medium", "large"],
+  },
+  treasure: {
+    name: "山海尋寶",
+    icon: "✦",
+    description: "探索風景，找到藏起來的小寶物。",
+    levels: ["small", "medium", "large"],
+  },
 };
 export const allowedGames = (level) =>
   Object.keys(GAMES).filter((id) => GAMES[id].levels.includes(level));
@@ -148,6 +167,15 @@ export function questionFor({
   if (!cfg) throw new Error("Unknown level");
   if (!allowedGames(level).includes(game))
     throw new Error("Game not available for this level");
+  if (["tracks", "sharing", "treasure"].includes(game))
+    return createAdventureQuestion({
+      game,
+      level,
+      max: cfg.max,
+      rng,
+      randomInt,
+      shuffle,
+    });
   if (game === "pattern") {
     if (level === "large") {
       const step = randomInt(2, 3, rng),
@@ -409,6 +437,7 @@ export const defaults = () => ({
   reduceMotion: false,
   challenge: false,
   completed: [],
+  souvenirs: [],
   trips: 0,
 });
 export function readProgress(storage) {
@@ -421,6 +450,15 @@ export function readProgress(storage) {
     if (LEVELS[raw.level]) result.level = raw.level;
     result.completed = Array.isArray(raw.completed)
       ? [...new Set(raw.completed.filter((id) => typeof id === "string"))]
+      : [];
+    result.souvenirs = Array.isArray(raw.souvenirs)
+      ? [
+          ...new Set(
+            raw.souvenirs.filter((id) =>
+              SOUVENIRS.some((item) => item.id === id),
+            ),
+          ),
+        ]
       : [];
     result.trips =
       Number.isSafeInteger(raw.trips) && raw.trips >= 0 ? raw.trips : 0;

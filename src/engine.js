@@ -21,6 +21,96 @@ export const LEVELS = {
     stops: 5,
   },
 };
+export const GAMES = {
+  count: {
+    name: "數數看",
+    icon: "●",
+    description: "點點乘客，數一數有幾位。",
+    levels: ["small", "medium", "large"],
+  },
+  identify: {
+    name: "找火車",
+    icon: "🚆",
+    description: "看列車、聽名字，找到好朋友。",
+    levels: ["small", "medium", "large"],
+  },
+  boarding: {
+    name: "上車下車",
+    icon: "＋",
+    description: "看乘客移動，一起練習加減。",
+    levels: ["medium", "large"],
+  },
+  order: {
+    name: "排車廂",
+    icon: "123",
+    description: "點選數字，把車廂從小到大排好。",
+    levels: ["small", "medium", "large"],
+  },
+  compare: {
+    name: "比一比",
+    icon: "⇄",
+    description: "把車票配對，找出哪邊比較多。",
+    levels: ["medium", "large"],
+  },
+  pattern: {
+    name: "規律小火車",
+    icon: "◆",
+    description: "看看車廂的規律，接上下一節。",
+    levels: ["small", "medium", "large"],
+  },
+  cargo: {
+    name: "貨物裝箱",
+    icon: "▣",
+    description: "親手放入貨物，裝到剛剛好的數量。",
+    levels: ["small", "medium", "large"],
+  },
+  memory: {
+    name: "列車記憶翻卡",
+    icon: "▧",
+    description: "翻開兩張卡，找出一樣的列車。",
+    levels: ["small", "medium", "large"],
+  },
+  clock: {
+    name: "車站時鐘",
+    icon: "◷",
+    description: "看時針和分針，找到出發時間。",
+    levels: ["medium", "large"],
+  },
+};
+export const allowedGames = (level) =>
+  Object.keys(GAMES).filter((id) => GAMES[id].levels.includes(level));
+export const SHAPES = {
+  circle: { symbol: "●", name: "圓形" },
+  diamond: { symbol: "◆", name: "菱形" },
+  square: { symbol: "■", name: "正方形" },
+  triangle: { symbol: "▲", name: "三角形" },
+};
+export function clockLabel(value) {
+  const hour = Math.floor(value / 60);
+  return `${hour} 點${value % 60 ? "半" : "整"}`;
+}
+export function newMemoryState() {
+  return { open: [], matched: [], turns: 0 };
+}
+export function memoryTurn(state, index, deck) {
+  if (
+    !Number.isInteger(index) ||
+    index < 0 ||
+    index >= deck.length ||
+    state.open.length === 2 ||
+    state.open.includes(index) ||
+    state.matched.includes(index)
+  )
+    return state;
+  const open = [...state.open, index];
+  if (open.length === 2 && deck[open[0]] === deck[open[1]])
+    return {
+      open: [],
+      matched: [...state.matched, ...open],
+      turns: state.turns + 1,
+    };
+  return { ...state, open, turns: state.turns + (open.length === 2 ? 1 : 0) };
+}
 export function seededRandom(seed) {
   let n = seed >>> 0;
   return () => {
@@ -56,6 +146,122 @@ export function questionFor({
 }) {
   const cfg = LEVELS[level];
   if (!cfg) throw new Error("Unknown level");
+  if (!allowedGames(level).includes(game))
+    throw new Error("Game not available for this level");
+  if (game === "pattern") {
+    if (level === "large") {
+      const step = randomInt(2, 3, rng),
+        start = randomInt(0, cfg.max - step * 4, rng);
+      const sequence = Array.from({ length: 4 }, (_, i) =>
+        String(start + i * step),
+      );
+      const answer = String(start + step * 4);
+      return {
+        game,
+        level,
+        kind: "number",
+        sequence,
+        step,
+        answer,
+        choices: options(Number(answer), cfg.max, 3, rng).map(String),
+        prompt: "每次多一樣多，下一節車廂是幾號？",
+        hint: `每次加 ${step}。${sequence.at(-1)} 再加 ${step}，就是 ${answer}。`,
+      };
+    }
+    const shapes = shuffle(Object.keys(SHAPES), rng);
+    const unit =
+      level === "small"
+        ? shapes.slice(0, 2)
+        : rng() < 0.5
+          ? [shapes[0], shapes[0], shapes[1]]
+          : shapes.slice(0, 3);
+    const sequence = Array.from(
+      { length: unit.length * 2 },
+      (_, i) => unit[i % unit.length],
+    );
+    return {
+      game,
+      level,
+      kind: "shape",
+      sequence,
+      unit,
+      answer: unit[0],
+      choices: shuffle(shapes.slice(0, level === "small" ? 2 : 3), rng),
+      prompt: "看看重複的規律，下一節車廂放什麼？",
+      hint: `一組是${unit.map((s) => SHAPES[s].name).join("、")}。再從${SHAPES[unit[0]].name}開始。`,
+    };
+  }
+  if (game === "cargo") {
+    const answer = randomInt(1, cfg.max, rng);
+    return {
+      game,
+      level,
+      answer,
+      max: cfg.max,
+      prompt: `請幫貨運列車裝 ${answer} 箱貨物。`,
+      hint: `每箱算一個。目標是 ${answer} 箱，多了可以點貨物搬回來。`,
+    };
+  }
+  if (game === "memory") {
+    const count = { small: 2, medium: 3, large: 4 }[level];
+    const pool = [
+      train,
+      ...shuffle(
+        trains.filter((t) => t.id !== train.id && t.status !== "future"),
+        rng,
+      ),
+    ];
+    const unique = pool
+      .filter(
+        (t, i) =>
+          pool.findIndex(
+            (other) => other.image === t.image || other.name === t.name,
+          ) === i,
+      )
+      .slice(0, count);
+    const pairs = unique.map((t) => t.id);
+    return {
+      game,
+      level,
+      pairs,
+      deck: shuffle([...pairs, ...pairs], rng),
+      answer: pairs.length,
+      prompt: "翻開兩張卡，找出一樣的列車。",
+      hint: "一起看看列車長什麼樣子。記住位置，再試著翻出一對。",
+    };
+  }
+  if (game === "clock") {
+    const hour = randomInt(1, 12, rng),
+      minute = level === "large" && rng() < 0.5 ? 30 : 0;
+    const answer = hour * 60 + minute;
+    const pool = Array.from(
+      { length: level === "large" ? 24 : 12 },
+      (_, i) =>
+        (Math.floor(i / (level === "large" ? 2 : 1)) + 1) * 60 +
+        (level === "large" ? (i % 2) * 30 : 0),
+    );
+    return {
+      game,
+      level,
+      hour,
+      minute,
+      answer,
+      choices: shuffle(
+        [
+          answer,
+          ...shuffle(
+            pool.filter((n) => n !== answer),
+            rng,
+          ).slice(0, 2),
+        ],
+        rng,
+      ),
+      prompt: "車站時鐘指向幾點？找到列車出發時間。",
+      hint: minute
+        ? `長長的分針指向 6，是半點。短短的時針在 ${hour} 和 ${hour === 12 ? 1 : hour + 1} 中間，是 ${hour} 點半。`
+        : `長長的分針指向 12，是整點。短短的時針指向 ${hour}，是 ${hour} 點整。`,
+    };
+  }
   if (game === "identify") {
     const candidates = trains.filter(
       (t) =>
@@ -171,13 +377,17 @@ export function createTrip({
   challenge = false,
   practice = "mixed",
 }) {
-  const small = ["count", "identify", "order"];
-  const other = ["count", "boarding", "identify", "order", "compare"];
+  if (!LEVELS[level]) throw new Error("Unknown level");
+  const pool = allowedGames(level).filter(
+    (game) => !["count", "identify"].includes(game),
+  );
   const sequence =
     practice === "mixed"
-      ? level === "small"
-        ? small
-        : other
+      ? [
+          "count",
+          ...shuffle(pool, rng).slice(0, LEVELS[level].stops - 2),
+          "identify",
+        ]
       : Array(LEVELS[level].stops).fill(practice);
   return sequence.map((game) =>
     questionFor({ level, game, train, trains, rng, challenge }),

@@ -1,0 +1,1033 @@
+/* Cinematic world; clear code-drawn controls keep the maths legible. */
+.railway-world {
+  position: relative;
+  min-height: 650px;
+  overflow: hidden;
+  isolation: isolate;
+  color: #fff;
+  background: #203d38;
+}
+.world-image {
+  position: absolute;
+  z-index: -3;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 58%;
+  transition:
+    filter 0.6s,
+    transform 0.6s;
+}
+.world-shade {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  background:
+    linear-gradient(
+      90deg,
+      rgba(10, 31, 26, 0.93),
+      rgba(10, 31, 26, 0.78) 26%,
+      rgba(10, 31, 26, 0.12) 55%
+    ),
+    linear-gradient(0deg, rgba(12, 32, 28, 0.75), transparent 34%);
+}
+.world-copy {
+  position: relative;
+  width: 39%;
+  padding: 85px 0 155px 7.5%;
+}
+.world-copy h1 {
+  font-family: var(--serif);
+  font-size: clamp(40px, 4.2vw, 64px);
+  line-height: 1.25;
+  letter-spacing: 1px;
+  margin: 19px 0 23px;
+}
+.world-copy h1 span {
+  display: block;
+  color: #ffce8b;
+}
+.world-copy p {
+  color: #f1edda;
+  font-size: 17px;
+  line-height: 1.9;
+  margin-bottom: 25px;
+}
+.world-copy .primary-btn {
+  background: #edaa61;
+  color: #273a2b;
+  box-shadow: 0 4px 24px #0002;
+}
+.world-copy .primary-btn:hover {
+  background: #ffc07b;
+}
+.world-kind {
+  display: block;
+  margin-top: 18px;
+  font-size: 12px;
+  color: #d4ded1;
+}
+.world-controls {
+  position: absolute;
+  right: 5%;
+  top: 24px;
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  background: #15382dd9;
+  border: 1px solid #d8e5c847;
+  border-radius: 30px;
+}
+.world-controls button {
+  border: 0;
+  padding: 9px 16px;
+  border-radius: 24px;
+  background: transparent;
+  color: #f4f5e9;
+  font-size: 12px;
+  min-height: 44px;
+}
+.world-controls button[aria-pressed="true"] {
+  background: #ede6cb;
+  color: #27443b;
+}
+.blue-hour .world-image {
+  filter: brightness(0.68) saturate(0.76) hue-rotate(13deg);
+}
+.blue-hour .world-shade {
+  background:
+    linear-gradient(90deg, #101e32ee, #10273bbb 30%, #1b426122 65%),
+    linear-gradient(0deg, #10273acc, transparent 45%);
+}
+.map-pins {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.map-pin {
+  pointer-events: auto;
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid #f0e8ce8c;
+  background: #153c33e8;
+  padding: 10px 15px 10px 10px;
+  color: #fff8e9;
+  border-radius: 15px;
+  text-align: left;
+  box-shadow: 0 8px 24px #091c2955;
+  transition:
+    background 0.2s,
+    transform 0.2s;
+  min-height: 64px;
+}
+.map-pin:after {
+  content: "";
+  position: absolute;
+  left: 28px;
+  bottom: -12px;
+  height: 12px;
+  width: 2px;
+  background: #f6db9c;
+}
+.map-pin:hover {
+  background: #276253f2;
+  transform: translateY(-3px);
+}
+.map-pin.active {
+  background: #fae5b8;
+  color: #294537;
+  border-color: #fff;
+}
+.map-pin strong,
+.map-pin small {
+  display: block;
+}
+.map-pin strong {
+  font-size: 15px;
+  letter-spacing: 1px;
+}
+.map-pin small {
+  font-size: 10px;
+  opacity: 0.85;
+}
+.pin-symbol {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  background: #f5e6bc;
+  color: #285045;
+  border-radius: 50%;
+  font-size: 24px;
+}
+.map-pin i {
+  font-size: 9px;
+  font-style: normal;
+  opacity: 0.6;
+  align-self: flex-start;
+}
+.map-pin.tower {
+  left: 43%;
+  top: 27%;
+}
+.map-pin.depot {
+  left: 43%;
+  top: 63%;
+}
+.map-pin.roundhouse {
+  left: 73%;
+  top: 43%;
+}
+.map-pin.coast {
+  left: 76%;
+  top: 73%;
+}
+.world-preview {
+  position: absolute;
+  left: 7.5%;
+  right: 7.5%;
+  bottom: 48px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: min(570px, 52%);
+  background: #f6f0d9f5;
+  border: 1px solid #fff6;
+  color: #294439;
+  padding: 13px 16px;
+  border-radius: 12px;
+  box-shadow: 0 8px 40px #0002;
+}
+.preview-icon {
+  font-size: 26px;
+  width: 36px;
+  text-align: center;
+  flex-shrink: 0;
+}
+.world-preview small,
+.world-preview strong {
+  display: block;
+}
+.world-preview small {
+  font-size: 10px;
+  color: #5f7263;
+}
+.world-preview strong {
+  font-size: 14px;
+}
+.world-depart {
+  background: #265d4c;
+  color: white;
+  border: 0;
+  border-radius: 8px;
+  margin-left: auto;
+  padding: 12px 17px;
+  white-space: nowrap;
+  font-size: 13px;
+  min-height: 44px;
+}
+.world-credit {
+  position: absolute;
+  bottom: 14px;
+  right: 5%;
+  font-size: 9px;
+  letter-spacing: 1px;
+  color: #edeed8;
+}
+.departing .world-image {
+  transform: scale(1.035);
+}
+.departing .boarding-pass {
+  transform: translateX(12px);
+  opacity: 0.7;
+  transition: 0.4s;
+}
+.home-content .departure {
+  padding-top: 58px;
+}
+.age-note {
+  font-size: 12px;
+  color: #66745f;
+  margin-top: 12px;
+}
+.boarding-pass {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  margin-top: 26px;
+  padding: 16px 22px 16px 16px;
+  border: 1px solid #d8decd;
+  border-radius: 16px;
+  background: #edf0e4;
+}
+.pass-image {
+  width: 150px;
+  flex-shrink: 0;
+  border-radius: 10px;
+  overflow: hidden;
+}
+.pass-image img {
+  aspect-ratio: 16/9;
+  object-fit: cover;
+}
+.pass-info {
+  margin-right: auto;
+}
+.pass-info small {
+  color: #667460;
+  display: block;
+  font-size: 12px;
+}
+.pass-info strong {
+  display: block;
+  font-size: 18px;
+}
+.pass-info .text-btn {
+  font-size: 12px;
+  padding: 5px 0;
+  min-height: 32px;
+}
+.boarding-pass .practice-picker {
+  min-width: 215px;
+}
+.boarding-pass .practice-picker select {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+.boarding-pass .primary-btn {
+  white-space: nowrap;
+}
+.home-trains,
+.mission-hall {
+  margin-top: 60px;
+}
+.featured-trains {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 14px;
+}
+.featured-train {
+  position: relative;
+  border: 1px solid #dce1d3;
+  padding: 0;
+  background: #fffdf5;
+  border-radius: 14px;
+  overflow: hidden;
+  text-align: left;
+  box-shadow: 0 5px 20px #2d493105;
+  transition: transform 0.2s;
+}
+.featured-train:hover {
+  transform: translateY(-4px);
+}
+.featured-train.chosen {
+  border: 2px solid #346f59;
+  box-shadow: 0 0 0 3px #d6e3d3;
+}
+.featured-train img {
+  aspect-ratio: 16/10;
+  object-fit: cover;
+}
+.featured-train span {
+  display: block;
+  padding: 12px;
+}
+.featured-train strong {
+  display: block;
+  font-size: 14px;
+}
+.featured-train small {
+  display: block;
+  font-size: 10px;
+  color: #657963;
+}
+.featured-train i {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: grid;
+  place-items: center;
+  background: #fff9;
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  font-style: normal;
+  color: #254c3d;
+}
+.featured-train.chosen i {
+  background: #306f56;
+  color: #fff;
+}
+.mission-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+.mission-card {
+  position: relative;
+  background: #fffdf6;
+  border: 1px solid #e1e4d6;
+  border-radius: 15px;
+  padding: 25px;
+  text-align: left;
+  min-height: 202px;
+  transition:
+    background 0.2s,
+    transform 0.2s;
+}
+.mission-card:hover {
+  background: #edf2e3;
+  transform: translateY(-3px);
+}
+.mission-card.active {
+  background: #e7edda;
+  border-color: #56826a;
+}
+.mission-card.later {
+  background: #f0eee6;
+}
+.mission-number {
+  position: absolute;
+  top: 22px;
+  right: 24px;
+  color: #82927c;
+  font-size: 11px;
+  letter-spacing: 1px;
+}
+.mission-symbol {
+  font-size: 27px;
+  color: #396c55;
+  display: block;
+  height: 39px;
+}
+.mission-card strong {
+  font-size: 19px;
+  display: block;
+  margin-top: 6px;
+}
+.mission-card p {
+  color: #61705f;
+  font-size: 13px;
+  margin: 7px 0 18px;
+}
+.mission-card small {
+  font-size: 11px;
+  color: #426947;
+}
+.home-notice {
+  text-align: center;
+  font-size: 13px;
+  margin: 26px 0;
+  color: #61715e;
+}
+.passport-invite {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  padding: 28px 34px;
+  margin: 65px 0;
+  background: #e7ecdc;
+  border-radius: 16px;
+}
+.passport-invite > span {
+  font-size: 42px;
+  color: #ac8147;
+}
+.passport-invite h2 {
+  font-size: 21px;
+}
+.passport-invite p {
+  font-size: 13px;
+  color: #68745e;
+}
+.passport-invite a {
+  margin-left: auto;
+  white-space: nowrap;
+}
+.pattern-track {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 28px 0 18px;
+  padding-bottom: 15px;
+  border-bottom: 4px double #759483;
+}
+.pattern-engine {
+  font-size: 42px;
+  align-self: center;
+}
+.pattern-carriage {
+  position: relative;
+  width: 68px;
+  height: 67px;
+  border: 2px solid #809980;
+  background: #fffcf0;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+}
+.pattern-carriage:after {
+  content: "●  ●";
+  position: absolute;
+  bottom: -17px;
+  font-size: 16px;
+  color: #557261;
+  white-space: pre;
+}
+.pattern-carriage.missing {
+  border: 2px dashed #9b794b;
+  background: #f8e9c9;
+  font-size: 30px;
+}
+.pattern-shape {
+  font-size: 36px;
+  line-height: 1;
+}
+.shape-circle {
+  color: #b24e32;
+}
+.shape-diamond {
+  color: #357568;
+}
+.shape-square {
+  color: #646caf;
+}
+.shape-triangle {
+  color: #92632f;
+}
+.pattern-number {
+  font-size: 29px;
+  font-weight: 700;
+}
+.pattern-answer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+.pattern-answer small {
+  font-size: 13px;
+  font-weight: 400;
+}
+.cargo-order {
+  text-align: center;
+  border-bottom: 1px solid #dfe2d3;
+  padding-bottom: 15px;
+}
+.cargo-order strong {
+  display: block;
+  font-size: 20px;
+  margin: 8px 0;
+}
+.cargo-order b {
+  font-size: 30px;
+  color: #a85229;
+}
+.cargo-order small {
+  color: #657963;
+}
+.cargo-wagon {
+  background: #f0eddd;
+  border: 2px solid #a7b69a;
+  border-radius: 10px;
+  margin: 18px auto;
+  padding: 15px;
+  max-width: 600px;
+  border-bottom: 8px solid #839372;
+}
+.cargo-empty {
+  padding: 23px 0;
+  color: #647459;
+}
+.cargo-boxes {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 55px));
+  justify-content: center;
+  gap: 9px;
+  margin: 15px auto;
+}
+.cargo-box {
+  min-height: 53px;
+  width: 100%;
+  background: #d5ad73;
+  border: 2px solid #a47b46;
+  border-radius: 7px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  color: #594428;
+  font-size: 32px;
+}
+.cargo-box small {
+  position: absolute;
+  bottom: 1px;
+  right: 5px;
+  font-size: 10px;
+  background: #eddfb9;
+  color: #504028;
+  border-radius: 3px;
+  padding: 0 3px;
+}
+.target-box {
+  background: #e6d6ad;
+  border-color: #b4a37b;
+  min-height: 38px;
+  font-size: 28px;
+}
+.cargo-counter {
+  color: #617252;
+  font-size: 15px;
+}
+.cargo-counter strong {
+  font-size: 25px;
+  color: #345c3f;
+}
+.cargo-actions {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.memory-status {
+  font-size: 15px;
+  color: #3b6758;
+  margin-bottom: 17px;
+}
+.memory-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  width: min(680px, 100%);
+  margin: 0 auto 18px;
+}
+.memory-grid.pairs-2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  max-width: 460px;
+}
+.memory-grid.pairs-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.memory-card {
+  position: relative;
+  min-height: 140px;
+  padding: 0;
+  overflow: hidden;
+  border-radius: 12px;
+  border: 2px solid #476c55;
+  background: repeating-linear-gradient(
+    45deg,
+    #2e5c49,
+    #2e5c49 8px,
+    #35644f 8px,
+    #35644f 9px
+  );
+  color: #f2ead0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+.memory-card:disabled {
+  opacity: 1;
+}
+.memory-back {
+  font-size: 32px;
+}
+.memory-card > small {
+  font-size: 11px;
+  margin: 7px 0;
+}
+.memory-card.revealed {
+  background: #fcf8e9;
+  color: #294a3c;
+}
+.memory-card.revealed img {
+  width: 100%;
+  aspect-ratio: 16/9;
+  object-fit: cover;
+}
+.memory-card.revealed strong {
+  font-size: 12px;
+  padding: 6px 4px 0;
+  line-height: 1.4;
+}
+.memory-card.revealed small {
+  font-size: 10px;
+  margin: 2px 0 7px;
+}
+.memory-card.matched {
+  border-color: #568c3c;
+  background: #e6edd5;
+}
+.memory-check {
+  position: absolute;
+  right: 6px;
+  top: 6px;
+  background: #346c47;
+  border: 2px solid white;
+  border-radius: 50%;
+  width: 25px;
+  height: 25px;
+  color: #fff;
+  font-size: 15px;
+}
+.memory-stage p {
+  font-size: 13px;
+  color: #62745d;
+  margin: 8px 0 14px;
+}
+.station-clock {
+  display: block;
+  width: 240px;
+  max-width: 80%;
+  margin: 20px auto;
+  filter: drop-shadow(0 6px 7px #31473119);
+}
+.station-clock text {
+  font:
+    700 14px system-ui,
+    sans-serif;
+  fill: #3f5848;
+}
+.clock-key {
+  display: flex;
+  justify-content: center;
+  gap: 20px;
+  flex-wrap: wrap;
+  font-size: 12px;
+}
+.clock-key span {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.hand-key {
+  display: inline-block;
+  height: 5px;
+  width: 17px;
+  border-radius: 4px;
+  background: #285c51;
+}
+.hand-key.minute {
+  width: 26px;
+  background: #b14b26;
+  height: 3px;
+}
+.clock-result {
+  display: block;
+  margin-top: 16px;
+}
+.clock-answer {
+  font-size: 24px;
+}
+.railway-world :focus-visible {
+  outline-color: #fff4a7;
+  box-shadow: 0 0 0 6px #264a39;
+}
+@media (max-width: 1100px) {
+  .railway-world {
+    min-height: 600px;
+  }
+  .world-copy {
+    padding-left: 5%;
+    padding-top: 72px;
+  }
+  .world-copy h1 {
+    font-size: 48px;
+  }
+  .map-pin {
+    gap: 7px;
+    padding-right: 10px;
+  }
+  .map-pin.roundhouse {
+    left: 72%;
+  }
+  .map-pin.coast {
+    left: 72%;
+  }
+  .boarding-pass {
+    flex-wrap: wrap;
+  }
+  .boarding-pass .practice-picker {
+    margin-left: auto;
+  }
+  .boarding-pass .primary-btn {
+    flex-grow: 1;
+  }
+  .featured-trains {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .featured-train img {
+    aspect-ratio: 16/8;
+  }
+  .world-preview {
+    left: 5%;
+    width: 61%;
+  }
+}
+@media (max-width: 760px) {
+  .railway-world {
+    padding-bottom: 32px;
+    min-height: 0;
+  }
+  .world-image {
+    object-position: 62% center;
+  }
+  .world-shade {
+    background: linear-gradient(
+      180deg,
+      #153b32f5,
+      #153b32b5 31%,
+      #16352e22 58%,
+      #153b32ef 87%
+    );
+  }
+  .world-copy {
+    padding: 70px 6% 20px;
+    width: 100%;
+  }
+  .world-copy h1 {
+    font-size: 41px;
+    margin: 16px 0;
+  }
+  .world-copy h1 br {
+    display: none;
+  }
+  .world-copy h1 span {
+    display: inline;
+  }
+  .world-copy p {
+    font-size: 14px;
+    line-height: 1.7;
+  }
+  .world-copy p br {
+    display: none;
+  }
+  .world-kind {
+    font-size: 10px;
+  }
+  .world-controls {
+    right: 5%;
+    top: 13px;
+  }
+  .world-controls button {
+    font-size: 11px;
+    padding: 5px 13px;
+  }
+  .map-pins {
+    position: relative;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    padding: 0 6%;
+    margin-top: 70px;
+    margin-bottom: 25px;
+  }
+  .map-pin {
+    position: relative;
+    left: auto !important;
+    top: auto !important;
+    padding: 10px;
+    gap: 7px;
+    width: 100%;
+    min-height: 72px;
+  }
+  .map-pin:after {
+    display: none;
+  }
+  .map-pin strong {
+    font-size: 13px;
+  }
+  .map-pin small {
+    font-size: 9px;
+  }
+  .map-pin i {
+    display: none;
+  }
+  .pin-symbol {
+    width: 30px;
+    height: 30px;
+    flex-shrink: 0;
+    font-size: 22px;
+  }
+  .world-preview {
+    position: relative;
+    left: auto;
+    right: auto;
+    bottom: auto;
+    margin: 0 6%;
+    width: auto;
+    padding: 12px;
+    gap: 9px;
+  }
+  .preview-icon {
+    display: none;
+  }
+  .world-preview strong {
+    font-size: 12px;
+  }
+  .world-preview small {
+    font-size: 9px;
+  }
+  .world-depart {
+    font-size: 11px;
+    padding: 10px;
+  }
+  .world-credit {
+    bottom: 7px;
+    font-size: 8px;
+  }
+  .home-content .departure {
+    padding-top: 34px;
+  }
+  .home-content .section-heading {
+    align-items: flex-start;
+    gap: 10px;
+    flex-direction: column;
+  }
+  .home-content .section-heading h2 {
+    font-size: 25px;
+  }
+  .home-content .section-heading p {
+    font-size: 12px;
+  }
+  .boarding-pass {
+    gap: 14px;
+    padding: 14px;
+  }
+  .pass-image {
+    width: 102px;
+  }
+  .pass-info {
+    flex: 1;
+    min-width: 130px;
+  }
+  .pass-info strong {
+    font-size: 16px;
+  }
+  .boarding-pass .practice-picker {
+    width: 100%;
+    min-width: 0;
+    flex: 1 1 100%;
+  }
+  .boarding-pass .primary-btn {
+    width: 100%;
+  }
+  .home-trains,
+  .mission-hall {
+    margin-top: 36px;
+  }
+  .featured-trains {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+  .featured-train img {
+    aspect-ratio: 16/9;
+  }
+  .mission-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+  .mission-card {
+    padding: 18px 15px;
+    min-height: 205px;
+  }
+  .mission-number {
+    top: 19px;
+    right: 15px;
+  }
+  .mission-card strong {
+    font-size: 16px;
+  }
+  .mission-card p {
+    font-size: 12px;
+  }
+  .mission-card small {
+    font-size: 10px;
+  }
+  .passport-invite {
+    flex-wrap: wrap;
+    padding: 22px;
+    gap: 12px;
+    margin: 38px 0;
+  }
+  .passport-invite > span {
+    font-size: 32px;
+  }
+  .passport-invite div {
+    flex: 1;
+    min-width: 170px;
+  }
+  .passport-invite h2 {
+    font-size: 18px;
+  }
+  .passport-invite a {
+    width: 100%;
+    margin: 9px 0 0;
+    text-align: center;
+  }
+  .pattern-track {
+    gap: 7px;
+  }
+  .pattern-carriage {
+    width: 46px;
+    height: 49px;
+  }
+  .pattern-engine {
+    font-size: 32px;
+  }
+  .pattern-shape {
+    font-size: 29px;
+  }
+  .pattern-number {
+    font-size: 24px;
+  }
+  .pattern-answer small {
+    font-size: 11px;
+  }
+  .memory-grid,
+  .memory-grid.pairs-3 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+  .memory-card {
+    min-height: 125px;
+  }
+  .memory-card.revealed strong {
+    font-size: 11px;
+  }
+  .cargo-actions {
+    gap: 9px;
+  }
+  .cargo-actions button {
+    font-size: 13px;
+  }
+  .clock-answer {
+    font-size: 18px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .world-image,
+  .map-pin,
+  .featured-train,
+  .mission-card,
+  .departing .boarding-pass {
+    transition: none;
+    transform: none !important;
+  }
+}
+.reduced-motion .world-image,
+.reduced-motion .map-pin,
+.reduced-motion .featured-train,
+.reduced-motion .mission-card {
+  transition: none;
+  transform: none !important;
+}

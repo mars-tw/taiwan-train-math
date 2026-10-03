@@ -6,7 +6,14 @@ import {
   saveProgress,
   defaults,
   STORAGE_KEY,
-} from "./engine.js";
+  GAMES,
+  allowedGames,
+  clockLabel,
+  newMemoryState,
+  memoryTurn,
+} from "./engine.js?v=1.1.0";
+import { homeMarkup } from "./home.js?v=1.1.0";
+import { activityScene, patternToken, patternName } from "./activities.js?v=1.1.0";
 
 const main = document.querySelector("#main");
 const esc = (value) =>
@@ -27,6 +34,8 @@ let catalogue,
   search = "",
   selected = "700t",
   practice = "mixed",
+  mood = "golden",
+  departureToken = null,
   audioContext;
 const labels = {
   tra: "台鐵列車",
@@ -37,20 +46,12 @@ const labels = {
   maglev: "磁浮列車",
   heritage: "經典列車",
 };
-const gameLabels = {
-  count: "數數看",
-  identify: "找火車",
-  boarding: "上車下車",
-  order: "排車廂",
-  compare: "比一比",
-};
-const gameIcons = {
-  count: "●",
-  identify: "🚆",
-  boarding: "＋",
-  order: "123",
-  compare: "⇄",
-};
+const gameLabels = Object.fromEntries(
+  Object.entries(GAMES).map(([id, game]) => [id, game.name]),
+);
+const gameIcons = Object.fromEntries(
+  Object.entries(GAMES).map(([id, game]) => [id, game.icon]),
+);
 const byId = (id) => trains.find((t) => t.id === id);
 let storage;
 try {
@@ -74,6 +75,7 @@ function applyPreferences() {
     progress.voice ? "關閉語音" : "開啟語音",
   );
   $("#sound-toggle").setAttribute("aria-pressed", String(progress.voice));
+  if ($("#station-bell")) $("#station-bell").disabled = !progress.effects;
 }
 function speak(text, force = false) {
   if (!("speechSynthesis" in window) || (!progress.voice && !force)) return;
@@ -170,10 +172,65 @@ function renderCards() {
   $("#result-count").textContent = `${list.length} 款列車與名稱`;
 }
 function renderHome() {
-  const t = byId(selected) || trains[0];
-  main.innerHTML = `<section class="hero"><img class="hero-image" src="assets/images/hero.webp" alt="台灣高鐵列車沿山海鐵道行駛的電影風插圖" width="1672" height="941" fetchpriority="high"><div class="hero-shade"></div><div class="hero-content"><div class="eyebrow"><span></span> 給 3–8 歲的小小鐵道迷</div><h1>下一站，<br>一起發現<span>數學！</span></h1><p>坐上喜歡的火車，數一數、排一排。<br>從台灣的山海，出發探索列車世界。</p><a href="#departure" class="primary-btn hero-cta">開始今天的旅程 <span aria-hidden="true">→</span></a><div class="hero-facts"><span>免帳號，自由探索</span><span>答錯也能再試一次</span></div></div><div class="hero-caption">TAIWAN · 700T<span>AI 電影風情境插圖</span></div></section><div class="content-wrap"><section class="departure" id="departure"><div class="section-heading"><div><div class="eyebrow dark">01 / 選擇你的冒險</div><h2>小站長，準備好了嗎？</h2></div><p>每趟 ${LEVELS[progress.level].stops} 個小任務，慢慢來就好。</p></div><div class="levels">${levelButtons()}</div><div class="journey-ticket"><div class="ticket-icon" aria-hidden="true">🎟</div><div class="ticket-info"><small>本次旅程</small><strong id="selected-name">${esc(t.cardLabel)}</strong><span id="selected-level">${LEVELS[progress.level].name} · ${LEVELS[progress.level].label}</span></div><label class="practice-picker"><span>今天想玩</span><select id="practice-select"><option value="mixed">一趟全都玩</option><option value="count">數數看</option><option value="identify">找火車</option>${progress.level !== "small" ? '<option value="boarding">上車下車</option><option value="compare">比一比</option>' : ""}<option value="order">排車廂</option></select></label><button class="primary-btn" id="trip-start">上車，出發！ <span aria-hidden="true">→</span></button></div></section><section class="explore"><div class="section-heading"><div><div class="eyebrow dark">02 / 挑一台喜歡的火車</div><h2>你的下一班列車</h2></div><span id="result-count"></span></div>${filterBar()}<div id="train-grid" class="train-grid"></div></section><section class="learning-strip"><div><span class="learning-symbol">● ● ●</span><strong>看得見的數學</strong><p>點乘客、排車廂，把抽象數字變成小任務。</p></div><div><span class="learning-symbol">🚆</span><strong>聽名字，認列車</strong><p>認識台灣火車，再探訪子彈列車與磁浮列車。</p></div><div><span class="learning-symbol">✦</span><strong>每一次都值得鼓勵</strong><p>沒有倒數、沒有扣分，完成旅程就能集章。</p></div></section></div>`;
-  $("#practice-select").value = practice;
-  renderCards();
+  main.innerHTML = homeMarkup({
+    trains,
+    selected,
+    progress,
+    practice,
+    mood,
+    esc,
+    image,
+    levelButtons,
+  });
+}
+function clearDeparture() {
+  departureToken = null;
+  main.inert = false;
+  main.removeAttribute("aria-busy");
+  document.body.classList.remove("departing");
+}
+function depart() {
+  if (departureToken) return;
+  if (
+    view !== "home" ||
+    progress.reduceMotion ||
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  ) {
+    startTrip();
+    return;
+  }
+  const token = Symbol();
+  departureToken = token;
+  document.body.classList.add("departing");
+  main.inert = true;
+  main.setAttribute("aria-busy", "true");
+  announce("列車準備出發。下一站，發現數學！");
+  setTimeout(() => {
+    if (departureToken === token && view === "home") startTrip();
+  }, 420);
+}
+function chooseMission(id, source) {
+  if (!allowedGames(progress.level).includes(id)) {
+    const message = `${GAMES[id].name}適合 5–8 歲。可以先選「火車助手」或「小小列車長」，再來玩這個任務。`;
+    $("#home-notice").textContent = message;
+    $("#age-note").textContent = message;
+    announce(message);
+    speak(message);
+    const suggested = document.querySelector("[data-level='medium']");
+    suggested?.setAttribute("aria-describedby", "age-note");
+    suggested?.focus();
+    return;
+  }
+  practice = id;
+  if (source === "mission") {
+    depart();
+    return;
+  }
+  renderHome();
+  document.querySelector(`[data-${source}="${id}"]`)?.focus();
+  const message = `已選擇${GAMES[id].name}。搭 ${byId(selected).cardLabel} 出發！`;
+  announce(message);
+  speak(message);
 }
 function renderCollection() {
   main.innerHTML = `<div class="content-wrap catalogue-page"><div class="page-intro"><div class="eyebrow dark">THE TRAIN ENCYCLOPEDIA</div><h1>火車圖鑑</h1><p>每一台列車，都有自己的名字。點圖片選車，點箭頭聽聽它的故事。</p><span class="catalogue-note">台灣列車・林鐵與觀光名稱・海外子彈列車・磁浮試驗列車</span></div>${filterBar()}<div class="collection-toolbar"><span id="result-count"></span><a href="#home" class="text-link">選好了，回去出發 →</a></div><div id="train-grid" class="train-grid"></div><p class="fineprint">插圖呈現列車與風景的情境，部分使用車型家族示意。名稱、型號與來源請見各列車介紹。</p></div>`;
@@ -185,8 +242,9 @@ function renderStamps() {
 }
 function route() {
   cancelVoice();
+  clearDeparture();
   const hash = location.hash.slice(1);
-  if (hash === "departure" && view === "home") {
+  if (hash === "departure" && view === "home" && $("#departure")) {
     return;
   }
   view = ["collection", "stamps"].includes(hash) ? hash : "home";
@@ -198,6 +256,8 @@ function route() {
   else if (view === "stamps") renderStamps();
   else renderHome();
   applyPreferences();
+  if (hash === "departure")
+    $("#departure")?.scrollIntoView({ behavior: "instant" });
 }
 function detail(id) {
   const t = byId(id);
@@ -208,11 +268,13 @@ function detail(id) {
 }
 function settings() {
   cancelVoice();
+  clearDeparture();
   $("#settings-content").innerHTML =
     `<p>按孩子的理解程度選難度，隨時都能更換。</p><div class="settings-levels">${levelButtons()}</div><label class="setting-row"><span><strong>中文語音</strong><small>${"speechSynthesis" in window ? "使用這台裝置的中文語音" : "這台裝置沒有語音服務，仍可使用畫面提示"}</small></span><input type="checkbox" data-pref="voice" ${progress.voice ? "checked" : ""} ${"speechSynthesis" in window ? "" : "disabled"}></label><label class="setting-row"><span><strong>柔和音效</strong><small>完成任務時的小小慶祝</small></span><input type="checkbox" data-pref="effects" ${progress.effects ? "checked" : ""}></label><label class="setting-row"><span><strong>減少動畫</strong><small>讓畫面更加平靜</small></span><input type="checkbox" data-pref="reduceMotion" ${progress.reduceMotion ? "checked" : ""}></label><label class="setting-row"><span><strong>跨十加減挑戰</strong><small>只在 7–8 歲模式啟用</small></span><input type="checkbox" data-pref="challenge" ${progress.challenge ? "checked" : ""}></label><div class="clear-record"><button id="clear-progress" class="danger-btn">清除本機紀錄</button><p>只會清除這台裝置的護照與設定。</p><div id="clear-confirm"></div></div>`;
   $("#settings-dialog").showModal();
 }
 function startTrip() {
+  clearDeparture();
   cancelVoice();
   view = "game";
   const train = byId(selected);
@@ -231,6 +293,9 @@ function startTrip() {
     assisted: false,
     awarded: false,
     order: [],
+    cargo: 0,
+    memory: newMemoryState(),
+    memoryPeek: false,
     counted: new Set(),
     boardingPhase: "before",
     feedback: "",
@@ -256,6 +321,8 @@ function ticketPile(n) {
   return `<div class="ticket-pile">${Array.from({ length: n }, () => '<span class="tiny-ticket" aria-hidden="true">🎟</span>').join("")}</div>`;
 }
 function gameScene(q) {
+  if (["pattern", "cargo", "memory", "clock"].includes(q.game))
+    return activityScene(q, trip, { byId, image, esc });
   if (q.game === "count")
     return `<div class="stage-label">安全月台 · 一位乘客點一次</div>${passengers(q.count, { interactive: true })}<div class="count-status">${trip.counted.size ? `已經點過 ${trip.counted.size} 位乘客` : "點點乘客，一起數一數"}</div>`;
   if (q.game === "identify")
@@ -272,7 +339,7 @@ function gameScene(q) {
   return "";
 }
 function answerMarkup(q) {
-  if (q.game === "order") return "";
+  if (["order", "cargo", "memory"].includes(q.game)) return "";
   return `<div class="answers ${q.game === "identify" ? "picture-answers" : ""}">${q.choices
     .map((value) => {
       const disabled =
@@ -282,13 +349,17 @@ function answerMarkup(q) {
         const t = byId(value);
         return `<button class="answer-card" data-answer="${value}" ${disabled ? "disabled" : ""}>${image(t)}<strong>${esc(t.name)}</strong><small>${esc(t.model)}</small></button>`;
       }
+      if (q.game === "pattern")
+        return `<button class="answer-number pattern-answer" data-answer="${esc(value)}" ${disabled ? "disabled" : ""} aria-label="${patternName(q, value)}">${patternToken(q, value)}<small>${patternName(q, value)}</small></button>`;
       const label =
-        q.game === "compare"
-          ? { left: "左邊", right: "右邊", equal: "一樣多" }[value]
-          : q.level === "small"
-            ? dotCard(value)
-            : value;
-      return `<button class="answer-number" data-answer="${esc(value)}" ${disabled ? "disabled" : ""} aria-label="${q.game === "compare" ? label : `答案 ${value}`}">${label}</button>`;
+        q.game === "clock"
+          ? clockLabel(value)
+          : q.game === "compare"
+            ? { left: "左邊", right: "右邊", equal: "一樣多" }[value]
+            : q.level === "small"
+              ? dotCard(value)
+              : value;
+      return `<button class="answer-number ${q.game === "clock" ? "clock-answer" : ""}" data-answer="${esc(value)}" ${disabled ? "disabled" : ""} aria-label="${["compare", "clock"].includes(q.game) ? label : `答案 ${value}`}">${label}</button>`;
     })
     .join("")}</div>`;
 }
@@ -327,6 +398,7 @@ function hint() {
     trip.counted = new Set(Array.from({ length: q.count }, (_, i) => i));
   if (q.game === "order")
     trip.feedback = `${q.hint} 小提示：${q.answer.join("、")}。`;
+  if (q.game === "memory") trip.memoryPeek = true;
   renderQuestion();
   speak(trip.feedback);
 }
@@ -355,6 +427,9 @@ function next() {
       solved: false,
       assisted: false,
       order: [],
+      cargo: 0,
+      memory: newMemoryState(),
+      memoryPeek: false,
       counted: new Set(),
       boardingPhase: "before",
       feedback: "",
@@ -381,6 +456,12 @@ function finishTrip() {
 }
 document.addEventListener("click", (event) => {
   const nav = event.target.closest('a[href^="#"]');
+  if (nav?.getAttribute("href") === "#main") {
+    event.preventDefault();
+    main.focus();
+    main.scrollIntoView({ behavior: "instant" });
+    return;
+  }
   if (
     nav &&
     ["#home", "#collection", "#stamps"].includes(nav.getAttribute("href")) &&
@@ -396,8 +477,8 @@ document.addEventListener("click", (event) => {
   if (b.dataset.level) {
     progress.level = b.dataset.level;
     if (
-      progress.level === "small" &&
-      ["boarding", "compare"].includes(practice)
+      practice !== "mixed" &&
+      !allowedGames(progress.level).includes(practice)
     )
       practice = "mixed";
     persist();
@@ -405,7 +486,11 @@ document.addEventListener("click", (event) => {
       $("#settings-dialog").close();
       settings();
     }
-    if (view === "home") renderHome();
+    if (view === "home") {
+      renderHome();
+      if (!$("#settings-dialog").open)
+        document.querySelector(`[data-level="${progress.level}"]`)?.focus();
+    }
     return;
   }
   if (b.dataset.filter) {
@@ -420,7 +505,8 @@ document.addEventListener("click", (event) => {
   }
   if (b.dataset.select) {
     selected = b.dataset.select;
-    renderCards();
+    if (view === "home") renderHome();
+    else renderCards();
     const t = byId(selected);
     if ($("#selected-name")) $("#selected-name").textContent = t.cardLabel;
     speak(t.intro);
@@ -446,7 +532,7 @@ document.addEventListener("click", (event) => {
   if (b.dataset.answer !== undefined) {
     const q = trip?.questions[trip.index];
     answer(
-      q && ["count", "boarding"].includes(q.game)
+      q && ["count", "boarding", "clock"].includes(q.game)
         ? Number(b.dataset.answer)
         : b.dataset.answer,
     );
@@ -472,8 +558,65 @@ document.addEventListener("click", (event) => {
     renderQuestion();
     return;
   }
+  if (b.dataset.mood) {
+    mood = b.dataset.mood;
+    renderHome();
+    document.querySelector(`[data-mood="${mood}"]`)?.focus();
+    announce(mood === "blue" ? "換成暮色氣氛。" : "換成暖陽氣氛。");
+    return;
+  }
+  if (b.dataset.destination || b.dataset.mission) {
+    chooseMission(
+      b.dataset.destination || b.dataset.mission,
+      b.dataset.destination ? "destination" : "mission",
+    );
+    return;
+  }
+  const q = trip?.questions[trip.index];
+  if (b.dataset.load !== undefined && q?.game === "cargo" && !trip.solved) {
+    const amount = Number(b.dataset.load);
+    if (trip.cargo + amount <= q.max) trip.cargo += amount;
+    renderQuestion();
+    const loadButton = document.querySelector(`[data-load="${amount}"]`);
+    (loadButton?.disabled ? $("#cargo-submit") : loadButton)?.focus();
+    announce(`已裝 ${trip.cargo} 箱。`);
+    return;
+  }
+  if (b.dataset.unload !== undefined && q?.game === "cargo" && !trip.solved) {
+    trip.cargo = Math.max(0, trip.cargo - 1);
+    renderQuestion();
+    document.querySelector("[data-load='1']")?.focus();
+    announce(`搬回一箱，現在 ${trip.cargo} 箱。`);
+    return;
+  }
+  if (
+    b.dataset.memory !== undefined &&
+    q?.game === "memory" &&
+    !trip.solved &&
+    !trip.memoryPeek
+  ) {
+    const index = Number(b.dataset.memory);
+    const before = trip.memory;
+    trip.memory = memoryTurn(before, index, q.deck);
+    if (before === trip.memory) return;
+    if (trip.memory.matched.length === q.deck.length) answer(q.pairs.length);
+    else {
+      renderQuestion();
+      if (trip.memory.open.length === 2) $("#memory-hide")?.focus();
+      else document.querySelector("[data-memory]:not(:disabled)")?.focus();
+      const t = byId(q.deck[index]);
+      announce(
+        `${t.cardLabel}${trip.memory.matched.length > before.matched.length ? "，找到一對！" : ""}`,
+      );
+      speak(t.cardLabel);
+    }
+    return;
+  }
   switch (b.id) {
     case "trip-start":
+    case "map-depart":
+      depart();
+      break;
     case "trip-again":
       startTrip();
       break;
@@ -500,6 +643,29 @@ document.addEventListener("click", (event) => {
     case "order-reset":
       trip.order = [];
       renderQuestion();
+      break;
+    case "cargo-submit":
+      if (q?.game === "cargo") answer(trip.cargo);
+      break;
+    case "cargo-reset":
+      if (q?.game !== "cargo" || trip.solved) break;
+      trip.cargo = 0;
+      renderQuestion();
+      document.querySelector("[data-load='1']")?.focus();
+      announce("貨物已全部搬回。現在零箱。");
+      break;
+    case "memory-hide":
+      if (q?.game !== "memory" || trip.solved) break;
+      trip.memoryPeek = false;
+      trip.memory = { ...trip.memory, open: [] };
+      renderQuestion();
+      document.querySelector("[data-memory]:not(:disabled)")?.focus();
+      break;
+    case "station-bell":
+      chime();
+      announce(
+        progress.effects ? "叮咚，列車即將進站。" : "進站鈴音效已關閉。",
+      );
       break;
     case "settings-open":
       settings();
@@ -541,7 +707,11 @@ document.addEventListener("input", (event) => {
   }
 });
 document.addEventListener("change", (event) => {
-  if (event.target.id === "practice-select") practice = event.target.value;
+  if (event.target.id === "practice-select") {
+    practice = event.target.value;
+    renderHome();
+    $("#practice-select")?.focus();
+  }
   if (event.target.dataset.pref) {
     progress[event.target.dataset.pref] = event.target.checked;
     persist();

@@ -336,6 +336,18 @@
       "license": "CC-BY-4.0 to the extent applicable",
       "kind": "AI-generated cinematic illustration",
       "prompt": "Create one 16:9 high resolution photorealistic cinematic educational illustration of a preserved Taiwanese mainline steam locomotive inspired by CT270 / CT273, slender black Japanese C57-style 4-6-2 Pacific locomotive, large driving wheels with conventional horizontal side rods, separate black coal and water tender, black round smokebox face, tall slim smokestack, subtle thin steam cloud, smoke deflectors, warm cream passenger coaches trailing behind. Three-quarter front viewpoint showing full engine and tender, safe unobstructed rural Taiwan railway scenery, lush green hills and bright warm morning sun, film still quality, realistic steel textures, child friendly bright and calm. Do not add people, numbers, text, logos, badges, watermarks, signs or imitation operator branding. This is a steam locomotive family illustration, not an engineering reference. Same grounded cinematic lighting and warm colors as previous Taiwan train assets."
+    },
+    {
+      "id": "railway-world-v2",
+      "file": "assets/images/railway-world-v2.webp",
+      "width": 1672,
+      "height": 941,
+      "bytes": 491252,
+      "creator": "mars-tw / OpenAI ImageGen",
+      "created": "2026-10-04",
+      "license": "CC-BY-4.0 to the extent applicable",
+      "kind": "AI-generated cinematic imagined railway park",
+      "prompt": "Use case: photorealistic-natural. Asset type: original wide 16:9 cinematic environment illustration for the immersive homepage of a Taiwan railway maths game for children age 3–8. Create a magnificent, calm, welcoming imagined Taiwan mountain-and-sea railway discovery park, photographed with realistic film production quality, not a cartoon or miniature toy. Elevated panoramic three-quarter viewpoint. Composition for UI: left third is quiet open deep green wooded hills with soft shadow for white title overlay; right two-thirds show four clear walkable learning landmarks arranged around realistic curving railway lines: a warm red-brick clock-tower railway station toward the upper middle, a wooden forest goods depot with neat wooden crates in the lower middle, a teal-roof locomotive roundhouse toward the right middle, and a small coastal platform at the lower right. A recognizable orange and white Taiwan 700T high speed train travels on a distant concrete viaduct behind the park, with believable engineering; a short blue diesel forest train sits beside the wooden depot. Taiwan lush mountains behind, blue sea at far right, golden late-afternoon sunlight, delicate haze, detailed trees and warm architectural textures, elegant cinematic color grading. Broad usable margins; landmarks stay inside frame. This is an imagined educational world, not a map of a real station. Railway tracks separate from pedestrian paths; no people on tracks. No words, signage lettering, numbers, logos, labels, UI, watermarks, fantasy machines, cartoon rendering or oversaturated plastic surfaces."
     }
   ]
 }

@@ -1,0 +1,239 @@
+{
+  "schemaVersion": 1,
+  "locale": "zh-TW",
+  "status": "design_examples",
+  "levels": {
+    "small": {
+      "ageRange": [
+        3,
+        4
+      ],
+      "countRange": [
+        1,
+        5
+      ]
+    },
+    "medium": {
+      "ageRange": [
+        5,
+        6
+      ],
+      "arithmeticRange": [
+        0,
+        10
+      ]
+    },
+    "large": {
+      "ageRange": [
+        7,
+        8
+      ],
+      "arithmeticRange": [
+        0,
+        20
+      ]
+    }
+  },
+  "renderingNotes": [
+    "這是教材設計範例；實際遊戲由 src/engine.js 生成題目。",
+    "小小站長數量答案呈現點數卡。",
+    "辨識題顯示列車圖片、名字與型號。",
+    "排序採點選放置、取回與重排，尚未提供拖曳。",
+    "語音由裝置提供，預設關閉。"
+  ],
+  "questions": [
+    {
+      "id": "identify-small-01",
+      "level": "small",
+      "game": "identify",
+      "prompt": "請找到普悠瑪號。",
+      "choices": [
+        "temu2000",
+        "700t"
+      ],
+      "answer": "temu2000",
+      "hint": "先聽一次名字，再看看兩張列車圖片。"
+    },
+    {
+      "id": "identify-medium-01",
+      "level": "medium",
+      "game": "identify",
+      "prompt": "請找到太魯閣號。",
+      "choices": [
+        "temu1000",
+        "temu2000",
+        "700t"
+      ],
+      "answer": "temu1000",
+      "hint": "打開圖鑑，找太魯閣號的圖片。"
+    },
+    {
+      "id": "identify-large-01",
+      "level": "large",
+      "game": "identify",
+      "prompt": "哪款列車的型號是 EMU900？",
+      "choices": [
+        "emu800",
+        "emu900",
+        "emu3000"
+      ],
+      "answer": "emu900",
+      "hint": "把列車卡上的型號，和題目一起念一次。"
+    },
+    {
+      "id": "count-small-01",
+      "level": "small",
+      "game": "count",
+      "prompt": "月台有幾位乘客？請找到一樣多的點點。",
+      "object": "passenger",
+      "count": 3,
+      "answerDisplay": "dots",
+      "choices": [
+        2,
+        3
+      ],
+      "answer": 3,
+      "hint": "一位乘客點一次：一、二、三。"
+    },
+    {
+      "id": "count-medium-01",
+      "level": "medium",
+      "game": "count",
+      "prompt": "桌上有幾張車票？",
+      "object": "ticket",
+      "count": 7,
+      "answerDisplay": "number_and_dots",
+      "choices": [
+        6,
+        7,
+        8
+      ],
+      "answer": 7,
+      "hint": "把點過的車票亮起來，再從一數到七。"
+    },
+    {
+      "id": "count-large-01",
+      "level": "large",
+      "game": "count",
+      "prompt": "月台共有幾位乘客？",
+      "object": "passenger",
+      "count": 12,
+      "answerDisplay": "number_and_ten_frame",
+      "choices": [
+        11,
+        12,
+        13
+      ],
+      "answer": 12,
+      "hint": "先數一組十人，再數兩人：十加二是十二。"
+    },
+    {
+      "id": "boarding-medium-add-01",
+      "level": "medium",
+      "game": "boarding",
+      "prompt": "車上有 5 人，又上來 2 人，現在有幾人？",
+      "operation": "add",
+      "start": 5,
+      "change": 2,
+      "choices": [
+        6,
+        7,
+        8
+      ],
+      "answer": 7,
+      "hint": "先找原來的五人，再把上車的兩人一起數。"
+    },
+    {
+      "id": "boarding-medium-subtract-01",
+      "level": "medium",
+      "game": "boarding",
+      "prompt": "車上有 8 人，下車 3 人，還有幾人？",
+      "operation": "subtract",
+      "start": 8,
+      "change": 3,
+      "choices": [
+        4,
+        5,
+        6
+      ],
+      "answer": 5,
+      "hint": "讓三人下車，再數留下來的乘客。"
+    },
+    {
+      "id": "boarding-large-add-01",
+      "level": "large",
+      "game": "boarding",
+      "prompt": "車上有 8 人，又上來 5 人，現在有幾人？",
+      "operation": "add",
+      "start": 8,
+      "change": 5,
+      "choices": [
+        12,
+        13,
+        14
+      ],
+      "answer": 13,
+      "optionalChallenge": true,
+      "hint": "先上來兩人湊成十人，再上來三人，十加三是十三。"
+    },
+    {
+      "id": "order-small-01",
+      "level": "small",
+      "game": "order",
+      "prompt": "請把車廂從小到大排好。",
+      "numbers": [
+        3,
+        1,
+        2
+      ],
+      "answer": [
+        1,
+        2,
+        3
+      ],
+      "hint": "先找到一，再找二，最後找三。"
+    },
+    {
+      "id": "order-medium-01",
+      "level": "medium",
+      "game": "order",
+      "prompt": "請把車廂從小到大排好。",
+      "numbers": [
+        5,
+        2,
+        4,
+        1,
+        3
+      ],
+      "answer": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "hint": "從一開始，每次找下一個數字。"
+    },
+    {
+      "id": "order-large-01",
+      "level": "large",
+      "game": "order",
+      "prompt": "請把這五節車廂從小到大排好。",
+      "numbers": [
+        12,
+        9,
+        11,
+        8,
+        10
+      ],
+      "answer": [
+        8,
+        9,
+        10,
+        11,
+        12
+      ],
+      "hint": "先找最小的八，再依序找九、十、十一、十二。"
+    }
+  ]
+}

@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#152d32" />
+    <meta
+      name="description"
+      content="免費的台灣火車兒童遊戲。認識列車、子彈列車與磁浮列車，練習數數和簡單加減。適合 3–8 歲親子同玩。"
+    />
+    <title>小小列車長｜台灣火車數學樂園</title>
+    <link rel="icon" href="assets/icon.svg" type="image/svg+xml" />
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="stylesheet" href="src/styles.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#main">跳到主要內容</a>
+    <header class="site-header">
+      <a class="brand" href="#home" aria-label="小小列車長 首頁"
+        ><span class="brand-icon" aria-hidden="true">🚆</span
+        ><span
+          ><strong>小小列車長</strong
+          ><small>TAIWAN RAILWAY ADVENTURE</small></span
+        ></a
+      >
+      <nav class="main-nav" aria-label="主要導覽">
+        <a href="#home" data-nav="home">出發旅行</a
+        ><a href="#collection" data-nav="collection">火車圖鑑</a
+        ><a href="#stamps" data-nav="stamps">我的集章</a>
+      </nav>
+      <div class="header-actions">
+        <button id="sound-toggle" class="icon-btn" aria-label="開啟語音">
+          ♪</button
+        ><button id="settings-open" class="settings-btn">
+          家長設定 <span aria-hidden="true">⚙</span>
+        </button>
+      </div>
+    </header>
+    <main id="main" tabindex="-1">
+      <div class="loading">列車正在進站……</div>
+    </main>
+    <footer class="site-footer">
+      <span>一起認識火車，也愛上數學。</span
+      ><span>免費開源・免帳號・進度留在這台裝置</span
+      ><button id="about-open">關於與素材來源</button>
+    </footer>
+    <dialog id="settings-dialog" aria-labelledby="settings-title">
+      <form method="dialog" class="dialog-head">
+        <h2 id="settings-title">家長設定</h2>
+        <button class="close-btn" aria-label="關閉設定">×</button>
+      </form>
+      <div id="settings-content"></div>
+    </dialog>
+    <dialog id="detail-dialog" aria-labelledby="detail-title">
+      <div id="detail-content"></div>
+    </dialog>
+    <dialog id="about-dialog" aria-labelledby="about-title">
+      <form method="dialog" class="dialog-head">
+        <h2 id="about-title">給小小鐵道迷的開源禮物</h2>
+        <button class="close-btn" aria-label="關閉介紹">×</button>
+      </form>
+      <p>
+        適合 3–8
+        歲，認識台灣列車與簡單數學。所有列車都可以直接選，答錯後一起再試一次。
+      </p>
+      <p>
+        列車圖像為 AI
+        生成的電影風情境插圖，細節可能與實車不同；名稱與型號另附資料來源。圖鑑區分台灣車型、觀光名稱、海外列車與試驗列車。
+      </p>
+      <p>
+        本遊戲是非官方教育專案。程式採 Apache-2.0 授權，文字及可授權圖像採 CC BY
+        4.0。素材不包含第三方商標權的授予。
+      </p>
+      <p>
+        聲音採裝置中文語音，可自行關閉。紀錄只存在本機；遊戲不設帳號、廣告、付費購買或追蹤程式。
+      </p>
+      <p>
+        <a href="docs/sources-and-licenses.md" target="_blank" rel="noopener"
+          >查看資料來源與授權</a
+        >
+        ·
+        <a href="docs/catalogue-coverage.md" target="_blank" rel="noopener"
+          >查看車型收錄範圍</a
+        >
+      </p>
+      <small>版本 1.0.0・教材整理日期 2026 年 10 月 3 日</small>
+    </dialog>
+    <div
+      id="announcement"
+      class="sr-only"
+      aria-live="polite"
+      aria-atomic="true"
+    ></div>
+    <script type="module" src="src/app.js"></script>
+  </body>
+</html>

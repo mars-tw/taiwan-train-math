@@ -1,0 +1,1094 @@
+{
+  "version": 1,
+  "locale": "zh-Hant-TW",
+  "reviewed": "2026-10-03",
+  "scope": "台鐵主要動力車型、高鐵、阿里山林鐵車號系列與動態保存蒸汽車、觀光列車名稱，以及海外高速與磁浮試驗列車。不是逐輛即時現役車籍。",
+  "trains": [
+    {
+      "id": "700t",
+      "name": "台灣高鐵",
+      "cardLabel": "台灣高鐵 700T",
+      "model": "700T",
+      "category": "thsr",
+      "operator": "台灣高鐵",
+      "modelKind": "type",
+      "image": "assets/images/hero.webp",
+      "imageKind": "direct",
+      "intro": "我是台灣高鐵，型號是 700T。一起看我長長的車頭！",
+      "fact": "700T 是台灣高速鐵路使用的列車型號。",
+      "status": "catalogue",
+      "sources": [
+        "https://www.thsrc.com.tw/ArticleContent/4fe8c81c-d66f-472f-90a7-cac6fb4deba8"
+      ],
+      "tag": "台灣高速列車"
+    },
+    {
+      "id": "emu3000",
+      "name": "新自強號",
+      "cardLabel": "新自強號 EMU3000",
+      "model": "EMU3000",
+      "category": "tra",
+      "operator": "台灣鐵路",
+      "modelKind": "type",
+      "image": "assets/images/emu3000.webp",
+      "imageKind": "direct",
+      "intro": "我是新自強號，型號是 EMU3000。和我一起出發吧。",
+      "fact": "自強號是列車服務名稱，EMU3000 才是這款車的型號。",
+      "status": "catalogue",
+      "sources": [
+        "https://www.railway.gov.tw/tra-tip-web/tip/file/72d6c901-8166-4a32-ab59-7602a45072a9"
+      ]
+    },
+    {
+      "id": "temu1000",
+      "name": "太魯閣號",
+      "cardLabel": "太魯閣號 TEMU1000",
+      "model": "TEMU1000",
+      "category": "tra",
+      "operator": "台灣鐵路",
+      "modelKind": "type",
+      "image": "assets/images/temu1000.webp",
+      "imageKind": "direct",
+      "intro": "我是太魯閣號，型號是 TEMU1000。",
+      "fact": "我是具有傾斜功能的電聯車；彎道上可以調整車身姿態。",
+      "status": "catalogue",
+      "sources": [
+        "https://www.railway.gov.tw/tra-tip-web/tip/file/72d6c901-8166-4a32-ab59-7602a45072a9"
+      ]
+    },
+    {
+      "id": "temu2000",
+      "name": "普悠瑪號",
+      "cardLabel": "普悠瑪號 TEMU2000",
+      "model": "TEMU2000",
+      "category": "tra",
+      "operator": "台灣鐵路",
+      "modelKind": "type",
+      "image": "assets/images/temu2000.webp",
+      "imageKind": "direct",
+      "intro": "我是普悠瑪號，型號是 TEMU2000。",
+      "fact": "普悠瑪號和太魯閣號有不同的型號。",
+      "status": "catalogue",
+      "sources": [
+        "https://www.railway.gov.tw/tra-tip-web/tip/file/72d6c901-8166-4a32-ab59-7602a45072a9"
+      ]
+    },
+    {
+      "id": "e1000",
+      "name": "推拉式自強號",
+      "cardLabel": "推拉式自強號 E1000",
+      "model": "E1000",
+      "category": "tra",
+      "operator": "台灣鐵路",
+      "modelKind": "type",
+      "image": "assets/images/e1000.webp",
+      "imageKind": "direct",
+      "intro": "我是推拉式自強號，由 E1000 型電力機車帶著客車旅行。",
+      "fact": "兩端的電力機車與中間的客車組成一列車。",
+      "status": "catalogue",
+      "sources": [
+        "https://tip.railway.gov.tw/tra-tip-web/tip/file/132f1c83-0a91-4b42-87e1-b6aaa39ba14e"
+      ],
+      "note": "E1000 是兩端動力機車的型號；推拉式自強號是整列車的服務名稱。"
+    },
+    {
+      "id": "emu900",
+      "name": "區間車 EMU900",
+      "cardLabel": "區間車 EMU900",
+      "model": "EMU900",
+      "category": "tra",
+      "operator": "台灣鐵路",
+      "modelKind": "type",
+      "image": "assets/images/emu900.webp",
+      "imageKind": "direct",
+      "intro": "我是 EMU900 型區間車，一起數數月台上的乘客。",
+      "fact": "EMU900 是台鐵的通勤電聯車。",
+      "status": "catalogue",
+      "sources": [
+        "https://www.railway.gov.tw/tra-tip-web/tip/file/72d6c901-8166-4a32-ab59-7602a45072a9"
+      ]
+    },
+    {
+      "id": "emu800",
+      "name": "區間車 EMU800",
+      "cardLabel": "區間車 EMU800",
+      "model": "EMU800",
+      "category": "tra",
+      "operator": "台灣鐵路",
+      "modelKind": "type",
+      "image": "assets/images/emu800.webp",
+      "imageKind": "direct",
+      "intro": "我是 EMU800 型區間車，一起數數月台上的乘客。",
+      "fact": "EMU800 可以擔任區間車，是電聯車家族的一員。",
+      "status": "catalogue",
+      "sources": [
+        "https://www.railway.gov.tw/tra-tip-web/tip/file/72d6c901-8166-4a32-ab59-7602a45072a9"
+      ]
+    },
+    {
+      "id": "emu700",
+      "name": "區間車 EMU700",
+      "cardLabel": "區間車 EMU700",
+      "model": "EMU700",
+      "category": "tra",
+      "operator": "台灣鐵路",
+      "modelKind": "type",
+      "image": "assets/images/emu700.webp",
+      "imageKind": "direct",
+      "intro": "我是 EMU700 型區間車，一起數數月台上的乘客。",
+      "fact": "EMU700 與 EMU800 是不同型號的通勤電聯車。",
+      "status": "catalogue",
+      "sources": [
+        "https://www.railway.gov.tw/tra-tip-web/tip/file/72d6c901-8166-4a32-ab59-7602a45072a9"
+      ]
+    },
+    {
+      "id": "emu600",
+      "name": "區間車 EMU600",
+      "cardLabel": "區間車 EMU600",
+      "model": "EMU600",
+      "category": "tra",
+      "operator": "台灣鐵路",
+      "modelKind": "type",
+      "image": "assets/images/commuter.webp",
+      "imageKind": "family",
+      "intro": "我是 EMU600 型區間車，一起數數月台上的乘客。",
+      "fact": "型號字母與數字可以幫我們區分不同的列車。",
+      "status": "catalogue",
+      "sources": [
+        "https://www.railway.gov.tw/tra-tip-web/tip/file/72d6c901-8166-4a32-ab59-7602a45072a9"
+      ]
+    },
+    {
+      "id": "emu500",
+      "name": "區間車 EMU500",
+      "cardLabel": "區間車 EMU500",
+      "model": "EMU500",
+      "category": "tra",
+      "operator": "台灣鐵路",
+      "modelKind": "type",
+      "image": "assets/images/commuter.webp",
+      "imageKind": "family",
+      "intro": "我是 EMU500 型區間車，一起數數月台上的乘客。",
+      "fact": "EMU500 是通勤電聯車，也有車輛改造成觀光列車。",
+      "status": "catalogue",
+      "sources": [
+        "https://www.railway.gov.tw/tra-tip-web/tip/file/72d6c901-8166-4a32-ab59-7602a45072a9"
+      ]
+    },
+    {
+      "id": "e500",
+      "name": "新電力機車",
+      "cardLabel": "新電力機車 E500",
+      "model": "E500",
+      "category": "tra",
+      "operator": "台灣鐵路",
+      "modelKind": "type",
+      "image": "assets/images/e500.webp",
+      "imageKind": "direct",
+      "intro": "我是 E500 型電力機車，可以牽引列車。",
+      "fact": "電力機車使用電力帶動列車，車頂可以看到集電設備。",
+      "status": "catalogue",
+      "sources": [
+        "https://tip.railway.gov.tw/tra-tip-web/tip/file/844f77bf-da25-43b1-996f-09d24dfcbbf1b"
+      ]
+    },
+    {
+      "id": "e200",
+      "name": "電力機車 E200",
+      "cardLabel": "電力機車 E200",
+      "model": "E200",
+      "category": "tra",
+      "operator": "台灣鐵路",
+      "modelKind": "type",
+      "image": "assets/images/electric-loco.webp",
+      "imageKind": "family",
+      "intro": "我是 E200 型電力機車，和同伴一起工作。",
+      "fact": "車頭的型號數字不同，就像每個家族都有自己的名字。",
+      "status": "catalogue",
+      "sources": [
+        "https://tip.railway.gov.tw/tra-tip-web/tip/file/132f1c83-0a91-4b42-87e1-b6aaa39ba14e"
+      ],
+      "note": "橘色電力機車家族示意；此插圖不適合以外觀細節區分 E200、E300、E400。"
+    },
+    {
+      "id": "e300",
+      "name": "電力機車 E300",
+      "cardLabel": "電力機車 E300",
+      "model": "E300",
+      "category": "tra",
+      "operator": "台灣鐵路",
+      "modelKind": "type",
+      "image": "assets/images/electric-loco.webp",
+      "imageKind": "family",
+      "intro": "我是 E300 型電力機車，和同伴一起工作。",
+      "fact": "車頭的型號數字不同，就像每個家族都有自己的名字。",
+      "status": "catalogue",
+      "sources": [
+        "https://tip.railway.gov.tw/tra-tip-web/tip/file/132f1c83-0a91-4b42-87e1-b6aaa39ba14e"
+      ],
+      "note": "橘色電力機車家族示意；此插圖不適合以外觀細節區分 E200、E300、E400。"
+    },
+    {
+      "id": "e400",
+      "name": "電力機車 E400",
+      "cardLabel": "電力機車 E400",
+      "model": "E400",
+      "category": "tra",
+      "operator": "台灣鐵路",
+      "modelKind": "type",
+      "image": "assets/images/electric-loco.webp",
+      "imageKind": "family",
+      "intro": "我是 E400 型電力機車，和同伴一起工作。",
+      "fact": "車頭的型號數字不同，就像每個家族都有自己的名字。",
+      "status": "catalogue",
+      "sources": [
+        "https://tip.railway.gov.tw/tra-tip-web/tip/file/132f1c83-0a91-4b42-87e1-b6aaa39ba14e"
+      ],
+      "note": "橘色電力機車家族示意；此插圖不適合以外觀細節區分 E200、E300、E400。"
+    },
+    {
+      "id": "r200",
+      "name": "新柴電機車",
+      "cardLabel": "新柴電機車 R200",
+      "model": "R200",
+      "category": "tra",
+      "operator": "台灣鐵路",
+      "modelKind": "type",
+      "image": "assets/images/r200.webp",
+      "imageKind": "direct",
+      "intro": "我是 R200 型柴電機車，可以帶著客車或貨車前進。",
+      "fact": "柴電機車以柴油引擎發電，再用電動機帶動車輪。",
+      "status": "catalogue",
+      "sources": [
+        "https://www.railway.gov.tw/tra-tip-web/tip/file/72d6c901-8166-4a32-ab59-7602a45072a9"
+      ]
+    },
+    {
+      "id": "r20",
+      "name": "柴電機車 R20",
+      "cardLabel": "柴電機車 R20",
+      "model": "R20",
+      "category": "tra",
+      "operator": "台灣鐵路",
+      "modelKind": "type",
+      "image": "assets/images/classic-loco.webp",
+      "imageKind": "family",
+      "intro": "我是 R20 型柴電機車，來認識我的名字吧。",
+      "fact": "機車頭可以牽引沒有自己動力的車廂。",
+      "status": "catalogue",
+      "sources": [
+        "https://tip.railway.gov.tw/tra-tip-web/tip/file/132f1c83-0a91-4b42-87e1-b6aaa39ba14e",
+        "https://www.railway.gov.tw/tra-tip-web/tip/file/07a4cc44-6212-477f-8cc5-58df97dbb05c"
+      ],
+      "tag": "既有車型",
+      "note": "橘色柴電機車家族示意。收錄型號；個別車輛可能調度、停用或除役，並非即時現役車籍。"
+    },
+    {
+      "id": "r100",
+      "name": "柴電機車 R100",
+      "cardLabel": "柴電機車 R100",
+      "model": "R100",
+      "category": "tra",
+      "operator": "台灣鐵路",
+      "modelKind": "type",
+      "image": "assets/images/classic-loco.webp",
+      "imageKind": "family",
+      "intro": "我是 R100 型柴電機車，來認識我的名字吧。",
+      "fact": "機車頭可以牽引沒有自己動力的車廂。",
+      "status": "catalogue",
+      "sources": [
+        "https://tip.railway.gov.tw/tra-tip-web/tip/file/132f1c83-0a91-4b42-87e1-b6aaa39ba14e",
+        "https://www.railway.gov.tw/tra-tip-web/tip/file/07a4cc44-6212-477f-8cc5-58df97dbb05c"
+      ],
+      "tag": "既有車型",
+      "note": "橘色柴電機車家族示意。收錄型號；個別車輛可能調度、停用或除役，並非即時現役車籍。"
+    },
+    {
+      "id": "r150",
+      "name": "柴電機車 R150",
+      "cardLabel": "柴電機車 R150",
+      "model": "R150",
+      "category": "tra",
+      "operator": "台灣鐵路",
+      "modelKind": "type",
+      "image": "assets/images/classic-loco.webp",
+      "imageKind": "family",
+      "intro": "我是 R150 型柴電機車，來認識我的名字吧。",
+      "fact": "機車頭可以牽引沒有自己動力的車廂。",
+      "status": "catalogue",
+      "sources": [
+        "https://tip.railway.gov.tw/tra-tip-web/tip/file/132f1c83-0a91-4b42-87e1-b6aaa39ba14e",
+        "https://www.railway.gov.tw/tra-tip-web/tip/file/07a4cc44-6212-477f-8cc5-58df97dbb05c"
+      ],
+      "tag": "既有車型",
+      "note": "橘色柴電機車家族示意。收錄型號；個別車輛可能調度、停用或除役，並非即時現役車籍。"
+    },
+    {
+      "id": "r180",
+      "name": "柴電機車 R180",
+      "cardLabel": "柴電機車 R180",
+      "model": "R180",
+      "category": "tra",
+      "operator": "台灣鐵路",
+      "modelKind": "type",
+      "image": "assets/images/classic-loco.webp",
+      "imageKind": "family",
+      "intro": "我是 R180 型柴電機車，來認識我的名字吧。",
+      "fact": "機車頭可以牽引沒有自己動力的車廂。",
+      "status": "catalogue",
+      "sources": [
+        "https://tip.railway.gov.tw/tra-tip-web/tip/file/132f1c83-0a91-4b42-87e1-b6aaa39ba14e",
+        "https://www.railway.gov.tw/tra-tip-web/tip/file/07a4cc44-6212-477f-8cc5-58df97dbb05c"
+      ],
+      "tag": "既有車型",
+      "note": "橘色柴電機車家族示意。收錄型號；個別車輛可能調度、停用或除役，並非即時現役車籍。"
+    },
+    {
+      "id": "r190",
+      "name": "柴電機車 R190",
+      "cardLabel": "柴電機車 R190",
+      "model": "R190",
+      "category": "tra",
+      "operator": "台灣鐵路",
+      "modelKind": "type",
+      "image": "assets/images/classic-loco.webp",
+      "imageKind": "family",
+      "intro": "我是 R190 型柴電機車，來認識我的名字吧。",
+      "fact": "機車頭可以牽引沒有自己動力的車廂。",
+      "status": "catalogue",
+      "sources": [
+        "https://tip.railway.gov.tw/tra-tip-web/tip/file/132f1c83-0a91-4b42-87e1-b6aaa39ba14e",
+        "https://www.railway.gov.tw/tra-tip-web/tip/file/07a4cc44-6212-477f-8cc5-58df97dbb05c"
+      ],
+      "tag": "既有車型",
+      "note": "橘色柴電機車家族示意。收錄型號；個別車輛可能調度、停用或除役，並非即時現役車籍。"
+    },
+    {
+      "id": "dr1000",
+      "name": "支線柴油客車",
+      "cardLabel": "支線柴油客車 DR1000",
+      "model": "DR1000",
+      "category": "tra",
+      "operator": "台灣鐵路",
+      "modelKind": "type",
+      "image": "assets/images/diesel-railcar.webp",
+      "imageKind": "direct",
+      "intro": "我是 DR1000 型柴油客車，和我一起看看支線風景。",
+      "fact": "柴油客車可以在沒有架空電車線的鐵道行駛。",
+      "status": "catalogue",
+      "sources": [
+        "https://www.railway.gov.tw/tra-tip-web/tip/file/1bdbac06-508d-4249-a400-7ca1d610381f"
+      ]
+    },
+    {
+      "id": "drc1000",
+      "name": "柴油客車",
+      "cardLabel": "柴油客車 DRC1000",
+      "model": "DRC1000",
+      "category": "tra",
+      "operator": "台灣鐵路",
+      "modelKind": "type",
+      "image": "assets/images/diesel-railcar.webp",
+      "imageKind": "family",
+      "intro": "我是 DRC1000 型柴油客車，記得名字裡多了一個 C。",
+      "fact": "DR1000 和 DRC1000 是不同的型號名稱。",
+      "status": "catalogue",
+      "sources": [
+        "https://www.railway.gov.tw/tra-tip-web/tip/file/1bdbac06-508d-4249-a400-7ca1d610381f"
+      ]
+    },
+    {
+      "id": "dr3100",
+      "name": "柴油自強號",
+      "cardLabel": "柴油自強號 DR3100",
+      "model": "DR3100",
+      "category": "tra",
+      "operator": "台灣鐵路",
+      "modelKind": "type",
+      "image": "assets/images/dr3100.webp",
+      "imageKind": "direct",
+      "intro": "我是 DR3100 型柴油自強號。",
+      "fact": "柴油自強號與電聯車自強號使用不同的動力系統。",
+      "status": "catalogue",
+      "sources": [
+        "https://www.railway.gov.tw/tra-tip-web/tip/file/1bdbac06-508d-4249-a400-7ca1d610381f"
+      ]
+    },
+    {
+      "id": "dhl100",
+      "name": "柴液調車機車",
+      "cardLabel": "柴液調車機車 DHL100",
+      "model": "DHL100",
+      "category": "tra",
+      "operator": "台灣鐵路",
+      "modelKind": "type",
+      "image": "assets/images/switcher.webp",
+      "imageKind": "family",
+      "intro": "我是 DHL100 型調車機車，幫忙整理車廂。",
+      "fact": "調車是把車輛移動到需要的位置，像把車廂排成隊伍。",
+      "status": "catalogue",
+      "sources": [
+        "https://www.railway.gov.tw/tra-tip-web/tip/file/72d6c901-8166-4a32-ab59-7602a45072a9"
+      ],
+      "note": "調車機車家族示意；不是一般載客列車。"
+    },
+    {
+      "id": "dl2500",
+      "name": "車輛調動機",
+      "cardLabel": "車輛調動機 DL2500",
+      "model": "DL2500",
+      "category": "tra",
+      "operator": "台灣鐵路",
+      "modelKind": "type",
+      "image": "assets/images/switcher.webp",
+      "imageKind": "family",
+      "intro": "我是 DL2500 車輛調動機，可以幫忙移動車輛。",
+      "fact": "車輛調動機是鐵道工作的幫手。",
+      "status": "catalogue",
+      "sources": [
+        "https://www.rb.gov.tw/public/upimgs/A00/111/臺鐵110年7月28日九曲堂側線出軌事故專案調查報告.pdf"
+      ],
+      "note": "作業車家族示意；收錄車型名稱，不提供工作程序。"
+    },
+    {
+      "id": "forest-dl25-30",
+      "name": "阿里山柴油機車 DL25–30",
+      "cardLabel": "阿里山柴油機車 DL25–30",
+      "model": "DL25–30",
+      "category": "forest",
+      "operator": "阿里山林業鐵路",
+      "modelKind": "fleet",
+      "image": "assets/images/alishan.webp",
+      "imageKind": "family",
+      "intro": "我是阿里山森林鐵路的 DL25–30 柴油機車。",
+      "fact": "林鐵有不同車號系列的柴油機車，沿著山林鐵道旅行。",
+      "status": "catalogue",
+      "sources": [
+        "https://afrch.forest.gov.tw/0000106"
+      ],
+      "tag": "林鐵柴油機車",
+      "note": "這是官方車輛表的車號或車號系列，不是單一製造商型號。圖為林鐵柴油機車家族示意。"
+    },
+    {
+      "id": "forest-dl31-34",
+      "name": "阿里山柴油機車 DL31–34",
+      "cardLabel": "阿里山柴油機車 DL31–34",
+      "model": "DL31–34",
+      "category": "forest",
+      "operator": "阿里山林業鐵路",
+      "modelKind": "fleet",
+      "image": "assets/images/alishan.webp",
+      "imageKind": "family",
+      "intro": "我是阿里山森林鐵路的 DL31–34 柴油機車。",
+      "fact": "林鐵有不同車號系列的柴油機車，沿著山林鐵道旅行。",
+      "status": "catalogue",
+      "sources": [
+        "https://afrch.forest.gov.tw/0000106"
+      ],
+      "tag": "林鐵柴油機車",
+      "note": "這是官方車輛表的車號或車號系列，不是單一製造商型號。圖為林鐵柴油機車家族示意。"
+    },
+    {
+      "id": "forest-dl38",
+      "name": "阿里山柴油機車 DL38",
+      "cardLabel": "阿里山柴油機車 DL38",
+      "model": "DL38",
+      "category": "forest",
+      "operator": "阿里山林業鐵路",
+      "modelKind": "fleet",
+      "image": "assets/images/alishan.webp",
+      "imageKind": "family",
+      "intro": "我是阿里山森林鐵路的 DL38 柴油機車。",
+      "fact": "林鐵有不同車號系列的柴油機車，沿著山林鐵道旅行。",
+      "status": "catalogue",
+      "sources": [
+        "https://afrch.forest.gov.tw/0000106"
+      ],
+      "tag": "林鐵柴油機車",
+      "note": "這是官方車輛表的車號或車號系列，不是單一製造商型號。圖為林鐵柴油機車家族示意。"
+    },
+    {
+      "id": "forest-dl39-43",
+      "name": "阿里山柴油機車 DL39–43",
+      "cardLabel": "阿里山柴油機車 DL39–43",
+      "model": "DL39–43",
+      "category": "forest",
+      "operator": "阿里山林業鐵路",
+      "modelKind": "fleet",
+      "image": "assets/images/alishan.webp",
+      "imageKind": "family",
+      "intro": "我是阿里山森林鐵路的 DL39–43 柴油機車。",
+      "fact": "林鐵有不同車號系列的柴油機車，沿著山林鐵道旅行。",
+      "status": "catalogue",
+      "sources": [
+        "https://afrch.forest.gov.tw/0000106"
+      ],
+      "tag": "林鐵柴油機車",
+      "note": "這是官方車輛表的車號或車號系列，不是單一製造商型號。圖為林鐵柴油機車家族示意。"
+    },
+    {
+      "id": "forest-dl45-51",
+      "name": "阿里山柴油機車 DL45–51",
+      "cardLabel": "阿里山柴油機車 DL45–51",
+      "model": "DL45–51",
+      "category": "forest",
+      "operator": "阿里山林業鐵路",
+      "modelKind": "fleet",
+      "image": "assets/images/alishan.webp",
+      "imageKind": "family",
+      "intro": "我是阿里山森林鐵路的 DL45–51 柴油機車。",
+      "fact": "林鐵有不同車號系列的柴油機車，沿著山林鐵道旅行。",
+      "status": "catalogue",
+      "sources": [
+        "https://afrch.forest.gov.tw/0000106"
+      ],
+      "tag": "林鐵柴油機車",
+      "note": "這是官方車輛表的車號或車號系列，不是單一製造商型號。圖為林鐵柴油機車家族示意。"
+    },
+    {
+      "id": "shay-21",
+      "name": "夏依式蒸汽機車 SL-21",
+      "cardLabel": "夏依式蒸汽機車 SL-21",
+      "model": "SL-21",
+      "category": "forest",
+      "operator": "阿里山林業鐵路",
+      "modelKind": "fleet",
+      "image": "assets/images/shay.webp",
+      "imageKind": "family",
+      "intro": "我是夏依式蒸汽機車，車號是 21。",
+      "fact": "夏依式機車使用齒輪傳動，是阿里山森林鐵路的重要特色。",
+      "status": "catalogue",
+      "sources": [
+        "https://afrch.forest.gov.tw/0000108",
+        "https://afrch.forest.gov.tw/0000107"
+      ],
+      "tag": "林鐵動態保存",
+      "note": "官方車輛表列為動態運轉。活動與開行另依公告，並非每天的定期班車。"
+    },
+    {
+      "id": "shay-25",
+      "name": "夏依式蒸汽機車 SL-25",
+      "cardLabel": "夏依式蒸汽機車 SL-25",
+      "model": "SL-25",
+      "category": "forest",
+      "operator": "阿里山林業鐵路",
+      "modelKind": "fleet",
+      "image": "assets/images/shay.webp",
+      "imageKind": "family",
+      "intro": "我是夏依式蒸汽機車，車號是 25。",
+      "fact": "夏依式機車使用齒輪傳動，是阿里山森林鐵路的重要特色。",
+      "status": "catalogue",
+      "sources": [
+        "https://afrch.forest.gov.tw/0000108",
+        "https://afrch.forest.gov.tw/0000107"
+      ],
+      "tag": "林鐵動態保存",
+      "note": "官方車輛表列為動態運轉。活動與開行另依公告，並非每天的定期班車。"
+    },
+    {
+      "id": "shay-26",
+      "name": "夏依式蒸汽機車 SL-26",
+      "cardLabel": "夏依式蒸汽機車 SL-26",
+      "model": "SL-26",
+      "category": "forest",
+      "operator": "阿里山林業鐵路",
+      "modelKind": "fleet",
+      "image": "assets/images/shay.webp",
+      "imageKind": "family",
+      "intro": "我是夏依式蒸汽機車，車號是 26。",
+      "fact": "夏依式機車使用齒輪傳動，是阿里山森林鐵路的重要特色。",
+      "status": "catalogue",
+      "sources": [
+        "https://afrch.forest.gov.tw/0000108",
+        "https://afrch.forest.gov.tw/0000107"
+      ],
+      "tag": "林鐵動態保存",
+      "note": "官方車輛表列為動態運轉。活動與開行另依公告，並非每天的定期班車。"
+    },
+    {
+      "id": "shay-31",
+      "name": "夏依式蒸汽機車 SL-31",
+      "cardLabel": "夏依式蒸汽機車 SL-31",
+      "model": "SL-31",
+      "category": "forest",
+      "operator": "阿里山林業鐵路",
+      "modelKind": "fleet",
+      "image": "assets/images/shay.webp",
+      "imageKind": "family",
+      "intro": "我是夏依式蒸汽機車，車號是 31。",
+      "fact": "夏依式機車使用齒輪傳動，是阿里山森林鐵路的重要特色。",
+      "status": "catalogue",
+      "sources": [
+        "https://afrch.forest.gov.tw/0000108",
+        "https://afrch.forest.gov.tw/0000107"
+      ],
+      "tag": "林鐵動態保存",
+      "note": "官方車輛表列為動態運轉。活動與開行另依公告，並非每天的定期班車。"
+    },
+    {
+      "id": "breezy-blue",
+      "name": "藍皮解憂號",
+      "cardLabel": "藍皮解憂號 觀光列車名稱",
+      "model": "觀光列車名稱",
+      "category": "tourism",
+      "operator": "台灣觀光鐵道",
+      "modelKind": "name",
+      "image": "assets/images/tourism-blue.webp",
+      "imageKind": "family",
+      "intro": "我是藍皮解憂號。藍色客車帶大家看看台灣南方的風景。",
+      "fact": "列車名稱和車輛型號是不同的資料。可以先記名字，再了解車廂。",
+      "status": "catalogue",
+      "sources": [
+        "https://tip.railway.gov.tw/tra-tip-web/tip/tip00N/tipN01/journey/index?lang=zh_TW"
+      ],
+      "note": "觀光列車或機車牽引客車的家族情境示意，非特定塗裝、授權品牌或實車照片。"
+    },
+    {
+      "id": "future-express",
+      "name": "鳴日號",
+      "cardLabel": "鳴日號 觀光列車名稱",
+      "model": "觀光列車名稱",
+      "category": "tourism",
+      "operator": "台灣觀光鐵道",
+      "modelKind": "name",
+      "image": "assets/images/tourism-black.webp",
+      "imageKind": "family",
+      "intro": "我是鳴日號。鳴日號是台灣的觀光列車名稱。",
+      "fact": "列車名稱和車輛型號是不同的資料。可以先記名字，再了解車廂。",
+      "status": "catalogue",
+      "sources": [
+        "https://tip.railway.gov.tw/tra-tip-web/tip/tip00N/tipN01/journey/index?lang=zh_TW"
+      ],
+      "note": "觀光列車或機車牽引客車的家族情境示意，非特定塗裝、授權品牌或實車照片。"
+    },
+    {
+      "id": "future-kitchen",
+      "name": "鳴日廚房",
+      "cardLabel": "鳴日廚房 觀光列車名稱",
+      "model": "觀光列車名稱",
+      "category": "tourism",
+      "operator": "台灣觀光鐵道",
+      "modelKind": "name",
+      "image": "assets/images/tourism-black.webp",
+      "imageKind": "family",
+      "intro": "我是鳴日廚房。鳴日廚房把用餐體驗和鐵道旅行放在一起。",
+      "fact": "列車名稱和車輛型號是不同的資料。可以先記名字，再了解車廂。",
+      "status": "catalogue",
+      "sources": [
+        "https://tip.railway.gov.tw/tra-tip-web/tip/tip00N/tipN01/journey/index?lang=zh_TW"
+      ],
+      "note": "觀光列車或機車牽引客車的家族情境示意，非特定塗裝、授權品牌或實車照片。"
+    },
+    {
+      "id": "island-star",
+      "name": "環島之星",
+      "cardLabel": "環島之星 機車牽引的觀光客車",
+      "model": "機車牽引的觀光客車",
+      "category": "tourism",
+      "operator": "台灣觀光鐵道",
+      "modelKind": "name",
+      "image": "assets/images/tourism-black.webp",
+      "imageKind": "family",
+      "intro": "我是環島之星。環島之星是一個觀光列車名稱，可以帶大家探索台灣。",
+      "fact": "列車名稱和車輛型號是不同的資料。可以先記名字，再了解車廂。",
+      "status": "catalogue",
+      "sources": [
+        "https://tip.railway.gov.tw/tra-tip-web/tip/tip00N/tipN01/journey/index?lang=zh_TW"
+      ],
+      "note": "觀光列車或機車牽引客車的家族情境示意，非特定塗裝、授權品牌或實車照片。"
+    },
+    {
+      "id": "sea-breeze",
+      "name": "海風號",
+      "cardLabel": "海風號 EMU500 改造觀光列車",
+      "model": "EMU500 改造觀光列車",
+      "category": "tourism",
+      "operator": "台灣觀光鐵道",
+      "modelKind": "name",
+      "image": "assets/images/tourism-green.webp",
+      "imageKind": "family",
+      "intro": "我是海風號。海風號是由通勤電聯車改造成的觀光列車。",
+      "fact": "列車名稱和車輛型號是不同的資料。可以先記名字，再了解車廂。",
+      "status": "catalogue",
+      "sources": [
+        "https://tip.railway.gov.tw/tra-tip-web/tip/tip00N/tipN01/public/index/005?lang=zh_TW"
+      ],
+      "note": "觀光列車或機車牽引客車的家族情境示意，非特定塗裝、授權品牌或實車照片。"
+    },
+    {
+      "id": "mountain-mist",
+      "name": "山嵐號",
+      "cardLabel": "山嵐號 EMU500 改造觀光列車",
+      "model": "EMU500 改造觀光列車",
+      "category": "tourism",
+      "operator": "台灣觀光鐵道",
+      "modelKind": "name",
+      "image": "assets/images/tourism-green.webp",
+      "imageKind": "family",
+      "intro": "我是山嵐號。山嵐號的名字，讓人想到山裡的霧氣。",
+      "fact": "列車名稱和車輛型號是不同的資料。可以先記名字，再了解車廂。",
+      "status": "catalogue",
+      "sources": [
+        "https://tip.railway.gov.tw/tra-tip-web/tip/tip00N/tipN01/public/index/006?lang=zh_TW"
+      ],
+      "note": "觀光列車或機車牽引客車的家族情境示意，非特定塗裝、授權品牌或實車照片。"
+    },
+    {
+      "id": "formosensis",
+      "name": "福森號",
+      "cardLabel": "福森號 林鐵觀光列車名稱",
+      "model": "林鐵觀光列車名稱",
+      "category": "tourism",
+      "operator": "台灣觀光鐵道",
+      "modelKind": "name",
+      "image": "assets/images/tourism-forest.webp",
+      "imageKind": "family",
+      "intro": "我是福森號。福森號帶大家認識阿里山森林鐵路。",
+      "fact": "列車名稱和車輛型號是不同的資料。可以先記名字，再了解車廂。",
+      "status": "catalogue",
+      "sources": [
+        "https://afrch.forest.gov.tw/0000642"
+      ],
+      "note": "觀光列車或機車牽引客車的家族情境示意，非特定塗裝、授權品牌或實車照片。"
+    },
+    {
+      "id": "vivid-express",
+      "name": "栩悅號",
+      "cardLabel": "栩悅號 林鐵觀光列車名稱",
+      "model": "林鐵觀光列車名稱",
+      "category": "tourism",
+      "operator": "台灣觀光鐵道",
+      "modelKind": "name",
+      "image": "assets/images/tourism-forest.webp",
+      "imageKind": "family",
+      "intro": "我是栩悅號。栩悅號是阿里山森林鐵路的觀光列車名稱。",
+      "fact": "列車名稱和車輛型號是不同的資料。可以先記名字，再了解車廂。",
+      "status": "catalogue",
+      "sources": [
+        "https://afrch.forest.gov.tw/0000642"
+      ],
+      "note": "觀光列車或機車牽引客車的家族情境示意，非特定塗裝、授權品牌或實車照片。"
+    },
+    {
+      "id": "cypress-coach",
+      "name": "檜木列車",
+      "cardLabel": "檜木列車 檜木客車編組名稱",
+      "model": "檜木客車編組名稱",
+      "category": "tourism",
+      "operator": "台灣觀光鐵道",
+      "modelKind": "name",
+      "image": "assets/images/tourism-forest.webp",
+      "imageKind": "family",
+      "intro": "我是檜木列車。檜木列車的客車呈現木材的溫暖風格。",
+      "fact": "列車名稱和車輛型號是不同的資料。可以先記名字，再了解車廂。",
+      "status": "catalogue",
+      "sources": [
+        "https://afrch.forest.gov.tw/0000642"
+      ],
+      "note": "觀光列車或機車牽引客車的家族情境示意，非特定塗裝、授權品牌或實車照片。"
+    },
+    {
+      "id": "juguang",
+      "name": "莒光號",
+      "cardLabel": "莒光號 機車牽引客車的列車名稱",
+      "model": "機車牽引客車的列車名稱",
+      "category": "tourism",
+      "operator": "台灣觀光鐵道",
+      "modelKind": "name",
+      "image": "assets/images/classic-loco.webp",
+      "imageKind": "family",
+      "intro": "我是莒光號。莒光號是台鐵的列車服務名稱。",
+      "fact": "列車名稱和車輛型號是不同的資料。可以先記名字，再了解車廂。",
+      "status": "catalogue",
+      "sources": [
+        "https://tip.railway.gov.tw/tra-tip-web/tip/tip00N/tipN01/journey/index?lang=zh_TW"
+      ],
+      "note": "觀光列車或機車牽引客車的家族情境示意，非特定塗裝、授權品牌或實車照片。"
+    },
+    {
+      "id": "xihu",
+      "name": "溪湖五分車",
+      "cardLabel": "溪湖五分車 糖鐵觀光列車名稱",
+      "model": "糖鐵觀光列車名稱",
+      "category": "tourism",
+      "operator": "台灣糖業",
+      "modelKind": "name",
+      "image": "assets/images/sugar.webp",
+      "imageKind": "family",
+      "intro": "我是溪湖五分車，一起認識台灣糖業鐵道。",
+      "fact": "五分車的鐵道比一般幹線窄，也保存了糖業鐵道的故事。",
+      "status": "catalogue",
+      "sources": [
+        "https://www.taisugar.com.tw/CSR/CP2.aspx?n=13286"
+      ],
+      "tag": "糖鐵觀光列車",
+      "note": "五分車家族情境示意，不代表各園區的特定機車型號與塗裝。"
+    },
+    {
+      "id": "suantou",
+      "name": "蒜頭五分車・尋蜜號",
+      "cardLabel": "蒜頭五分車・尋蜜號 糖鐵觀光列車名稱",
+      "model": "糖鐵觀光列車名稱",
+      "category": "tourism",
+      "operator": "台灣糖業",
+      "modelKind": "name",
+      "image": "assets/images/sugar.webp",
+      "imageKind": "family",
+      "intro": "我是蒜頭五分車・尋蜜號，一起認識台灣糖業鐵道。",
+      "fact": "五分車的鐵道比一般幹線窄，也保存了糖業鐵道的故事。",
+      "status": "catalogue",
+      "sources": [
+        "https://www.taisugar.com.tw/CSR/CP2.aspx?n=13286"
+      ],
+      "tag": "糖鐵觀光列車",
+      "note": "五分車家族情境示意，不代表各園區的特定機車型號與塗裝。"
+    },
+    {
+      "id": "wushulin",
+      "name": "烏樹林五分車",
+      "cardLabel": "烏樹林五分車 糖鐵觀光列車名稱",
+      "model": "糖鐵觀光列車名稱",
+      "category": "tourism",
+      "operator": "台灣糖業",
+      "modelKind": "name",
+      "image": "assets/images/sugar.webp",
+      "imageKind": "family",
+      "intro": "我是烏樹林五分車，一起認識台灣糖業鐵道。",
+      "fact": "五分車的鐵道比一般幹線窄，也保存了糖業鐵道的故事。",
+      "status": "catalogue",
+      "sources": [
+        "https://www.taisugar.com.tw/CSR/CP2.aspx?n=13286"
+      ],
+      "tag": "糖鐵觀光列車",
+      "note": "五分車家族情境示意，不代表各園區的特定機車型號與塗裝。"
+    },
+    {
+      "id": "xinying",
+      "name": "新營五分車",
+      "cardLabel": "新營五分車 糖鐵觀光列車名稱",
+      "model": "糖鐵觀光列車名稱",
+      "category": "tourism",
+      "operator": "台灣糖業",
+      "modelKind": "name",
+      "image": "assets/images/sugar.webp",
+      "imageKind": "family",
+      "intro": "我是新營五分車，一起認識台灣糖業鐵道。",
+      "fact": "五分車的鐵道比一般幹線窄，也保存了糖業鐵道的故事。",
+      "status": "catalogue",
+      "sources": [
+        "https://www.taisugar.com.tw/CSR/CP2.aspx?n=13286"
+      ],
+      "tag": "糖鐵觀光列車",
+      "note": "五分車家族情境示意，不代表各園區的特定機車型號與塗裝。"
+    },
+    {
+      "id": "qiaotou",
+      "name": "橋頭五分車",
+      "cardLabel": "橋頭五分車 糖鐵觀光列車名稱",
+      "model": "糖鐵觀光列車名稱",
+      "category": "tourism",
+      "operator": "台灣糖業",
+      "modelKind": "name",
+      "image": "assets/images/sugar.webp",
+      "imageKind": "family",
+      "intro": "我是橋頭五分車，一起認識台灣糖業鐵道。",
+      "fact": "五分車的鐵道比一般幹線窄，也保存了糖業鐵道的故事。",
+      "status": "catalogue",
+      "sources": [
+        "https://www.taisugar.com.tw/CSR/CP2.aspx?n=13286"
+      ],
+      "tag": "糖鐵觀光列車",
+      "note": "五分車家族情境示意，不代表各園區的特定機車型號與塗裝。"
+    },
+    {
+      "id": "sugar-346",
+      "name": "溪湖蒸汽火車",
+      "cardLabel": "溪湖蒸汽火車 346 號",
+      "model": "346 號",
+      "category": "tourism",
+      "operator": "台灣糖業",
+      "modelKind": "fleet",
+      "image": "assets/images/sugar-steam.webp",
+      "imageKind": "direct",
+      "intro": "我是溪湖糖廠的 346 號蒸汽火車。",
+      "fact": "蒸汽機車利用蒸汽帶動車輪，是糖鐵文化的珍貴保存。",
+      "status": "catalogue",
+      "sources": [
+        "https://www.taisugar.com.tw/ZOB/Attractions_detail.aspx?n=11582&s=140"
+      ],
+      "tag": "糖鐵動態保存",
+      "note": "電影風情境插圖；實際開行依園區公告。"
+    },
+    {
+      "id": "e5",
+      "name": "日本子彈列車",
+      "cardLabel": "日本子彈列車 E5",
+      "model": "E5",
+      "category": "bullet",
+      "operator": "日本 JR 東日本",
+      "modelKind": "type",
+      "image": "assets/images/e5.webp",
+      "imageKind": "direct",
+      "intro": "我是日本新幹線的 E5 子彈列車，有長長的車頭。",
+      "fact": "子彈列車是高速列車的俗稱。E5 是日本新幹線的一款型號。",
+      "status": "catalogue",
+      "sources": [
+        "https://www.jreast.co.jp/multi/routemaps/tohokushinkansen.html"
+      ],
+      "tag": "海外高速列車"
+    },
+    {
+      "id": "n700s",
+      "name": "日本新幹線",
+      "cardLabel": "日本新幹線 N700S",
+      "model": "N700S",
+      "category": "bullet",
+      "operator": "日本 JR 東海",
+      "modelKind": "type",
+      "image": "assets/images/n700s.webp",
+      "imageKind": "direct",
+      "intro": "我是日本新幹線的 N700S 型列車。",
+      "fact": "N700S 是日本的高速列車型號，與台灣的 700T 不同。",
+      "status": "catalogue",
+      "sources": [
+        "https://global.jr-central.co.jp/en/company/about_shinkansen/"
+      ],
+      "tag": "海外高速列車"
+    },
+    {
+      "id": "l0",
+      "name": "日本磁浮列車",
+      "cardLabel": "日本磁浮列車 L0 系",
+      "model": "L0 系",
+      "category": "maglev",
+      "operator": "日本 JR 東海",
+      "modelKind": "type",
+      "image": "assets/images/maglev.webp",
+      "imageKind": "direct",
+      "intro": "我是日本的 L0 系磁浮試驗列車。一起看看長長的車頭。",
+      "fact": "磁浮列車使用磁力支撐與導引；試驗車不等於台灣正在營運的列車。",
+      "status": "experimental",
+      "sources": [
+        "https://scmaglev.jr-central-global.com/sp/about/design/",
+        "https://scmaglev.jr-central-global.com/about/"
+      ],
+      "tag": "海外試驗列車",
+      "note": "海外試驗列車；台灣沒有此款營運列車。情境插圖不是試驗設備工程圖。"
+    },
+    {
+      "id": "n700st",
+      "name": "台灣高鐵新世代列車",
+      "cardLabel": "台灣高鐵新世代列車 N700ST",
+      "model": "N700ST",
+      "category": "thsr",
+      "operator": "台灣高鐵",
+      "modelKind": "type",
+      "image": "assets/images/n700s.webp",
+      "imageKind": "family",
+      "intro": "我是台灣高鐵規劃中的 N700ST 新世代列車。",
+      "fact": "新世代列車規劃與現有 700T 不同。",
+      "status": "future",
+      "sources": [
+        "https://www.thsrc.com.tw/ArticleContent/51dd80ee-c4d2-4cd5-aeea-ede7a9b055ce"
+      ],
+      "tag": "未來列車規劃",
+      "note": "官方規劃於 2027 年投入營運；2026 年教材不可標成已營運。借用 N700S 家族情境示意。"
+    },
+    {
+      "id": "ct273",
+      "name": "保存蒸汽機車 CT273",
+      "cardLabel": "保存蒸汽機車 CT273",
+      "model": "CT273",
+      "category": "heritage",
+      "operator": "台灣鐵路",
+      "modelKind": "fleet",
+      "image": "assets/images/steam-main.webp",
+      "imageKind": "family",
+      "intro": "我是 CT273 號保存蒸汽機車，一起認識鐵道歷史。",
+      "fact": "蒸汽機車各有車號，保存車也可能需要修理和保養。",
+      "tag": "台鐵保存車",
+      "status": "preserved",
+      "sources": [
+        "https://www.railway.gov.tw/tra-tip-web/tip/file/6dc22469-5878-45f8-b4f4-d3ee6e751e35"
+      ],
+      "note": "蒸汽機車造型家族示意，不代表本車輪軸、軌距與塗裝。歷史復駛與現存保存不代表今天可運轉；活動與維修依官方公告。"
+    },
+    {
+      "id": "dt668",
+      "name": "保存蒸汽機車 DT668",
+      "cardLabel": "保存蒸汽機車 DT668",
+      "model": "DT668",
+      "category": "heritage",
+      "operator": "台灣鐵路",
+      "modelKind": "fleet",
+      "image": "assets/images/steam-main.webp",
+      "imageKind": "family",
+      "intro": "我是 DT668 號保存蒸汽機車，一起認識鐵道歷史。",
+      "fact": "蒸汽機車各有車號，保存車也可能需要修理和保養。",
+      "tag": "台鐵保存車",
+      "status": "preserved",
+      "sources": [
+        "https://www.railway.gov.tw/tra-tip-web/tip/file/6dc22469-5878-45f8-b4f4-d3ee6e751e35"
+      ],
+      "note": "蒸汽機車造型家族示意，不代表本車輪軸、軌距與塗裝。歷史復駛與現存保存不代表今天可運轉；活動與維修依官方公告。"
+    },
+    {
+      "id": "ck124",
+      "name": "保存蒸汽機車 CK124",
+      "cardLabel": "保存蒸汽機車 CK124",
+      "model": "CK124",
+      "category": "heritage",
+      "operator": "台灣鐵路",
+      "modelKind": "fleet",
+      "image": "assets/images/sugar-steam.webp",
+      "imageKind": "family",
+      "intro": "我是 CK124 號保存蒸汽機車，一起認識鐵道歷史。",
+      "fact": "蒸汽機車各有車號，保存車也可能需要修理和保養。",
+      "tag": "台鐵保存車",
+      "status": "preserved",
+      "sources": [
+        "https://www.railway.gov.tw/tra-tip-web/tip/file/6dc22469-5878-45f8-b4f4-d3ee6e751e35"
+      ],
+      "note": "蒸汽機車造型家族示意，不代表本車輪軸、軌距與塗裝。歷史復駛與現存保存不代表今天可運轉；活動與維修依官方公告。"
+    },
+    {
+      "id": "ck101",
+      "name": "保存蒸汽機車 CK101",
+      "cardLabel": "保存蒸汽機車 CK101",
+      "model": "CK101",
+      "category": "heritage",
+      "operator": "台灣鐵路",
+      "modelKind": "fleet",
+      "image": "assets/images/sugar-steam.webp",
+      "imageKind": "family",
+      "intro": "我是 CK101 號保存蒸汽機車，一起認識鐵道歷史。",
+      "fact": "蒸汽機車各有車號，保存車也可能需要修理和保養。",
+      "tag": "台鐵保存車",
+      "status": "preserved",
+      "sources": [
+        "https://www.railway.gov.tw/tra-tip-web/tip/file/6dc22469-5878-45f8-b4f4-d3ee6e751e35"
+      ],
+      "note": "蒸汽機車造型家族示意，不代表本車輪軸、軌距與塗裝。歷史復駛與現存保存不代表今天可運轉；活動與維修依官方公告。"
+    },
+    {
+      "id": "ldk59",
+      "name": "保存蒸汽機車 LDK59",
+      "cardLabel": "保存蒸汽機車 LDK59",
+      "model": "LDK59",
+      "category": "heritage",
+      "operator": "台灣鐵路",
+      "modelKind": "fleet",
+      "image": "assets/images/sugar-steam.webp",
+      "imageKind": "family",
+      "intro": "我是 LDK59 號保存蒸汽機車，一起認識鐵道歷史。",
+      "fact": "蒸汽機車各有車號，保存車也可能需要修理和保養。",
+      "tag": "台鐵保存車",
+      "status": "preserved",
+      "sources": [
+        "https://www.railway.gov.tw/tra-tip-web/tip/file/6dc22469-5878-45f8-b4f4-d3ee6e751e35"
+      ],
+      "note": "蒸汽機車造型家族示意，不代表本車輪軸、軌距與塗裝。歷史復駛與現存保存不代表今天可運轉；活動與維修依官方公告。"
+    }
+  ]
+}

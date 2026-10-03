@@ -16,8 +16,8 @@
 ## 發布與人工驗證
 
 - [x] 在桌面與 390px 手機尺寸驗證完整旅程及家長設定，記入 validation.md。
-- [ ] 推送完整遊戲至 mars-tw/taiwan-train-math，確認公開檔案。
-- [ ] 啟用 GitHub Pages 並確認公開遊玩網址。
+- [x] 推送完整遊戲至 mars-tw/taiwan-train-math，確認公開檔案。
+- [x] 啟用 GitHub Pages 並確認公開遊玩網址。
 - [ ] 每個年齡段至少兩組匿名親子試玩，觀察提示理解、獨立操作與疲勞，不蒐集孩子個資。
 - [ ] 以實體 iPhone／iPad Safari、Android Chrome 驗證語音、觸控與直橫式。
 - [ ] 鐵道熟悉者逐款校對名稱、狀態與圖片，替家族示意補正確分型素材。

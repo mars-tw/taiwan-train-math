@@ -26,4 +26,8 @@
 
 這些是開發操作驗證，尚未替代 3–8 歲真實親子試玩。未測實體 iOS Safari、Android 裝置或中文語音的實際聽感。AI 插圖已檢查可用性，但不保證外觀細節精準；家族共用與保存車皆明示。
 
-GitHub 發布與 Pages 状態以公開儲存庫及實際網址驗證為準，不能只以工作流程檔案存在認定已上線。
+## 公開發布驗證
+
+完整遊戲已推送至 [mars-tw/taiwan-train-math](https://github.com/mars-tw/taiwan-train-math)。首次 [GitHub Actions](https://github.com/mars-tw/taiwan-train-math/actions/runs/37134176792) 測試與部署完成，結果 success。
+
+[公開遊玩網址](https://mars-tw.github.io/taiwan-train-math/) 實際開啟後可載入首頁、59 個圖鑑條目與電影風圖片，瀏覽器無主控台錯誤；以磁浮列車開始並操作公開旅程。最後確認以實際頁面為準。

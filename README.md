@@ -2,7 +2,7 @@
 
 給 **3–8 歲**小小鐵道迷的免費繁體中文網頁遊戲。選一台喜歡的列車，在山海旅程中練習數數、簡單加減與排序。
 
-[公開程式庫](https://github.com/mars-tw/taiwan-train-math) · [遊玩網址（需啟用 Pages）](https://mars-tw.github.io/taiwan-train-math/)
+[直接遊玩](https://mars-tw.github.io/taiwan-train-math/) · [公開程式庫](https://github.com/mars-tw/taiwan-train-math)
 
 ## 可以玩什麼
 
@@ -38,7 +38,7 @@ node scripts/serve.mjs --dist
 
 ## GitHub Pages
 
-儲存庫管理者在 **Settings → Pages → Build and deployment → Source** 選 **GitHub Actions**。推送 main 會執行測試、建立靜態檔案並部署；也可在 Actions 的 **Test and publish game** 手動執行。
+本儲存庫已啟用 GitHub Pages，公開網址可以直接遊玩。自行 fork 時，管理者在 **Settings → Pages → Build and deployment → Source** 選 **GitHub Actions**。推送 main 會執行測試、建立靜態檔案並部署；也可在 Actions 的 **Test and publish game** 手動執行。
 
 首次啟用是 GitHub 儲存庫的主機設定。若未啟用，公開程式庫仍可下載與本機遊玩，但 Pages 網址會顯示 404。
 

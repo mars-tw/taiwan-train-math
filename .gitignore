@@ -2,6 +2,9 @@ dist/
 node_modules/
 .cache/
 test-results/
+.playwright-cli/
+output/
+.audit-tmp/
 *.log
 .env
 .env.*

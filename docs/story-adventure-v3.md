@@ -54,10 +54,7 @@
 
 本版共 31 張 AI 電影風素材。新圖以 OpenAI ImageGen 生成，原始 PNG 保留在工具輸出位置，網站使用壓縮 WebP；透明背景保留。完整提示、生成日期、原圖檔名及授權見 [manifest](../assets/manifest.json)。原有 29 張圖片不覆蓋。
 
-兩張原圖在工作環境的路徑：
-
-- `C:/Users/adj/.codex/generated_images/01a10224-9964-73e3-8ffa-6e9abebd28fe/exec-e97800fb-e6f8-4555-b204-773a4ef07c6d.png`
-- `C:/Users/adj/.codex/generated_images/01a10224-9964-73e3-8ffa-6e9abebd28fe/exec-a75d042f-a5ed-4660-8327-f27dc0558597.png`
+開源版本可直接使用 [星光高鐵前景](../assets/images/star-express-v3.webp) 與 [山海故事背景](../assets/images/story-coast-v3.webp)。原始生成提示及原圖檔名保存在 [素材清單](../assets/manifest.json)，不依賴作者電腦上的私人路徑。
 
 程式與向量軌道示意沿用 Apache-2.0；原創教材及可授權生成圖像採 CC BY 4.0。圖像不含官方標誌，不代表實際鐵道路線與營運單位背書。
 

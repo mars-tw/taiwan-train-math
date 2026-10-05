@@ -1,6 +1,6 @@
 # 資料來源與授權
 
-教材整理日期：2026-10-03。每個列車條目在 [data/trains.json](../data/trains.json) 保存來源連結；圖像提示與產出資訊見 [assets/manifest.json](../assets/manifest.json)。
+教材與照片整理日期：2026-10-05。每個列車條目在 [data/trains.json](../data/trains.json) 保存來源連結；實車照片的作者、原授權與核對證據見 [逐張照片清冊](train-photo-credits.md)。想像插圖提示與產出資訊見 [assets/manifest.json](../assets/manifest.json)。
 
 ## 查核原則
 
@@ -11,8 +11,8 @@
 - [台鐵 113–116 年車輛維修計畫](https://www.railway.gov.tw/tra-tip-web/tip/file/72d6c901-8166-4a32-ab59-7602a45072a9)：主要電聯車、傾斜式列車、動力車維修分類。
 - [台鐵行車安全報告](https://tip.railway.gov.tw/tra-tip-web/tip/file/132f1c83-0a91-4b42-87e1-b6aaa39ba14e)：既有動力車家族與型號。
 - [台鐵新式電力機車資料](https://tip.railway.gov.tw/tra-tip-web/tip/file/844f77bf-da25-43b1-996f-09d24dfcbbf1b)：新式電力機車。
-- [台鐵柴油客車資料](https://www.railway.gov.tw/tra-tip-web/tip/file/1bdbac06-508d-4249-a400-7ca1d610381f)：DR1000、DRC1000、DR3100 名稱。
-- [台灣高鐵列車](https://www.thsrc.com.tw/ArticleContent/4fe8c81c-d66f-472f-90a7-cac6fb4deba8)：[新世代列車規劃](https://www.thsrc.com.tw/ArticleContent/51dd80ee-c4d2-4cd5-aeea-ede7a9b055ce)。N700ST 保留未來規劃狀態。
+- [台鐵柴油客車資料](https://www.railway.gov.tw/tra-tip-web/tip/file/1bdbac06-508d-4249-a400-7ca1d610381f)：DR1000／DRC1000 為同一批單輛柴油客車的名稱／車號寫法，另有 DR3100。
+- [台灣高鐵列車](https://www.thsrc.com.tw/ArticleContent/4fe8c81c-d66f-472f-90a7-cac6fb4deba8)：[新世代列車抵台公告](https://www.thsrc.com.tw/ArticleContent/aee431a7-eb9c-4681-be39-d56c2966f37c)。N700ST 已抵台、尚未載客營運，未借 N700S 代圖。
 - [林鐵柴油機車](https://afrch.forest.gov.tw/0000106)：[蒸汽機車配置](https://afrch.forest.gov.tw/0000108)、[觀光列車](https://afrch.forest.gov.tw/0000642)。
 - [台鐵觀光列車入口](https://tip.railway.gov.tw/tra-tip-web/tip/tip00N/tipN01/journey/index?lang=zh_TW)：藍皮解憂、鳴日、鳴日廚房、環島之星、海風、山嵐名稱。觀光名稱不當成製造型號。
 - [台糖五分車觀光園區](https://www.taisugar.com.tw/CSR/CP2.aspx?n=13286)：五處糖鐵觀光據點。
@@ -22,6 +22,6 @@
 
 保留使用者建立儲存庫時選擇的 Apache-2.0 程式授權。[LICENSE](../LICENSE) 與 [NOTICE](../NOTICE) 是正式文件。教材原創文字與可授權 AI 圖片依 [ASSET-LICENSE.md](../ASSET-LICENSE.md) 採 CC BY 4.0。
 
-官方網頁僅作事實查核與連結，不下載、散布或重新授權其照片、標誌、影片或配音。列車名稱、型號與商標權歸相關權利人；本站是非官方教育專案。生成圖不假稱官方照片或精密列車模型，家族示意保留說明。
+照片只採用已確認可再利用的來源，保留 CC BY、CC BY-SA、CC0、公共領域或政府網站資料開放宣告的原授權，未重新授權為專案 CC BY 4.0。政府照片逐筆記錄原始宣告與署名；來源或授權不明的照片不嵌入。列車名稱、型號與商標權歸相關權利人；本站是非官方教育專案。生成圖限想像故事、風景與舊旅程相容，不當成新車型辨識教材。
 
 AI 圖片署名 mars-tw／小小列車長，生成工具 OpenAI ImageGen。程式生成的數學示意 SVG、CSS、Web Audio 隨程式採 Apache-2.0。裝置語音不隨程式散布，不聲稱錄音授權。

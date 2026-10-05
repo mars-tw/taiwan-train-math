@@ -1209,6 +1209,257 @@ dialog::backdrop {
 .math-equation span {
   color: var(--green);
 }
+.arithmetic-stage {
+  max-width: 540px;
+  gap: 14px;
+}
+.passenger-records {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 28px minmax(0, 1fr);
+  gap: 12px;
+  width: 100%;
+  align-items: center;
+}
+.passenger-record {
+  padding: 14px 10px;
+  border: 1px solid var(--line);
+  border-top: 4px solid var(--green);
+  border-radius: 9px;
+  background: white;
+  text-align: center;
+}
+.passenger-record small {
+  display: block;
+  font-size: 14px;
+}
+.passenger-record strong {
+  font-size: 34px;
+  font-variant-numeric: tabular-nums;
+}
+.passenger-record strong span {
+  margin-left: 5px;
+  font-size: 14px;
+  font-weight: 400;
+}
+.record-operation {
+  color: var(--green);
+  font-size: 28px;
+  font-weight: 700;
+  text-align: center;
+}
+.closed-carriage {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.closed-carriage > span {
+  font-size: 32px;
+}
+.closed-carriage p {
+  font-size: 14px;
+}
+.arithmetic-answer {
+  width: min(100%, 300px);
+  text-align: center;
+}
+.arithmetic-answer label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 700;
+}
+.arithmetic-entry {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+.arithmetic-entry input {
+  width: 120px;
+  min-height: 58px;
+  border: 2px solid var(--green);
+  border-radius: 9px;
+  background: white;
+  color: var(--ink);
+  text-align: center;
+  font: inherit;
+  font-size: 32px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+#arithmetic-instruction {
+  font-size: 12px;
+  color: var(--muted);
+  margin: 8px 0 12px;
+}
+.number-keypad {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+  margin-bottom: 12px;
+}
+.number-keypad button {
+  min-height: 48px;
+  border: 1px solid #bacabb;
+  border-bottom: 3px solid #8aab96;
+  border-radius: 8px;
+  background: white;
+  color: var(--ink);
+  font: inherit;
+  font-size: 24px;
+  font-weight: 700;
+}
+.number-keypad [data-digit="clear"] {
+  font-size: 16px;
+}
+.number-keypad button:active {
+  background: #dce8db;
+}
+.arithmetic-answer > .primary-btn {
+  width: 100%;
+  justify-content: center;
+}
+.arithmetic-result {
+  font-size: 19px;
+  color: var(--green);
+  font-weight: 700;
+}
+.playroom {
+  margin: 58px 0;
+  scroll-margin-top: 24px;
+}
+.playroom-games {
+  display: grid;
+  grid-template-columns: 1.35fr 1fr 1fr;
+  gap: 18px;
+  margin-top: 22px;
+}
+.playroom-card {
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: white;
+  text-align: left;
+  transition: transform .2s;
+}
+.playroom-card:hover {
+  transform: translateY(-3px);
+}
+.playroom-photo {
+  position: relative;
+  aspect-ratio: 16 / 9;
+}
+.playroom-photo > img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.photo-grid {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: repeat(var(--preview-cols, 3), 1fr);
+  grid-template-rows: repeat(var(--preview-rows, 2), 1fr);
+}
+.photo-grid i {
+  border: 2px solid #fff7;
+}
+.playroom-photo > span {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  border-radius: 20px;
+  background: #fff;
+  color: var(--green);
+  padding: 4px 12px;
+  font-weight: 700;
+}
+.playroom-card-copy {
+  padding: 20px;
+}
+.playroom-card strong {
+  font-size: 21px;
+}
+.playroom-card p {
+  margin: 6px 0 16px;
+  font-size: 14px;
+  color: var(--muted);
+}
+.playroom-card b {
+  color: var(--green);
+  font-size: 14px;
+}
+.playroom-symbol {
+  display: flex;
+  min-height: 180px;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  background: #e7eedf;
+}
+.maze-launch .playroom-symbol {
+  background: #e0ebed;
+}
+.mini-case {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 64px;
+  border: 3px solid #31565e;
+  border-radius: 12px;
+  background: #e8a153;
+  color: white;
+  font-size: 26px;
+  transform: rotate(-7deg);
+}
+.mini-case::before {
+  content: "";
+  position: absolute;
+  top: -13px;
+  width: 22px;
+  height: 13px;
+  border: 3px solid #31565e;
+  border-radius: 6px 6px 0 0;
+}
+.case-two {
+  background: #65988f;
+  transform: translateY(10px) rotate(6deg);
+}
+.case-three {
+  background: #b57871;
+  transform: rotate(9deg);
+}
+.mini-maze {
+  display: flex;
+  font-size: 32px;
+  color: #446b77;
+}
+.mini-maze i {
+  font-style: normal;
+  line-height: 1.05;
+  letter-spacing: 10px;
+}
+.playroom-gifts {
+  display: inline-flex;
+  margin-top: 22px;
+  min-height: 44px;
+  align-items: center;
+}
+.pending-gifts {
+  margin: 28px 0;
+}
+@media (max-width: 700px) {
+  .playroom-games { grid-template-columns: 1fr; }
+  .playroom-card:not(.puzzle-launch) { display: grid; grid-template-columns: 110px minmax(0, 1fr); }
+  .playroom-card:not(.puzzle-launch) .playroom-symbol { min-height: 150px; gap: 4px; }
+  .mini-case { width: 25px; height: 38px; font-size: 16px; border-width: 2px; border-radius: 6px; }
+  .mini-case::before { width: 13px; height: 9px; top: -9px; border-width: 2px; }
+  .playroom-card-copy { padding: 15px; }
+  .playroom-card strong { font-size: 19px; }
+  .mini-maze { font-size: 25px; }
+  .mini-maze i { letter-spacing: 0; }
+}
 .sorting-stage {
   width: 100%;
   text-align: center;

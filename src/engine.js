@@ -1,4 +1,13 @@
-import { createAdventureQuestion, SOUVENIRS } from "./adventure.js?v=1.2.0";
+import { createAdventureQuestion, SOUVENIRS } from "./adventure.js?v=1.8.0";
+import { createPuzzleQuestion } from "./puzzle.js?v=1.8.0";
+import { createLuggageQuestion, createMazeQuestion } from "./explorers.js?v=1.8.0";
+import { createProgramQuestion, createBalanceQuestion } from "./workshop.js?v=1.8.0";
+import { createMosaicQuestion, createDifferencesQuestion } from "./discovery.js?v=1.8.0";
+import { journeyById, journeyGames } from "./journeys.js?v=1.8.0";
+import { photoGameTrains, puzzlePhotoTrains, samePhotoIdentity } from "./train-images.js?v=1.8.0";
+import { createTicketsQuestion } from "./tickets.js?v=1.8.0";
+export const V15_GAME_IDS = Object.freeze(["count", "identify", "boarding", "order", "compare", "pattern", "cargo", "memory", "clock", "tracks", "sharing", "treasure", "puzzle", "luggage", "maze"]);
+export const V17_GAME_IDS = Object.freeze([...V15_GAME_IDS, "program", "balance", "mosaic", "differences"]);
 export const LEVELS = {
   small: {
     name: "小小站長",
@@ -38,7 +47,7 @@ export const GAMES = {
   boarding: {
     name: "上車下車",
     icon: "＋",
-    description: "看乘客移動，一起練習加減。",
+    description: "讀乘客紀錄，自己算出上車下車的人數。",
     levels: ["medium", "large"],
   },
   order: {
@@ -93,6 +102,44 @@ export const GAMES = {
     name: "山海尋寶",
     icon: "✦",
     description: "探索風景，找到藏起來的小寶物。",
+    levels: ["small", "medium", "large"],
+  },
+  puzzle: {
+    name: "火車拼圖",
+    icon: "🧩",
+    description: "看圖片的線條和風景，把火車一片片拼回來。",
+    levels: ["small", "medium", "large"],
+  },
+  luggage: {
+    name: "行李分類站",
+    icon: "▰",
+    description: "看看顏色和形狀，把行李分進合適的籃子。",
+    levels: ["small", "medium", "large"],
+  },
+  maze: {
+    name: "車站迷宮",
+    icon: "↱",
+    description: "自己找一條路，帶小火車走到終點站。",
+    levels: ["small", "medium", "large"],
+  },
+  program: {
+    name: "指令小司機", icon: "↗", description: "先排好方向指令，再讓列車照計畫走。",
+    levels: ["small", "medium", "large"],
+  },
+  balance: {
+    name: "貨運天平", icon: "⚖", description: "選好不同重量的貨物，讓兩邊一樣重。",
+    levels: ["small", "medium", "large"],
+  },
+  mosaic: {
+    name: "圖形拼搭", icon: "▦", description: "照著小圖，選色塊拼出自己的圖案。",
+    levels: ["small", "medium", "large"],
+  },
+  differences: {
+    name: "眼力找不同", icon: "◎", description: "比較兩幅車站風景，找出不同的地方。",
+    levels: ["small", "medium", "large"],
+  },
+  tickets: {
+    name: "車票小幫手", icon: "🎟", description: "選目的地，分配有限的代幣，幫每張車票付剛好。",
     levels: ["small", "medium", "large"],
   },
 };
@@ -155,6 +202,119 @@ function options(answer, max, count, rng) {
   );
   return shuffle([answer, ...pool.slice(0, count - 1)], rng);
 }
+export const HISTORY_LIMITS = { questions: 96, games: 48 };
+
+// Store the task itself, never the shuffled answer buttons or decorative text.
+export function questionSignature(q) {
+  const details = {
+    count: () => q.count,
+    cargo: () => q.answer,
+    boarding: () => [q.operation, q.start, q.change],
+    order: () => [...q.answer].sort((a, b) => a - b),
+    compare: () => [q.left, q.right],
+    pattern: () => [q.kind, q.sequence],
+    clock: () => [q.hour, q.minute],
+    identify: () => q.target,
+    memory: () => [...q.pairs].sort(),
+    sharing: () => [q.friends, q.total],
+    treasure: () => [q.target, q.items],
+    puzzle: () => [q.image, q.columns, q.rows],
+    luggage: () => [q.bins.map(bin => [bin.label, bin.color, bin.shape]), q.items.map(item => [item.color, item.shape])],
+    maze: () => [q.columns, q.rows, q.walls],
+    program: () => [q.columns, q.rows, q.walls, q.start, q.finish, q.maxCommands],
+    balance: () => [q.target, q.allowedWeights, q.maxBoxes],
+    mosaic: () => [q.columns, q.rows, q.target],
+    differences: () => [q.sceneTheme, q.itemsLeft.map(item => [item.kind, item.variant, item.accent]), q.itemsRight.map(item => [item.kind, item.variant, item.accent])],
+    tickets: () => [q.tickets.map(ticket => ticket.fare).sort((a,b) => a-b), q.wallet.map(token => token.value).sort((a,b) => a-b)],
+    tracks: () => [
+      q.columns,
+      q.rows,
+      q.start,
+      q.finish,
+      q.tiles.map((tile) => [
+        tile.kind,
+        tile.kind === "straight" ? tile.initial % 2 : tile.initial,
+      ]),
+    ],
+  };
+  if (!LEVELS[q.level] || !details[q.game]) throw new Error("Unknown question");
+  return JSON.stringify([q.level, q.game, details[q.game]()]);
+}
+function questionHistory(value) {
+  if (!Array.isArray(value)) return [];
+  return value.filter((entry) => {
+    if (typeof entry !== "string" || entry.length > 1024) return false;
+    try {
+      const parsed = JSON.parse(entry);
+      return Array.isArray(parsed) && parsed.length === 3 &&
+        Boolean(LEVELS[parsed[0]]) && allowedGames(parsed[0]).includes(parsed[1]);
+    } catch {
+      return false;
+    }
+  }).slice(-HISTORY_LIMITS.questions);
+}
+function gameHistory(value) {
+  if (!Array.isArray(value)) return [];
+  return value.filter((entry) => {
+    if (typeof entry !== "string") return false;
+    const parts = entry.split(":");
+    const [level, game] = parts;
+    return parts.length === 2 && Boolean(LEVELS[level]) && allowedGames(level).includes(game);
+  }).slice(-HISTORY_LIMITS.games);
+}
+function combinations(values, length) {
+  const result = [];
+  function choose(from, selected) {
+    if (selected.length === length) {
+      result.push(selected);
+      return;
+    }
+    for (let i = from; i <= values.length - length + selected.length; i++)
+      choose(i + 1, [...selected, values[i]]);
+  }
+  choose(0, []);
+  return result;
+}
+const orderBanks = new Map();
+function orderBank(level) {
+  if (!orderBanks.has(level)) {
+    const first = level === "small" ? 1 : 0;
+    orderBanks.set(level, combinations(
+      Array.from({ length: LEVELS[level].max - first + 1 }, (_, i) => first + i),
+      level === "small" ? 3 : 5,
+    ));
+  }
+  return orderBanks.get(level);
+}
+// Scan a finite bank once. If it is exhausted, reuse its least recent task.
+// A task already in this journey is always the last choice.
+function chooseFresh(bank, signature, rng, recent, excluded) {
+  if (!bank.length) throw new Error("No questions available");
+  const indices = new Map(recent.map((key, index) => [key, index]));
+  const blocked = new Set(excluded);
+  const offset = randomInt(0, bank.length - 1, rng);
+  let best, bestBlocked = Infinity, bestAge = Infinity;
+  for (let i = 0; i < bank.length; i++) {
+    const value = bank[(offset + i) % bank.length];
+    const key = signature(value);
+    const inTrip = blocked.has(key) ? 1 : 0;
+    const age = indices.get(key) ?? -1;
+    if (!inTrip && age === -1) return value;
+    if (inTrip < bestBlocked || (inTrip === bestBlocked && age < bestAge)) {
+      best = value;
+      bestBlocked = inTrip;
+      bestAge = age;
+    }
+  }
+  return best;
+}
+function distinctTrains(trains) {
+  return trains.filter((t, index, all) =>
+    t.status !== "future" && all.findIndex((other) =>
+      other.status !== "future" && (other.image === t.image || other.name === t.name),
+    ) === index,
+  );
+}
 export function questionFor({
   level,
   game,
@@ -162,24 +322,64 @@ export function questionFor({
   trains,
   rng = Math.random,
   challenge = false,
+  recentQuestions = [],
+  excludedQuestions = [],
+  contentVersion = "1.8.0",
 }) {
   const cfg = LEVELS[level];
-  if (!cfg) throw new Error("Unknown level");
+  if (!Object.hasOwn(LEVELS, level)) throw new Error("Unknown level");
   if (!allowedGames(level).includes(game))
     throw new Error("Game not available for this level");
-  if (["tracks", "sharing", "treasure"].includes(game))
-    return createAdventureQuestion({
-      game,
-      level,
-      max: cfg.max,
-      rng,
-      randomInt,
-      shuffle,
-    });
+  const recent = questionHistory(recentQuestions);
+  const excluded = questionHistory(excludedQuestions);
+  const realPhotos = ["1.7.0", "1.8.0"].includes(contentVersion);
+  if (realPhotos && ["identify", "memory", "puzzle"].includes(game)) {
+    trains = game === "puzzle" ? puzzlePhotoTrains(trains) : photoGameTrains(trains);
+    if (trains.length < 4) throw new Error("Photo games need four verified exterior train photos");
+    train = trains.find(t => t.id === train.id) || trains[0];
+  }
+  const pick = (bank, fields) => chooseFresh(bank,
+    (value) => questionSignature({ game, level, ...fields(value) }),
+    rng, recent, excluded,
+  );
+  if (["program", "balance", "mosaic", "differences", "tickets"].includes(game)) {
+    const seed = randomInt(0, 0xffffffff, rng);
+    const create = { program: createProgramQuestion, balance: createBalanceQuestion, mosaic: createMosaicQuestion, differences: createDifferencesQuestion, tickets: createTicketsQuestion }[game];
+    const bank = Array.from({ length: 64 }, (_, i) => create({ level, rng: seededRandom((seed + Math.imul(i, 2654435761)) >>> 0) }));
+    return pick(bank, q => q);
+  }
+  if (game === "puzzle") {
+    const bank = distinctTrains(trains).map(target => createPuzzleQuestion({ level, train: target, trains, rng }));
+    return pick(bank, q => q);
+  }
+  if (["luggage", "maze"].includes(game)) {
+    const seed = randomInt(0, 0xffffffff, rng);
+    const create = game === "luggage" ? createLuggageQuestion : createMazeQuestion;
+    const bank = Array.from({ length: 64 }, (_, i) => create({
+      level, rng: seededRandom((seed + Math.imul(i, 2654435761)) >>> 0),
+    }));
+    return pick(bank, q => q);
+  }
+  if (["tracks", "sharing", "treasure"].includes(game)) {
+    // Adventure layouts have many states. A fixed-size candidate bank keeps
+    // generation bounded even with a deterministic or unusually unlucky RNG.
+    const seed = randomInt(0, 0xffffffff, rng);
+    const bank = Array.from({ length: 64 }, (_, i) => createAdventureQuestion({
+      game, level, max: cfg.max,
+      rng: seededRandom((seed + Math.imul(i, 2654435761)) >>> 0),
+      randomInt, shuffle,
+    }));
+    return pick(bank, (q) => q);
+  }
   if (game === "pattern") {
     if (level === "large") {
-      const step = randomInt(2, 3, rng),
-        start = randomInt(0, cfg.max - step * 4, rng);
+      const bank = [2, 3].flatMap((step) =>
+        Array.from({ length: cfg.max - step * 4 + 1 }, (_, start) => ({ step, start })),
+      );
+      const { step, start } = pick(bank, ({ step, start }) => ({
+        kind: "number",
+        sequence: Array.from({ length: 4 }, (_, i) => String(start + i * step)),
+      }));
       const sequence = Array.from({ length: 4 }, (_, i) =>
         String(start + i * step),
       );
@@ -193,16 +393,23 @@ export function questionFor({
         answer,
         choices: options(Number(answer), cfg.max, 3, rng).map(String),
         prompt: "每次多一樣多，下一節車廂是幾號？",
-        hint: `每次加 ${step}。${sequence.at(-1)} 再加 ${step}，就是 ${answer}。`,
+        hint: "先比較相鄰兩個數字，看每次增加多少，再用同樣的方法往後推。",
       };
     }
-    const shapes = shuffle(Object.keys(SHAPES), rng);
-    const unit =
-      level === "small"
-        ? shapes.slice(0, 2)
-        : rng() < 0.5
-          ? [shapes[0], shapes[0], shapes[1]]
-          : shapes.slice(0, 3);
+    const shapes = Object.keys(SHAPES);
+    const pairs = shapes.flatMap((first) =>
+      shapes.filter((second) => second !== first).map((second) => [first, second]),
+    );
+    const bank = level === "small" ? pairs : [
+      ...pairs.map(([first, second]) => [first, first, second]),
+      ...pairs.flatMap(([first, second]) =>
+        shapes.filter((third) => ![first, second].includes(third))
+          .map((third) => [first, second, third]),
+      ),
+    ];
+    const unit = pick(bank, (unit) => ({
+      kind: "shape", sequence: [...unit, ...unit],
+    }));
     const sequence = Array.from(
       { length: unit.length * 2 },
       (_, i) => unit[i % unit.length],
@@ -214,13 +421,14 @@ export function questionFor({
       sequence,
       unit,
       answer: unit[0],
-      choices: shuffle(shapes.slice(0, level === "small" ? 2 : 3), rng),
+      choices: shuffle([...new Set(unit)], rng),
       prompt: "看看重複的規律，下一節車廂放什麼？",
-      hint: `一組是${unit.map((s) => SHAPES[s].name).join("、")}。再從${SHAPES[unit[0]].name}開始。`,
+      hint: "找出一直重複的小組，看看空位在下一組的哪個位置。",
     };
   }
   if (game === "cargo") {
-    const answer = randomInt(1, cfg.max, rng);
+    const answer = pick(Array.from({ length: cfg.max }, (_, i) => i + 1),
+      (answer) => ({ answer }));
     return {
       game,
       level,
@@ -247,7 +455,12 @@ export function questionFor({
           ) === i,
       )
       .slice(0, count);
-    const pairs = unique.map((t) => t.id);
+    const remainder = pool.filter((t, i) =>
+      pool.findIndex((other) => other.image === t.image || other.name === t.name) === i,
+    ).slice(1, realPhotos ? 13 : undefined);
+    const bank = combinations(remainder.map((t) => t.id), unique.length - 1)
+      .map((ids) => [unique[0].id, ...ids]);
+    const pairs = pick(bank, (pairs) => ({ pairs }));
     return {
       game,
       level,
@@ -259,15 +472,16 @@ export function questionFor({
     };
   }
   if (game === "clock") {
-    const hour = randomInt(1, 12, rng),
-      minute = level === "large" && rng() < 0.5 ? 30 : 0;
-    const answer = hour * 60 + minute;
     const pool = Array.from(
       { length: level === "large" ? 24 : 12 },
       (_, i) =>
         (Math.floor(i / (level === "large" ? 2 : 1)) + 1) * 60 +
         (level === "large" ? (i % 2) * 30 : 0),
     );
+    const answer = pick(pool, (value) => ({
+      hour: Math.floor(value / 60), minute: value % 60,
+    }));
+    const hour = Math.floor(answer / 60), minute = answer % 60;
     return {
       game,
       level,
@@ -285,24 +499,25 @@ export function questionFor({
         rng,
       ),
       prompt: "車站時鐘指向幾點？找到列車出發時間。",
-      hint: minute
-        ? `長長的分針指向 6，是半點。短短的時針在 ${hour} 和 ${hour === 12 ? 1 : hour + 1} 中間，是 ${hour} 點半。`
-        : `長長的分針指向 12，是整點。短短的時針指向 ${hour}，是 ${hour} 點整。`,
+      hint: "先看短短的時針在哪個數字附近，再看長長的分針，分辨是整點還是半點。",
     };
   }
   if (game === "identify") {
+    const targetTrain = pick(distinctTrains(trains), (targetTrain) => ({ target: targetTrain.id }));
     const candidates = trains.filter(
       (t) =>
-        t.id !== train.id &&
-        t.name !== train.name &&
-        t.model !== train.model &&
-        t.image !== train.image &&
+        t.id !== targetTrain.id &&
+        t.name !== targetTrain.name &&
+        t.model !== targetTrain.model &&
+        t.image !== targetTrain.image &&
+        (!realPhotos || !samePhotoIdentity(t, targetTrain)) &&
+        (!realPhotos || targetTrain.modelKind !== "type" || t.referencePhoto?.vehicleModel !== targetTrain.model) &&
         t.status !== "future",
     );
     const choices = shuffle(
       [
-        train.id,
-        ...shuffle(candidates, rng)
+        targetTrain.id,
+        ...shuffle(distinctTrains(candidates), rng)
           .slice(0, level === "small" ? 1 : 2)
           .map((t) => t.id),
       ],
@@ -311,18 +526,20 @@ export function questionFor({
     return {
       game,
       level,
-      target: train.id,
+      target: targetTrain.id,
       prompt:
-        level === "large" && train.modelKind === "type"
-          ? `請找到型號是 ${train.model} 的列車。`
-          : `請找到${train.name}。`,
-      answer: train.id,
+        level === "large" && targetTrain.modelKind === "type"
+          ? `請找到型號是 ${targetTrain.model} 的列車。`
+          : `請找到${targetTrain.name}。`,
+      answer: targetTrain.id,
       choices,
-      hint: `一起看列車卡。這是${train.name}，${train.modelKind === "type" ? `型號是 ${train.model}。` : "這是一個列車名稱。"}`,
+      hint: "看看車頭和車身的樣子，再對照題目中的列車名稱或型號。",
     };
   }
   if (game === "count") {
-    const count = randomInt(level === "small" ? 1 : 0, cfg.max, rng);
+    const first = level === "small" ? 1 : 0;
+    const count = pick(Array.from({ length: cfg.max - first + 1 }, (_, i) => first + i),
+      (count) => ({ count }));
     return {
       game,
       level,
@@ -333,15 +550,13 @@ export function questionFor({
         level === "small"
           ? "月台有幾位乘客？選一樣多的點點。"
           : "月台有幾位乘客？",
-      hint:
-        count === 0
-          ? "月台還沒有乘客，所以是零人。"
-          : `每位乘客點一次，一起數到 ${count}。`,
+      hint: "每位乘客只數一次，已經數過的可以做記號，再自己確認總共有幾位。",
     };
   }
   if (game === "compare") {
-    const left = randomInt(1, Math.min(cfg.max, 10), rng),
-      right = randomInt(1, Math.min(cfg.max, 10), rng);
+    const amounts = Array.from({ length: Math.min(cfg.max, 10) }, (_, i) => i + 1);
+    const { left, right } = pick(amounts.flatMap((left) =>
+      amounts.map((right) => ({ left, right }))), (value) => value);
     return {
       game,
       level,
@@ -350,19 +565,22 @@ export function questionFor({
       answer: left === right ? "equal" : left > right ? "left" : "right",
       choices: ["left", "equal", "right"],
       prompt: "哪一邊的車票比較多？",
-      hint: `左邊 ${left} 張，右邊 ${right} 張。可以把車票一張一張配對。`,
+      hint: "把兩邊的車票一張一張配對，看看哪邊還有剩下的。",
     };
   }
   if (game === "boarding") {
     if (level === "small") throw new Error("No arithmetic in small level");
-    const operation = rng() < 0.5 ? "add" : "subtract";
-    const start = randomInt(1, cfg.max, rng);
-    const cap = operation === "subtract" ? start : cfg.max - start;
-    const boundary =
-      level === "large" && !challenge
-        ? Math.min(cap, operation === "add" ? 10 - (start % 10) : start % 10)
-        : cap;
-    const change = randomInt(0, Math.max(0, boundary), rng);
+    const bank = [];
+    for (const operation of ["add", "subtract"])
+      for (let start = 1; start <= cfg.max; start++) {
+        const cap = operation === "subtract" ? start : cfg.max - start;
+        const boundary = level === "large" && !challenge
+          ? Math.min(cap, operation === "add" ? 10 - (start % 10) : start % 10)
+          : cap;
+        for (let change = 1; change <= boundary; change++)
+          bank.push({ operation, start, change });
+      }
+    const { operation, start, change } = pick(bank, (value) => value);
     const answer = operation === "add" ? start + change : start - change;
     return {
       game,
@@ -376,14 +594,13 @@ export function questionFor({
         operation === "add"
           ? `車上有 ${start} 人，又上來 ${change} 人，現在有幾人？`
           : `車上有 ${start} 人，下車 ${change} 人，還有幾人？`,
-      hint: `${start} ${operation === "add" ? "加" : "減"} ${change} 是 ${answer}。看留下來的乘客，一起數數看。`,
+      hint: operation === "add"
+        ? "上車會讓人數增加。從原本的人數往上加，把增加的人數算進去。"
+        : "下車會讓人數減少。從原本的人數往下減，把離開的人數扣掉。",
     };
   }
   if (game === "order") {
-    const length = level === "small" ? 3 : 5;
-    const start =
-      level === "large" ? randomInt(0, cfg.max - length + 1, rng) : 1;
-    const answer = Array.from({ length }, (_, i) => start + i);
+    const answer = pick(orderBank(level), (answer) => ({ answer }));
     let numbers = shuffle(answer, rng);
     if (numbers.every((n, i) => n === answer[i])) numbers.reverse();
     return {
@@ -392,7 +609,7 @@ export function questionFor({
       numbers,
       answer,
       prompt: "請把車廂從小到大排好。",
-      hint: `先找到最小的 ${start}，再找下一個數字。`,
+      hint: "先找出最小的數字，再從剩下的數字裡找最小的，依序排好。",
     };
   }
   throw new Error("Unknown game");
@@ -404,22 +621,53 @@ export function createTrip({
   rng = Math.random,
   challenge = false,
   practice = "mixed",
+  recentQuestions = [],
+  recentGames = [],
+  journey = null,
+  contentVersion = "1.8.0",
 }) {
-  if (!LEVELS[level]) throw new Error("Unknown level");
-  const pool = allowedGames(level).filter(
-    (game) => !["count", "identify"].includes(game),
+  if (!Object.hasOwn(LEVELS, level)) throw new Error("Unknown level");
+  if (!["1.5.0", "1.6.0", "1.7.0", "1.8.0"].includes(contentVersion)) throw new Error("Unknown content version");
+  const route = journey === null ? null : journeyById(journey);
+  if (journey !== null && (!route || practice !== "mixed" || contentVersion === "1.5.0")) throw new Error("Unknown or incompatible journey");
+  const pool = allowedGames(level).filter(game =>
+    (contentVersion !== "1.5.0" || V15_GAME_IDS.includes(game)) &&
+    (contentVersion === "1.8.0" || V17_GAME_IDS.includes(game)) && (!route || journeyGames(route, contentVersion).includes(game)),
   );
-  const sequence =
-    practice === "mixed"
-      ? [
-          "count",
-          ...shuffle(pool, rng).slice(0, LEVELS[level].stops - 2),
-          "identify",
-        ]
-      : Array(LEVELS[level].stops).fill(practice);
-  return sequence.map((game) =>
-    questionFor({ level, game, train, trains, rng, challenge }),
-  );
+  if (practice === "mixed" && pool.length < LEVELS[level].stops) throw new Error("Journey needs more age-appropriate games");
+  if (practice !== "mixed" && !pool.includes(practice))
+    throw new Error("Game not available for this level");
+  const games = gameHistory(recentGames);
+  const sequence = [];
+  if (practice === "mixed") {
+    for (let i = 0; i < LEVELS[level].stops; i++) {
+      const remaining = pool.filter((game) => !sequence.includes(game));
+      const oldest = Math.min(...remaining.map((game) => games.lastIndexOf(`${level}:${game}`)));
+      const available = remaining.filter((game) => games.lastIndexOf(`${level}:${game}`) === oldest);
+      sequence.push(available[randomInt(0, available.length - 1, rng)]);
+    }
+  } else sequence.push(...Array(LEVELS[level].stops).fill(practice));
+  const questions = [];
+  const excludedQuestions = [];
+  for (const game of practice === "mixed" ? shuffle(sequence, rng) : sequence) {
+    const q = questionFor({
+      level, game, train, trains, rng, challenge, recentQuestions, excludedQuestions, contentVersion,
+    });
+    questions.push(q);
+    excludedQuestions.push(questionSignature(q));
+  }
+  return questions;
+}
+export function rememberTrip(progress, questions) {
+  progress.recentQuestions = [
+    ...questionHistory(progress.recentQuestions),
+    ...questions.map(questionSignature),
+  ].slice(-HISTORY_LIMITS.questions);
+  progress.recentGames = [
+    ...gameHistory(progress.recentGames),
+    ...questions.map((q) => `${q.level}:${q.game}`),
+  ].slice(-HISTORY_LIMITS.games);
+  return progress;
 }
 export function isCorrect(q, answer) {
   return Array.isArray(q.answer)
@@ -438,7 +686,12 @@ export const defaults = () => ({
   challenge: false,
   completed: [],
   souvenirs: [],
+  giftCredits: 0,
+  giftOffer: [],
   trips: 0,
+  recentQuestions: [],
+  recentGames: [],
+  journeysCompleted: [],
 });
 export function readProgress(storage) {
   try {
@@ -447,7 +700,7 @@ export function readProgress(storage) {
     const result = defaults();
     for (const key of ["voice", "effects", "reduceMotion", "challenge"])
       if (typeof raw[key] === "boolean") result[key] = raw[key];
-    if (LEVELS[raw.level]) result.level = raw.level;
+    if (typeof raw.level === "string" && Object.hasOwn(LEVELS, raw.level)) result.level = raw.level;
     result.completed = Array.isArray(raw.completed)
       ? [...new Set(raw.completed.filter((id) => typeof id === "string"))]
       : [];
@@ -462,6 +715,15 @@ export function readProgress(storage) {
       : [];
     result.trips =
       Number.isSafeInteger(raw.trips) && raw.trips >= 0 ? raw.trips : 0;
+    result.giftCredits = Number.isSafeInteger(raw.giftCredits) && raw.giftCredits >= 0
+      ? Math.min(raw.giftCredits, result.trips) : 0;
+    result.giftOffer = result.giftCredits > 0 && Array.isArray(raw.giftOffer)
+      ? [...new Set(raw.giftOffer.filter(id => SOUVENIRS.some(item => item.id === id)))].slice(0, 3)
+      : [];
+    result.recentQuestions = questionHistory(raw.recentQuestions);
+    result.recentGames = gameHistory(raw.recentGames);
+    result.journeysCompleted = Array.isArray(raw.journeysCompleted)
+      ? [...new Set(raw.journeysCompleted.filter(id => typeof id === "string" && journeyById(id)))] : [];
     return result;
   } catch {
     return defaults();

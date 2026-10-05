@@ -2,7 +2,10 @@
 <html lang="zh-Hant-TW">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="小小列車長" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="theme-color" content="#152d32" />
     <meta
       name="description"
@@ -11,9 +14,17 @@
     <title>小小列車長｜台灣火車數學樂園</title>
     <link rel="icon" href="assets/icon.svg" type="image/svg+xml" />
     <link rel="manifest" href="manifest.webmanifest" />
-    <link rel="stylesheet" href="src/styles.css" />
-    <link rel="stylesheet" href="src/immersive.css?v=1.2.0" />
-    <link rel="stylesheet" href="src/story.css?v=1.2.0" />
+    <link rel="stylesheet" href="src/styles.css?v=1.8.0" />
+    <link rel="stylesheet" href="src/immersive.css?v=1.8.0" />
+    <link rel="stylesheet" href="src/story.css?v=1.8.0" />
+    <link rel="stylesheet" href="src/puzzle.css?v=1.8.0" />
+    <link rel="stylesheet" href="src/explorers.css?v=1.8.0" />
+    <link rel="stylesheet" href="src/souvenirs.css?v=1.8.0" />
+    <link rel="stylesheet" href="src/workshop.css?v=1.8.0" />
+    <link rel="stylesheet" href="src/discovery.css?v=1.8.0" />
+    <link rel="stylesheet" href="src/journeys.css?v=1.8.0" />
+    <link rel="stylesheet" href="src/tickets.css?v=1.8.0" />
+    <link rel="stylesheet" href="src/mobile.css?v=1.8.0" />
   </head>
   <body>
     <a class="skip-link" href="#main">跳到主要內容</a>
@@ -39,7 +50,7 @@
       </div>
     </header>
     <main id="main" tabindex="-1">
-      <div class="loading">列車正在進站……</div>
+      <div class="loading"><h1>列車正在進站……</h1><p>連線較慢時，可以稍等或重新載入。</p><button class="secondary-btn" onclick="location.reload()">重新載入</button></div>
     </main>
     <footer class="site-footer">
       <span>一起認識火車，也愛上數學。</span
@@ -52,6 +63,10 @@
         <button class="close-btn" aria-label="關閉設定">×</button>
       </form>
       <div id="settings-content"></div>
+    </dialog>
+    <dialog id="gift-dialog" class="gift-dialog" aria-labelledby="gift-detail-title">
+      <form method="dialog"><button class="close-btn" aria-label="關閉小禮物">×</button></form>
+      <div id="gift-detail-content"></div>
     </dialog>
     <dialog id="detail-dialog" aria-labelledby="detail-title">
       <div id="detail-content"></div>
@@ -66,15 +81,17 @@
         歲，認識台灣列車與簡單數學。所有列車都可以直接選，答錯後一起再試一次。
       </p>
       <p>
-        列車圖像為 AI
-        生成的電影風情境插圖，細節可能與實車不同；名稱與型號另附資料來源。圖鑑區分台灣車型、觀光名稱、海外列車與試驗列車。星光高鐵是想像故事車。
+        圖鑑及列車配對、拼圖使用核對過的實車照片，圖片作者與授權列於列車介紹。內裝、歷史塗裝與尚未營運的新車均有標示。故事風景與星光高鐵為想像情境插圖。
       </p>
       <p>
-        本遊戲是非官方教育專案。程式採 Apache-2.0 授權，文字及可授權圖像採 CC BY
-        4.0。素材不包含第三方商標權的授予。
+        本遊戲是非官方教育專案。程式採 Apache-2.0 授權，原創文字與 AI 圖片採 CC BY 4.0，實車照片各依原作者授權。素材不包含第三方商標權的授予。
       </p>
       <p>
         聲音採裝置中文語音，可自行關閉。紀錄只存在本機；遊戲不設帳號、廣告、付費購買或追蹤程式。
+      </p>
+      <p>
+        <a href="PRIVACY.md" target="_blank" rel="noopener">隱私說明</a> ·
+        <a href="docs/train-photo-credits.md" target="_blank" rel="noopener">逐張照片來源與授權</a>
       </p>
       <p>
         <a href="docs/sources-and-licenses.md" target="_blank" rel="noopener"
@@ -94,7 +111,7 @@
           >查看故事與新冒險規劃</a
         >
       </p>
-      <small>版本 1.2.0・玩法更新日期 2026 年 10 月 4 日</small>
+      <small>版本 1.8.0・玩法更新日期 2026 年 10 月 5 日</small>
     </dialog>
     <div
       id="announcement"
@@ -102,6 +119,6 @@
       aria-live="polite"
       aria-atomic="true"
     ></div>
-    <script type="module" src="src/app.js?v=1.2.0"></script>
+    <script type="module" src="src/app.js?v=1.8.0"></script>
   </body>
 </html>

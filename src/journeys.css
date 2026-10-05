@@ -1,0 +1,145 @@
+.journey-forest { --journey-accent: #2d6853; --journey-paper: #e3edde; }
+.journey-coast { --journey-accent: #276e89; --journey-paper: #e0edf0; }
+.journey-freight { --journey-accent: #95542e; --journey-paper: #f0e5d4; }
+.journey-engineer { --journey-accent: #586d4d; --journey-paper: #e7ecd9; }
+.journey-picnic { --journey-accent: #a25247; --journey-paper: #f3e5d9; }
+.journey-depot { --journey-accent: #675878; --journey-paper: #eae5ef; }
+.journeys-section {
+  width: min(94%, 1100px);
+  margin: 28px auto 40px;
+  color: var(--ink, #203d40);
+}
+.journeys-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 8px;
+}
+.journeys-heading small {
+  color: var(--green, #246b5e);
+  font-size: 13px;
+}
+.journeys-heading h2 {
+  margin: 3px 0 0;
+  font-size: clamp(24px, 4vw, 32px);
+  line-height: 1.35;
+}
+.journeys-heading p,
+.journeys-note {
+  color: var(--muted, #647875);
+  font-size: 13px;
+}
+.journeys-note { margin: 0 0 16px; }
+.journey-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+.journey-card {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  min-width: 48px;
+  min-height: 48px;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid #bfcebd;
+  border-color: color-mix(in srgb, var(--journey-accent), white 55%);
+  border-radius: 18px;
+  background: var(--journey-paper, #e3edde);
+  color: var(--ink, #203d40);
+  text-align: left;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.journey-card:hover { border-color: var(--journey-accent); }
+.journey-card:focus-visible { outline: 3px solid #247fa5; outline-offset: 3px; }
+.journey-card:disabled { cursor: default; opacity: 0.7; }
+.journey-photo {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  background: var(--journey-accent);
+}
+.journey-photo img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.journey-photo::after {
+  position: absolute;
+  inset: 45% 0 0;
+  content: "";
+  background: linear-gradient(transparent, #17382d45);
+  pointer-events: none;
+}
+.journey-icon {
+  position: absolute;
+  z-index: 1;
+  bottom: 10px;
+  left: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 13px;
+  background: #fffdf3ed;
+  color: var(--journey-accent);
+  font-size: 25px;
+  line-height: 1;
+}
+.journey-badge {
+  position: absolute;
+  z-index: 1;
+  top: 9px;
+  right: 9px;
+  padding: 4px 8px;
+  border-radius: 7px;
+  background: #fffdf3f2;
+  color: var(--journey-accent);
+  font-size: 12px;
+  font-weight: 700;
+}
+.journey-card-copy {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 9px;
+  padding: 16px;
+}
+.journey-card-copy > strong {
+  color: var(--journey-accent);
+  font-size: 21px;
+  line-height: 1.35;
+}
+.journey-description { font-size: 14px; line-height: 1.65; }
+.journey-task-list { color: var(--muted, #647875); font-size: 12px; line-height: 1.5; }
+.journey-card-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 5px;
+  margin-top: auto;
+  padding-top: 9px;
+  border-top: 1px solid #203d401c;
+}
+.journey-card-footer > span { font-size: 12px; }
+.journey-card-footer > b { color: var(--journey-accent); font-size: 14px; }
+@media (max-width: 740px) {
+  .journey-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .journeys-heading { flex-direction: column; align-items: start; gap: 6px; }
+  .journeys-section { margin-top: 22px; }
+  .journey-card { border-radius: 14px; }
+  .journey-card-copy { padding: 12px; gap: 7px; }
+  .journey-card-copy > strong { font-size: 18px; }
+  .journey-description { font-size: 13px; }
+  .journey-task-list { font-size: 11px; }
+  .journey-icon { width: 34px; height: 34px; font-size: 21px; left: 8px; bottom: 8px; }
+  .journey-badge { top: 6px; right: 6px; padding: 3px 6px; font-size: 11px; }
+}

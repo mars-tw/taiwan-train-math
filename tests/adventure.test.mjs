@@ -67,6 +67,40 @@ test("track puzzles always have a working route and begin unsolved", () => {
     }
   assert.deepEqual(railLinks("empty", 0), []);
 });
+test("young track players get different solvable routes without bigger puzzles", () => {
+  for (const [level, columns, minimumRoutes] of [
+    ["small", 2, 2],
+    ["medium", 3, 4],
+  ]) {
+    const routes = new Set();
+    for (let seed = 0; seed < 96; seed++) {
+      const q = questionFor({
+        game: "tracks",
+        level,
+        train: trains[0],
+        trains,
+        rng: seededRandom(Math.imul(seed, 2654435761)),
+      });
+      routes.add(q.path.join(","));
+      assert.equal(q.columns, columns);
+      assert.equal(q.rows, columns);
+      assert.equal(q.tiles.length, columns * columns);
+      assert.equal(q.start, 0, "the arrival animation enters the top-left tile");
+      assert.equal(q.finish, q.tiles.length - 1);
+      assert.equal(q.path.length, columns * 2 - 1, "keep beginner routes short");
+      for (let at = 1; at < q.path.length; at++) {
+        const from = q.path[at - 1], to = q.path[at];
+        const distance =
+          Math.abs((from % columns) - (to % columns)) +
+          Math.abs(Math.floor(from / columns) - Math.floor(to / columns));
+        assert.equal(distance, 1, "each track joins an adjacent tile");
+      }
+      assert.equal(trackConnected(q, q.tiles.map((tile) => tile.solution)), true);
+      assert.equal(trackConnected(q, newAdventureState(q).rotations), false);
+    }
+    assert.ok(routes.size >= minimumRoutes, `${level} offers ${minimumRoutes} routes`);
+  }
+});
 test("snacks conserve inventory, support take-back and require equal complete sharing", () => {
   for (const level of Object.keys(LEVELS))
     for (let seed = 0; seed < 400; seed++) {
@@ -173,7 +207,7 @@ test("old passports migrate safely; souvenirs are valid and avoid duplicates unt
     assert.ok(!collection.souvenirs.includes(gift.id));
     collection.souvenirs.push(gift.id);
   }
-  assert.equal(collection.souvenirs.length, 12);
+  assert.equal(collection.souvenirs.length, SOUVENIRS.length);
   assert.ok(
     SOUVENIRS.some((gift) => gift.id === pickSouvenir(collection, "700t").id),
   );

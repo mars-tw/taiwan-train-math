@@ -1,0 +1,1601 @@
+[
+  {
+    "snapshot": {
+      "version": 1,
+      "gameVersion": "1.7.0",
+      "meta": {
+        "level": "small",
+        "trainId": "700t",
+        "practice": "mixed",
+        "challenge": false,
+        "seed": 17,
+        "recentQuestions": [],
+        "recentGames": [],
+        "journey": null,
+        "contentVersion": "1.7.0"
+      },
+      "index": 0,
+      "solved": false,
+      "assisted": false,
+      "awarded": false,
+      "work": {
+        "game": "sharing",
+        "shares": [
+          0,
+          0
+        ]
+      }
+    },
+    "expectedQuestions": [
+      {
+        "game": "sharing",
+        "level": "small",
+        "friends": 2,
+        "total": 4,
+        "food": "🍎",
+        "answer": [
+          2,
+          2
+        ],
+        "prompt": "把 4 份點心，分給 2 位朋友，讓每位一樣多。",
+        "hint": "一次給每位朋友一份，再分下一輪。多了可以搬回點心籃。"
+      },
+      {
+        "game": "balance",
+        "level": "small",
+        "target": 2,
+        "allowedWeights": [
+          1,
+          2
+        ],
+        "maxBoxes": 6,
+        "answer": 2,
+        "prompt": "幫貨運列車配好重量，和 2 公斤的貨物一樣重。",
+        "hint": "看看每箱的重量，試著搭配不同的貨物；檢查後可以搬回來調整。"
+      },
+      {
+        "game": "pattern",
+        "level": "small",
+        "kind": "shape",
+        "sequence": [
+          "square",
+          "circle",
+          "square",
+          "circle"
+        ],
+        "unit": [
+          "square",
+          "circle"
+        ],
+        "answer": "square",
+        "choices": [
+          "square",
+          "circle"
+        ],
+        "prompt": "看看重複的規律，下一節車廂放什麼？",
+        "hint": "找出一直重複的小組，看看空位在下一組的哪個位置。"
+      }
+    ]
+  },
+  {
+    "snapshot": {
+      "version": 1,
+      "gameVersion": "1.7.0",
+      "meta": {
+        "level": "small",
+        "trainId": "700t",
+        "practice": "puzzle",
+        "challenge": false,
+        "seed": 1707,
+        "recentQuestions": [],
+        "recentGames": [],
+        "journey": null,
+        "contentVersion": "1.7.0"
+      },
+      "index": 0,
+      "solved": false,
+      "assisted": false,
+      "awarded": false,
+      "work": {
+        "game": "puzzle",
+        "puzzle": {
+          "placements": [
+            null,
+            null,
+            null,
+            null
+          ],
+          "selectedPiece": null,
+          "moves": 0,
+          "preview": false
+        }
+      }
+    },
+    "expectedQuestions": [
+      {
+        "game": "puzzle",
+        "level": "small",
+        "target": "emu700",
+        "image": "assets/images/real-emu700.jpg",
+        "trainName": "區間車 EMU700",
+        "columns": 2,
+        "rows": 2,
+        "pieces": [
+          2,
+          3,
+          1,
+          0
+        ],
+        "answer": [
+          0,
+          1,
+          2,
+          3
+        ],
+        "prompt": "把區間車 EMU700的照片拼回來。",
+        "hint": "先看看照片裡的車頭、軌道和天空，再找能接在一起的邊緣。"
+      },
+      {
+        "game": "puzzle",
+        "level": "small",
+        "target": "xihu",
+        "image": "assets/images/real-xihu.jpg",
+        "trainName": "溪湖五分車",
+        "columns": 2,
+        "rows": 2,
+        "pieces": [
+          3,
+          1,
+          0,
+          2
+        ],
+        "answer": [
+          0,
+          1,
+          2,
+          3
+        ],
+        "prompt": "把溪湖五分車的照片拼回來。",
+        "hint": "先看看照片裡的車頭、軌道和天空，再找能接在一起的邊緣。"
+      },
+      {
+        "game": "puzzle",
+        "level": "small",
+        "target": "breezy-blue",
+        "image": "assets/images/real-breezy-blue.jpg",
+        "trainName": "藍皮解憂號",
+        "columns": 2,
+        "rows": 2,
+        "pieces": [
+          2,
+          0,
+          1,
+          3
+        ],
+        "answer": [
+          0,
+          1,
+          2,
+          3
+        ],
+        "prompt": "把藍皮解憂號的照片拼回來。",
+        "hint": "先看看照片裡的車頭、軌道和天空，再找能接在一起的邊緣。"
+      }
+    ]
+  },
+  {
+    "snapshot": {
+      "version": 1,
+      "gameVersion": "1.7.0",
+      "meta": {
+        "level": "small",
+        "trainId": "700t",
+        "practice": "memory",
+        "challenge": false,
+        "seed": 1707,
+        "recentQuestions": [],
+        "recentGames": [],
+        "journey": null,
+        "contentVersion": "1.7.0"
+      },
+      "index": 0,
+      "solved": false,
+      "assisted": false,
+      "awarded": false,
+      "work": {
+        "game": "memory",
+        "memory": {
+          "open": [],
+          "matched": [],
+          "turns": 0
+        }
+      }
+    },
+    "expectedQuestions": [
+      {
+        "game": "memory",
+        "level": "small",
+        "pairs": [
+          "700t",
+          "qiaotou"
+        ],
+        "deck": [
+          "qiaotou",
+          "qiaotou",
+          "700t",
+          "700t"
+        ],
+        "answer": 2,
+        "prompt": "翻開兩張卡，找出一樣的列車。",
+        "hint": "一起看看列車長什麼樣子。記住位置，再試著翻出一對。"
+      },
+      {
+        "game": "memory",
+        "level": "small",
+        "pairs": [
+          "700t",
+          "r100"
+        ],
+        "deck": [
+          "r100",
+          "r100",
+          "700t",
+          "700t"
+        ],
+        "answer": 2,
+        "prompt": "翻開兩張卡，找出一樣的列車。",
+        "hint": "一起看看列車長什麼樣子。記住位置，再試著翻出一對。"
+      },
+      {
+        "game": "memory",
+        "level": "small",
+        "pairs": [
+          "700t",
+          "dt668"
+        ],
+        "deck": [
+          "700t",
+          "dt668",
+          "700t",
+          "dt668"
+        ],
+        "answer": 2,
+        "prompt": "翻開兩張卡，找出一樣的列車。",
+        "hint": "一起看看列車長什麼樣子。記住位置，再試著翻出一對。"
+      }
+    ]
+  },
+  {
+    "snapshot": {
+      "version": 1,
+      "gameVersion": "1.7.0",
+      "meta": {
+        "level": "small",
+        "trainId": "700t",
+        "practice": "identify",
+        "challenge": false,
+        "seed": 1707,
+        "recentQuestions": [],
+        "recentGames": [],
+        "journey": null,
+        "contentVersion": "1.7.0"
+      },
+      "index": 0,
+      "solved": false,
+      "assisted": false,
+      "awarded": false,
+      "work": {
+        "game": "identify"
+      }
+    },
+    "expectedQuestions": [
+      {
+        "game": "identify",
+        "level": "small",
+        "target": "n700s",
+        "prompt": "請找到日本新幹線。",
+        "answer": "n700s",
+        "choices": [
+          "n700s",
+          "temu2000"
+        ],
+        "hint": "看看車頭和車身的樣子，再對照題目中的列車名稱或型號。"
+      },
+      {
+        "game": "identify",
+        "level": "small",
+        "target": "e400",
+        "prompt": "請找到電力機車 E400。",
+        "answer": "e400",
+        "choices": [
+          "r180",
+          "e400"
+        ],
+        "hint": "看看車頭和車身的樣子，再對照題目中的列車名稱或型號。"
+      },
+      {
+        "game": "identify",
+        "level": "small",
+        "target": "r190",
+        "prompt": "請找到柴電機車 R190。",
+        "answer": "r190",
+        "choices": [
+          "r190",
+          "cypress-coach"
+        ],
+        "hint": "看看車頭和車身的樣子，再對照題目中的列車名稱或型號。"
+      }
+    ]
+  },
+  {
+    "snapshot": {
+      "version": 1,
+      "gameVersion": "1.7.0",
+      "meta": {
+        "level": "medium",
+        "trainId": "700t",
+        "practice": "mixed",
+        "challenge": false,
+        "seed": 17,
+        "recentQuestions": [],
+        "recentGames": [],
+        "journey": null,
+        "contentVersion": "1.7.0"
+      },
+      "index": 0,
+      "solved": false,
+      "assisted": false,
+      "awarded": false,
+      "work": {
+        "game": "luggage",
+        "luggageSelected": null,
+        "luggageAssignments": [
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ]
+      }
+    },
+    "expectedQuestions": [
+      {
+        "game": "luggage",
+        "level": "medium",
+        "criteria": "shape",
+        "items": [
+          {
+            "id": "luggage-1",
+            "color": "purple",
+            "colorName": "紫色",
+            "shape": "triangle",
+            "shapeName": "三角形"
+          },
+          {
+            "id": "luggage-2",
+            "color": "purple",
+            "colorName": "紫色",
+            "shape": "circle",
+            "shapeName": "圓形"
+          },
+          {
+            "id": "luggage-3",
+            "color": "red",
+            "colorName": "紅色",
+            "shape": "circle",
+            "shapeName": "圓形"
+          },
+          {
+            "id": "luggage-4",
+            "color": "red",
+            "colorName": "紅色",
+            "shape": "square",
+            "shapeName": "正方形"
+          },
+          {
+            "id": "luggage-5",
+            "color": "green",
+            "colorName": "綠色",
+            "shape": "square",
+            "shapeName": "正方形"
+          },
+          {
+            "id": "luggage-0",
+            "color": "yellow",
+            "colorName": "黃色",
+            "shape": "triangle",
+            "shapeName": "三角形"
+          }
+        ],
+        "bins": [
+          {
+            "id": "bin-0",
+            "label": "三角形",
+            "shape": "triangle",
+            "shapeName": "三角形"
+          },
+          {
+            "id": "bin-1",
+            "label": "圓形",
+            "shape": "circle",
+            "shapeName": "圓形"
+          },
+          {
+            "id": "bin-2",
+            "label": "正方形",
+            "shape": "square",
+            "shapeName": "正方形"
+          }
+        ],
+        "answer": [
+          "bin-0",
+          "bin-1",
+          "bin-1",
+          "bin-2",
+          "bin-2",
+          "bin-0"
+        ],
+        "prompt": "看看形狀，把行李放進同形狀的籃子。",
+        "hint": "先看籃子的形狀標示，再跟手上的行李比一比。放錯了可以搬回來。"
+      },
+      {
+        "game": "pattern",
+        "level": "medium",
+        "kind": "shape",
+        "sequence": [
+          "circle",
+          "diamond",
+          "triangle",
+          "circle",
+          "diamond",
+          "triangle"
+        ],
+        "unit": [
+          "circle",
+          "diamond",
+          "triangle"
+        ],
+        "answer": "circle",
+        "choices": [
+          "diamond",
+          "triangle",
+          "circle"
+        ],
+        "prompt": "看看重複的規律，下一節車廂放什麼？",
+        "hint": "找出一直重複的小組，看看空位在下一組的哪個位置。"
+      },
+      {
+        "game": "compare",
+        "level": "medium",
+        "left": 9,
+        "right": 9,
+        "answer": "equal",
+        "choices": [
+          "left",
+          "equal",
+          "right"
+        ],
+        "prompt": "哪一邊的車票比較多？",
+        "hint": "把兩邊的車票一張一張配對，看看哪邊還有剩下的。"
+      },
+      {
+        "game": "clock",
+        "level": "medium",
+        "hour": 6,
+        "minute": 0,
+        "answer": 360,
+        "choices": [
+          600,
+          180,
+          360
+        ],
+        "prompt": "車站時鐘指向幾點？找到列車出發時間。",
+        "hint": "先看短短的時針在哪個數字附近，再看長長的分針，分辨是整點還是半點。"
+      },
+      {
+        "game": "program",
+        "level": "medium",
+        "columns": 4,
+        "rows": 4,
+        "start": 0,
+        "finish": 15,
+        "walls": [
+          13,
+          5,
+          5,
+          3,
+          9,
+          1,
+          3,
+          10,
+          8,
+          2,
+          14,
+          10,
+          14,
+          12,
+          5,
+          6
+        ],
+        "maxCommands": 10,
+        "answer": "arrived",
+        "prompt": "先排好方向指令，再讓小火車出發。",
+        "hint": "從起點想好每一步，遇到牆就換個方向；可以改指令後再跑一次。"
+      }
+    ]
+  },
+  {
+    "snapshot": {
+      "version": 1,
+      "gameVersion": "1.7.0",
+      "meta": {
+        "level": "medium",
+        "trainId": "700t",
+        "practice": "puzzle",
+        "challenge": false,
+        "seed": 1707,
+        "recentQuestions": [],
+        "recentGames": [],
+        "journey": null,
+        "contentVersion": "1.7.0"
+      },
+      "index": 0,
+      "solved": false,
+      "assisted": false,
+      "awarded": false,
+      "work": {
+        "game": "puzzle",
+        "puzzle": {
+          "placements": [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          "selectedPiece": null,
+          "moves": 0,
+          "preview": false
+        }
+      }
+    },
+    "expectedQuestions": [
+      {
+        "game": "puzzle",
+        "level": "medium",
+        "target": "emu3000",
+        "image": "assets/images/real-emu3000.jpg",
+        "trainName": "新自強號",
+        "columns": 3,
+        "rows": 2,
+        "pieces": [
+          4,
+          1,
+          3,
+          2,
+          0,
+          5
+        ],
+        "answer": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "prompt": "把新自強號的照片拼回來。",
+        "hint": "先看看照片裡的車頭、軌道和天空，再找能接在一起的邊緣。"
+      },
+      {
+        "game": "puzzle",
+        "level": "medium",
+        "target": "forest-dl31-34",
+        "image": "assets/images/real-forest-dl31-34.jpg",
+        "trainName": "阿里山柴油機車 DL31–34",
+        "columns": 3,
+        "rows": 2,
+        "pieces": [
+          1,
+          0,
+          2,
+          5,
+          4,
+          3
+        ],
+        "answer": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "prompt": "把阿里山柴油機車 DL31–34的照片拼回來。",
+        "hint": "先看看照片裡的車頭、軌道和天空，再找能接在一起的邊緣。"
+      },
+      {
+        "game": "puzzle",
+        "level": "medium",
+        "target": "r190",
+        "image": "assets/images/real-r190.jpg",
+        "trainName": "柴電機車 R190",
+        "columns": 3,
+        "rows": 2,
+        "pieces": [
+          0,
+          3,
+          2,
+          1,
+          5,
+          4
+        ],
+        "answer": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "prompt": "把柴電機車 R190的照片拼回來。",
+        "hint": "先看看照片裡的車頭、軌道和天空，再找能接在一起的邊緣。"
+      },
+      {
+        "game": "puzzle",
+        "level": "medium",
+        "target": "e5",
+        "image": "assets/images/real-e5.jpg",
+        "trainName": "日本子彈列車",
+        "columns": 3,
+        "rows": 2,
+        "pieces": [
+          0,
+          2,
+          3,
+          5,
+          4,
+          1
+        ],
+        "answer": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "prompt": "把日本子彈列車的照片拼回來。",
+        "hint": "先看看照片裡的車頭、軌道和天空，再找能接在一起的邊緣。"
+      },
+      {
+        "game": "puzzle",
+        "level": "medium",
+        "target": "mountain-mist",
+        "image": "assets/images/real-mountain-mist.jpg",
+        "trainName": "山嵐號",
+        "columns": 3,
+        "rows": 2,
+        "pieces": [
+          5,
+          2,
+          3,
+          1,
+          4,
+          0
+        ],
+        "answer": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "prompt": "把山嵐號的照片拼回來。",
+        "hint": "先看看照片裡的車頭、軌道和天空，再找能接在一起的邊緣。"
+      }
+    ]
+  },
+  {
+    "snapshot": {
+      "version": 1,
+      "gameVersion": "1.7.0",
+      "meta": {
+        "level": "medium",
+        "trainId": "700t",
+        "practice": "memory",
+        "challenge": false,
+        "seed": 1707,
+        "recentQuestions": [],
+        "recentGames": [],
+        "journey": null,
+        "contentVersion": "1.7.0"
+      },
+      "index": 0,
+      "solved": false,
+      "assisted": false,
+      "awarded": false,
+      "work": {
+        "game": "memory",
+        "memory": {
+          "open": [],
+          "matched": [],
+          "turns": 0
+        }
+      }
+    },
+    "expectedQuestions": [
+      {
+        "game": "memory",
+        "level": "medium",
+        "pairs": [
+          "700t",
+          "qiaotou",
+          "island-star"
+        ],
+        "deck": [
+          "700t",
+          "700t",
+          "island-star",
+          "island-star",
+          "qiaotou",
+          "qiaotou"
+        ],
+        "answer": 3,
+        "prompt": "翻開兩張卡，找出一樣的列車。",
+        "hint": "一起看看列車長什麼樣子。記住位置，再試著翻出一對。"
+      },
+      {
+        "game": "memory",
+        "level": "medium",
+        "pairs": [
+          "700t",
+          "r150",
+          "r180"
+        ],
+        "deck": [
+          "r180",
+          "700t",
+          "700t",
+          "r150",
+          "r150",
+          "r180"
+        ],
+        "answer": 3,
+        "prompt": "翻開兩張卡，找出一樣的列車。",
+        "hint": "一起看看列車長什麼樣子。記住位置，再試著翻出一對。"
+      },
+      {
+        "game": "memory",
+        "level": "medium",
+        "pairs": [
+          "700t",
+          "e300",
+          "forest-dl45-51"
+        ],
+        "deck": [
+          "700t",
+          "e300",
+          "forest-dl45-51",
+          "forest-dl45-51",
+          "700t",
+          "e300"
+        ],
+        "answer": 3,
+        "prompt": "翻開兩張卡，找出一樣的列車。",
+        "hint": "一起看看列車長什麼樣子。記住位置，再試著翻出一對。"
+      },
+      {
+        "game": "memory",
+        "level": "medium",
+        "pairs": [
+          "700t",
+          "wushulin",
+          "temu2000"
+        ],
+        "deck": [
+          "temu2000",
+          "700t",
+          "wushulin",
+          "temu2000",
+          "700t",
+          "wushulin"
+        ],
+        "answer": 3,
+        "prompt": "翻開兩張卡，找出一樣的列車。",
+        "hint": "一起看看列車長什麼樣子。記住位置，再試著翻出一對。"
+      },
+      {
+        "game": "memory",
+        "level": "medium",
+        "pairs": [
+          "700t",
+          "ck124",
+          "breezy-blue"
+        ],
+        "deck": [
+          "700t",
+          "ck124",
+          "700t",
+          "ck124",
+          "breezy-blue",
+          "breezy-blue"
+        ],
+        "answer": 3,
+        "prompt": "翻開兩張卡，找出一樣的列車。",
+        "hint": "一起看看列車長什麼樣子。記住位置，再試著翻出一對。"
+      }
+    ]
+  },
+  {
+    "snapshot": {
+      "version": 1,
+      "gameVersion": "1.7.0",
+      "meta": {
+        "level": "medium",
+        "trainId": "700t",
+        "practice": "identify",
+        "challenge": false,
+        "seed": 1707,
+        "recentQuestions": [],
+        "recentGames": [],
+        "journey": null,
+        "contentVersion": "1.7.0"
+      },
+      "index": 0,
+      "solved": false,
+      "assisted": false,
+      "awarded": false,
+      "work": {
+        "game": "identify"
+      }
+    },
+    "expectedQuestions": [
+      {
+        "game": "identify",
+        "level": "medium",
+        "target": "n700s",
+        "prompt": "請找到日本新幹線。",
+        "answer": "n700s",
+        "choices": [
+          "temu2000",
+          "n700s",
+          "qiaotou"
+        ],
+        "hint": "看看車頭和車身的樣子，再對照題目中的列車名稱或型號。"
+      },
+      {
+        "game": "identify",
+        "level": "medium",
+        "target": "dl2500",
+        "prompt": "請找到車輛調動機。",
+        "answer": "dl2500",
+        "choices": [
+          "dl2500",
+          "sugar-346",
+          "e5"
+        ],
+        "hint": "看看車頭和車身的樣子，再對照題目中的列車名稱或型號。"
+      },
+      {
+        "game": "identify",
+        "level": "medium",
+        "target": "700t",
+        "prompt": "請找到台灣高鐵。",
+        "answer": "700t",
+        "choices": [
+          "qiaotou",
+          "700t",
+          "sugar-346"
+        ],
+        "hint": "看看車頭和車身的樣子，再對照題目中的列車名稱或型號。"
+      },
+      {
+        "game": "identify",
+        "level": "medium",
+        "target": "dhl100",
+        "prompt": "請找到柴液調車機車。",
+        "answer": "dhl100",
+        "choices": [
+          "dhl100",
+          "e5",
+          "emu900"
+        ],
+        "hint": "看看車頭和車身的樣子，再對照題目中的列車名稱或型號。"
+      },
+      {
+        "game": "identify",
+        "level": "medium",
+        "target": "juguang",
+        "prompt": "請找到莒光號。",
+        "answer": "juguang",
+        "choices": [
+          "emu700",
+          "forest-dl38",
+          "juguang"
+        ],
+        "hint": "看看車頭和車身的樣子，再對照題目中的列車名稱或型號。"
+      }
+    ]
+  },
+  {
+    "snapshot": {
+      "version": 1,
+      "gameVersion": "1.7.0",
+      "meta": {
+        "level": "large",
+        "trainId": "700t",
+        "practice": "mixed",
+        "challenge": false,
+        "seed": 17,
+        "recentQuestions": [],
+        "recentGames": [],
+        "journey": null,
+        "contentVersion": "1.7.0"
+      },
+      "index": 0,
+      "solved": false,
+      "assisted": false,
+      "awarded": false,
+      "work": {
+        "game": "luggage",
+        "luggageSelected": null,
+        "luggageAssignments": [
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ]
+      }
+    },
+    "expectedQuestions": [
+      {
+        "game": "luggage",
+        "level": "large",
+        "criteria": "both",
+        "items": [
+          {
+            "id": "luggage-2",
+            "color": "purple",
+            "colorName": "紫色",
+            "shape": "circle",
+            "shapeName": "圓形"
+          },
+          {
+            "id": "luggage-1",
+            "color": "yellow",
+            "colorName": "黃色",
+            "shape": "circle",
+            "shapeName": "圓形"
+          },
+          {
+            "id": "luggage-3",
+            "color": "purple",
+            "colorName": "紫色",
+            "shape": "circle",
+            "shapeName": "圓形"
+          },
+          {
+            "id": "luggage-4",
+            "color": "purple",
+            "colorName": "紫色",
+            "shape": "square",
+            "shapeName": "正方形"
+          },
+          {
+            "id": "luggage-5",
+            "color": "purple",
+            "colorName": "紫色",
+            "shape": "square",
+            "shapeName": "正方形"
+          },
+          {
+            "id": "luggage-6",
+            "color": "yellow",
+            "colorName": "黃色",
+            "shape": "square",
+            "shapeName": "正方形"
+          },
+          {
+            "id": "luggage-7",
+            "color": "yellow",
+            "colorName": "黃色",
+            "shape": "square",
+            "shapeName": "正方形"
+          },
+          {
+            "id": "luggage-0",
+            "color": "yellow",
+            "colorName": "黃色",
+            "shape": "circle",
+            "shapeName": "圓形"
+          }
+        ],
+        "bins": [
+          {
+            "id": "bin-0",
+            "label": "黃色圓形",
+            "color": "yellow",
+            "colorName": "黃色",
+            "shape": "circle",
+            "shapeName": "圓形"
+          },
+          {
+            "id": "bin-1",
+            "label": "紫色圓形",
+            "color": "purple",
+            "colorName": "紫色",
+            "shape": "circle",
+            "shapeName": "圓形"
+          },
+          {
+            "id": "bin-2",
+            "label": "紫色正方形",
+            "color": "purple",
+            "colorName": "紫色",
+            "shape": "square",
+            "shapeName": "正方形"
+          },
+          {
+            "id": "bin-3",
+            "label": "黃色正方形",
+            "color": "yellow",
+            "colorName": "黃色",
+            "shape": "square",
+            "shapeName": "正方形"
+          }
+        ],
+        "answer": [
+          "bin-1",
+          "bin-0",
+          "bin-1",
+          "bin-2",
+          "bin-2",
+          "bin-3",
+          "bin-3",
+          "bin-0"
+        ],
+        "prompt": "顏色和形狀都要相同，幫行李找到籃子。",
+        "hint": "先比顏色，再比形狀，兩個條件都要符合。放錯了可以搬回來。"
+      },
+      {
+        "game": "pattern",
+        "level": "large",
+        "kind": "number",
+        "sequence": [
+          "8",
+          "10",
+          "12",
+          "14"
+        ],
+        "step": 2,
+        "answer": "16",
+        "choices": [
+          "16",
+          "14",
+          "2"
+        ],
+        "prompt": "每次多一樣多，下一節車廂是幾號？",
+        "hint": "先比較相鄰兩個數字，看每次增加多少，再用同樣的方法往後推。"
+      },
+      {
+        "game": "compare",
+        "level": "large",
+        "left": 7,
+        "right": 9,
+        "answer": "right",
+        "choices": [
+          "left",
+          "equal",
+          "right"
+        ],
+        "prompt": "哪一邊的車票比較多？",
+        "hint": "把兩邊的車票一張一張配對，看看哪邊還有剩下的。"
+      },
+      {
+        "game": "clock",
+        "level": "large",
+        "hour": 9,
+        "minute": 30,
+        "answer": 570,
+        "choices": [
+          390,
+          240,
+          570
+        ],
+        "prompt": "車站時鐘指向幾點？找到列車出發時間。",
+        "hint": "先看短短的時針在哪個數字附近，再看長長的分針，分辨是整點還是半點。"
+      },
+      {
+        "game": "program",
+        "level": "large",
+        "columns": 5,
+        "rows": 5,
+        "start": 0,
+        "finish": 24,
+        "walls": [
+          13,
+          5,
+          3,
+          9,
+          3,
+          9,
+          7,
+          12,
+          6,
+          10,
+          10,
+          9,
+          5,
+          3,
+          10,
+          10,
+          12,
+          3,
+          10,
+          10,
+          12,
+          5,
+          6,
+          12,
+          6
+        ],
+        "maxCommands": 16,
+        "answer": "arrived",
+        "prompt": "先排好方向指令，再讓小火車出發。",
+        "hint": "從起點想好每一步，遇到牆就換個方向；可以改指令後再跑一次。"
+      }
+    ]
+  },
+  {
+    "snapshot": {
+      "version": 1,
+      "gameVersion": "1.7.0",
+      "meta": {
+        "level": "large",
+        "trainId": "700t",
+        "practice": "puzzle",
+        "challenge": false,
+        "seed": 1707,
+        "recentQuestions": [],
+        "recentGames": [],
+        "journey": null,
+        "contentVersion": "1.7.0"
+      },
+      "index": 0,
+      "solved": false,
+      "assisted": false,
+      "awarded": false,
+      "work": {
+        "game": "puzzle",
+        "puzzle": {
+          "placements": [
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+          ],
+          "selectedPiece": null,
+          "moves": 0,
+          "preview": false
+        }
+      }
+    },
+    "expectedQuestions": [
+      {
+        "game": "puzzle",
+        "level": "large",
+        "target": "suantou",
+        "image": "assets/images/real-suantou.jpg",
+        "trainName": "蒜頭五分車",
+        "columns": 3,
+        "rows": 3,
+        "pieces": [
+          7,
+          6,
+          2,
+          4,
+          0,
+          1,
+          8,
+          5,
+          3
+        ],
+        "answer": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8
+        ],
+        "prompt": "把蒜頭五分車的照片拼回來。",
+        "hint": "先看看照片裡的車頭、軌道和天空，再找能接在一起的邊緣。"
+      },
+      {
+        "game": "puzzle",
+        "level": "large",
+        "target": "emu800",
+        "image": "assets/images/real-emu800.jpg",
+        "trainName": "區間車 EMU800",
+        "columns": 3,
+        "rows": 3,
+        "pieces": [
+          6,
+          5,
+          7,
+          8,
+          0,
+          2,
+          1,
+          3,
+          4
+        ],
+        "answer": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8
+        ],
+        "prompt": "把區間車 EMU800的照片拼回來。",
+        "hint": "先看看照片裡的車頭、軌道和天空，再找能接在一起的邊緣。"
+      },
+      {
+        "game": "puzzle",
+        "level": "large",
+        "target": "emu700",
+        "image": "assets/images/real-emu700.jpg",
+        "trainName": "區間車 EMU700",
+        "columns": 3,
+        "rows": 3,
+        "pieces": [
+          6,
+          4,
+          2,
+          5,
+          3,
+          1,
+          8,
+          0,
+          7
+        ],
+        "answer": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8
+        ],
+        "prompt": "把區間車 EMU700的照片拼回來。",
+        "hint": "先看看照片裡的車頭、軌道和天空，再找能接在一起的邊緣。"
+      },
+      {
+        "game": "puzzle",
+        "level": "large",
+        "target": "wushulin",
+        "image": "assets/images/real-wushulin.jpg",
+        "trainName": "烏樹林五分車",
+        "columns": 3,
+        "rows": 3,
+        "pieces": [
+          7,
+          6,
+          5,
+          4,
+          1,
+          8,
+          0,
+          2,
+          3
+        ],
+        "answer": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8
+        ],
+        "prompt": "把烏樹林五分車的照片拼回來。",
+        "hint": "先看看照片裡的車頭、軌道和天空，再找能接在一起的邊緣。"
+      },
+      {
+        "game": "puzzle",
+        "level": "large",
+        "target": "forest-dl25-30",
+        "image": "assets/images/real-forest-dl25-30.jpg",
+        "trainName": "阿里山柴油機車 DL25–30",
+        "columns": 3,
+        "rows": 3,
+        "pieces": [
+          7,
+          1,
+          2,
+          5,
+          6,
+          0,
+          4,
+          8,
+          3
+        ],
+        "answer": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8
+        ],
+        "prompt": "把阿里山柴油機車 DL25–30的照片拼回來。",
+        "hint": "先看看照片裡的車頭、軌道和天空，再找能接在一起的邊緣。"
+      }
+    ]
+  },
+  {
+    "snapshot": {
+      "version": 1,
+      "gameVersion": "1.7.0",
+      "meta": {
+        "level": "large",
+        "trainId": "700t",
+        "practice": "memory",
+        "challenge": false,
+        "seed": 1707,
+        "recentQuestions": [],
+        "recentGames": [],
+        "journey": null,
+        "contentVersion": "1.7.0"
+      },
+      "index": 0,
+      "solved": false,
+      "assisted": false,
+      "awarded": false,
+      "work": {
+        "game": "memory",
+        "memory": {
+          "open": [],
+          "matched": [],
+          "turns": 0
+        }
+      }
+    },
+    "expectedQuestions": [
+      {
+        "game": "memory",
+        "level": "large",
+        "pairs": [
+          "700t",
+          "qiaotou",
+          "island-star",
+          "temu1000"
+        ],
+        "deck": [
+          "temu1000",
+          "temu1000",
+          "island-star",
+          "700t",
+          "700t",
+          "island-star",
+          "qiaotou",
+          "qiaotou"
+        ],
+        "answer": 4,
+        "prompt": "翻開兩張卡，找出一樣的列車。",
+        "hint": "一起看看列車長什麼樣子。記住位置，再試著翻出一對。"
+      },
+      {
+        "game": "memory",
+        "level": "large",
+        "pairs": [
+          "700t",
+          "e5",
+          "r190",
+          "juguang"
+        ],
+        "deck": [
+          "juguang",
+          "e5",
+          "700t",
+          "700t",
+          "e5",
+          "r190",
+          "r190",
+          "juguang"
+        ],
+        "answer": 4,
+        "prompt": "翻開兩張卡，找出一樣的列車。",
+        "hint": "一起看看列車長什麼樣子。記住位置，再試著翻出一對。"
+      },
+      {
+        "game": "memory",
+        "level": "large",
+        "pairs": [
+          "700t",
+          "emu600",
+          "e500",
+          "shay-26"
+        ],
+        "deck": [
+          "emu600",
+          "shay-26",
+          "e500",
+          "700t",
+          "shay-26",
+          "emu600",
+          "700t",
+          "e500"
+        ],
+        "answer": 4,
+        "prompt": "翻開兩張卡，找出一樣的列車。",
+        "hint": "一起看看列車長什麼樣子。記住位置，再試著翻出一對。"
+      },
+      {
+        "game": "memory",
+        "level": "large",
+        "pairs": [
+          "700t",
+          "mountain-mist",
+          "shay-21",
+          "formosensis"
+        ],
+        "deck": [
+          "formosensis",
+          "700t",
+          "formosensis",
+          "mountain-mist",
+          "mountain-mist",
+          "700t",
+          "shay-21",
+          "shay-21"
+        ],
+        "answer": 4,
+        "prompt": "翻開兩張卡，找出一樣的列車。",
+        "hint": "一起看看列車長什麼樣子。記住位置，再試著翻出一對。"
+      },
+      {
+        "game": "memory",
+        "level": "large",
+        "pairs": [
+          "700t",
+          "forest-dl31-34",
+          "e300",
+          "forest-dl45-51"
+        ],
+        "deck": [
+          "700t",
+          "forest-dl31-34",
+          "e300",
+          "forest-dl45-51",
+          "forest-dl45-51",
+          "forest-dl31-34",
+          "e300",
+          "700t"
+        ],
+        "answer": 4,
+        "prompt": "翻開兩張卡，找出一樣的列車。",
+        "hint": "一起看看列車長什麼樣子。記住位置，再試著翻出一對。"
+      }
+    ]
+  },
+  {
+    "snapshot": {
+      "version": 1,
+      "gameVersion": "1.7.0",
+      "meta": {
+        "level": "large",
+        "trainId": "700t",
+        "practice": "identify",
+        "challenge": false,
+        "seed": 1707,
+        "recentQuestions": [],
+        "recentGames": [],
+        "journey": null,
+        "contentVersion": "1.7.0"
+      },
+      "index": 0,
+      "solved": false,
+      "assisted": false,
+      "awarded": false,
+      "work": {
+        "game": "identify"
+      }
+    },
+    "expectedQuestions": [
+      {
+        "game": "identify",
+        "level": "large",
+        "target": "n700s",
+        "prompt": "請找到型號是 N700S 的列車。",
+        "answer": "n700s",
+        "choices": [
+          "temu2000",
+          "n700s",
+          "qiaotou"
+        ],
+        "hint": "看看車頭和車身的樣子，再對照題目中的列車名稱或型號。"
+      },
+      {
+        "game": "identify",
+        "level": "large",
+        "target": "dl2500",
+        "prompt": "請找到型號是 DL2500 的列車。",
+        "answer": "dl2500",
+        "choices": [
+          "dl2500",
+          "sugar-346",
+          "e5"
+        ],
+        "hint": "看看車頭和車身的樣子，再對照題目中的列車名稱或型號。"
+      },
+      {
+        "game": "identify",
+        "level": "large",
+        "target": "700t",
+        "prompt": "請找到型號是 700T 的列車。",
+        "answer": "700t",
+        "choices": [
+          "qiaotou",
+          "700t",
+          "sugar-346"
+        ],
+        "hint": "看看車頭和車身的樣子，再對照題目中的列車名稱或型號。"
+      },
+      {
+        "game": "identify",
+        "level": "large",
+        "target": "dhl100",
+        "prompt": "請找到型號是 DHL100 的列車。",
+        "answer": "dhl100",
+        "choices": [
+          "dhl100",
+          "e5",
+          "emu900"
+        ],
+        "hint": "看看車頭和車身的樣子，再對照題目中的列車名稱或型號。"
+      },
+      {
+        "game": "identify",
+        "level": "large",
+        "target": "juguang",
+        "prompt": "請找到莒光號。",
+        "answer": "juguang",
+        "choices": [
+          "emu700",
+          "forest-dl38",
+          "juguang"
+        ],
+        "hint": "看看車頭和車身的樣子，再對照題目中的列車名稱或型號。"
+      }
+    ]
+  }
+]

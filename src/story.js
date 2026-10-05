@@ -6,15 +6,15 @@ import {
   storyChapter,
   advanceStory,
   goToChapter,
-} from "./story-model.js?v=1.8.2";
+} from "./story-model.js?v=1.9.0";
 export { newStoryState };
 export function storyMarkup() {
   return `<section class="story-scene" id="story-scene" aria-labelledby="story-title">
     <img class="story-landscape" src="assets/images/story-coast-v3.webp" alt="電影風想像山海鐵道，軌道由山林延伸到海邊" width="1672" height="941" fetchpriority="high" decoding="async"><div class="story-vignette"></div>
     <div class="story-atmosphere" aria-hidden="true"><i></i><i></i><i></i></div>
     <div class="story-train" id="story-train"><img src="assets/images/star-express-v3.webp" alt="星光高鐵，白色與金橘色的想像故事列車，車頭朝畫面下方" width="1024" height="1536" fetchpriority="high" decoding="async"><span class="train-headlight" aria-hidden="true"></span></div>
-    <div class="story-copy"><div class="eyebrow">INTERACTIVE RAILWAY STORY · 01</div><h1 id="story-title">搭上星光高鐵，<br>把驚喜送到<span>下一站。</span></h1><p>看列車緩緩往下走，<br>點點風景，發現旅途的小秘密。</p><div class="story-controls"><button id="story-toggle" class="story-action">Ⅱ 暫停故事</button><button id="story-next" class="story-action">下一段 →</button><button id="story-replay" class="story-icon" aria-label="重播星光高鐵故事">↺</button></div><small id="story-motion-note"></small><a href="#railway-map" class="story-map-link">直接選車玩遊戲 ↓</a></div>
-    <div class="story-discoveries" role="group" aria-label="故事風景中的小驚喜"><button data-discover="bird" class="scenic-surprise surprise-bird" aria-label="叫醒山谷的小鳥" aria-pressed="false"><span aria-hidden="true">🐦</span><small>小鳥在說什麼？</small></button><button data-discover="light" class="scenic-surprise surprise-light" aria-label="點亮海邊燈塔" aria-pressed="false"><span aria-hidden="true">☀</span><small>點亮燈塔</small></button><button data-discover="letter" class="scenic-surprise surprise-letter" aria-label="看看星光信封" aria-pressed="false"><span aria-hidden="true">✉</span><small>信裡有小秘密</small></button></div>
+    <div class="story-copy"><div class="eyebrow">INTERACTIVE RAILWAY STORY · 01</div><h1 id="story-title">搭上星光高鐵，<br>把驚喜送到<span>下一站。</span></h1><p>看列車慢慢走，點點山海裡的小驚喜。</p><div class="story-controls"><button id="story-toggle" class="story-action">Ⅱ 暫停故事</button><button id="story-next" class="story-action">下一段 →</button><button id="story-replay" class="story-icon" aria-label="重播星光高鐵故事">↺</button></div><small id="story-motion-note"></small><a href="#departure" class="story-map-link">開始旅程 ↓</a></div>
+    <div class="story-discoveries" role="group" aria-label="故事風景中的小驚喜"><button data-discover="bird" class="scenic-surprise surprise-bird" aria-label="叫醒山谷的小鳥" aria-pressed="false"><span aria-hidden="true">🐦</span><small>小鳥的話</small></button><button data-discover="light" class="scenic-surprise surprise-light" aria-label="點亮海邊燈塔" aria-pressed="false"><span aria-hidden="true">☀</span><small>點亮燈塔</small></button><button data-discover="letter" class="scenic-surprise surprise-letter" aria-label="看看星光信封" aria-pressed="false"><span aria-hidden="true">✉</span><small>星光信封</small></button></div>
     <div class="story-narrative"><div class="story-kicker"><span>星光高鐵 · <b id="story-place"></b></span><button id="story-read" aria-label="朗讀這一段故事">♪ 聽故事</button></div><div id="story-caption" aria-live="polite"><h2></h2><p></p></div><div class="story-chapters" role="group" aria-label="四段故事，可直接選擇">${CHAPTERS.map((c, i) => `<button data-chapter="${i}" aria-label="第 ${i + 1} 段，${c.short}" aria-pressed="${i === 0}"><span>${String(i + 1).padStart(2, "0")}</span>${c.short}</button>`).join("")}</div><div class="story-progress" role="progressbar" aria-label="星光高鐵故事進度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i></i></div></div>
     <div class="story-discovery-note" id="story-discovery-note" role="status">三個小驚喜，隨時都能點開。</div>
     <div class="story-letter" id="story-letter" hidden><span aria-hidden="true">✉ ✦</span><h2>給小小站長的一封信</h2><p>謝謝你陪我旅行！我們一起接好軌道、分享點心，再去山海風景找寶物吧。</p><div><button data-story-game="tracks">⌁ 幫列車接軌道</button><button data-story-game="sharing">🍎 和朋友分點心</button><button data-story-game="treasure">✦ 去山海尋寶</button></div><button id="story-letter-close" class="story-letter-close">收好信，繼續看風景</button></div>
@@ -31,31 +31,48 @@ export function mountStory(
     stopped = false,
     activeChapter = -1,
     lastPercent = -1;
-  let size = { width: root.clientWidth, height: root.clientHeight };
+  let layout = null;
   const train = root.querySelector("#story-train"),
+    landscape = root.querySelector(".story-landscape"),
+    discoveriesArea = root.querySelector(".story-discoveries"),
     progress = root.querySelector('[role="progressbar"]'),
     caption = root.querySelector("#story-caption"),
     toggle = root.querySelector("#story-toggle"),
     note = root.querySelector("#story-motion-note"),
     letter = root.querySelector("#story-letter");
+  function measure() {
+    const width = root.clientWidth, height = root.clientHeight;
+    const scale = Math.max(width / 1672, height / 941);
+    const position = getComputedStyle(landscape).objectPosition.split(" ").map(value => parseFloat(value) / 100);
+    layout = {
+      width, height, mobile: width <= 760, spriteHeight: train.clientWidth * 1.5,
+      sceneryTop: discoveriesArea.offsetTop, sceneryHeight: discoveriesArea.clientHeight,
+      imageWidth: 1672 * scale, imageHeight: 941 * scale,
+      positionX: Number.isFinite(position[0]) ? position[0] : 0.5,
+      positionY: Number.isFinite(position[1]) ? position[1] : 0.5,
+    };
+    root.style.setProperty("--story-scenery-top", `${layout.sceneryTop}px`);
+  }
   function update() {
     const p = storyProgress(state),
       chapter = storyChapter(state),
       c = CHAPTERS[chapter];
     train.style.setProperty("--travel", String(p));
-    // Keep the composited vehicle on the pictured rail after cover-cropping at any width.
-    const mobile = size.width <= 760,
-      spriteWidth = mobile ? 230 : size.width <= 1000 ? 290 : 320;
-    const vehicleScale = mobile ? 0.75 + p * 0.25 : 0.77 + p * 0.23;
-    const noseY =
-      ((mobile ? 55 + p * 410 : -210 + p * 570) +
-        spriteWidth * 1.5 * (1 - 0.075 * vehicleScale)) /
-      size.height;
-    const imageWidth = 1672 * Math.max(size.width / 1672, size.height / 941);
-    const railX =
-      (0.6 + 0.028 * Math.max(0, Math.min(1, noseY))) * imageWidth -
-      (imageWidth - size.width) * (mobile ? 0.58 : 0.61);
-    train.style.setProperty("--rail-x", `${railX}px`);
+    // Project the pictured rail through the same cover crop as the landscape.
+    // On phones the actual scenery row determines the journey, so larger text
+    // cannot push the train through the caption or leave controls over a hotspot.
+    if (layout?.width > 0 && layout.height > 0) {
+      const { width, height, mobile, spriteHeight, sceneryTop, sceneryHeight, imageWidth, imageHeight, positionX, positionY } = layout;
+      const vehicleScale = mobile ? 0.75 + p * 0.25 : 0.77 + p * 0.23;
+      const start = mobile ? sceneryTop + 24 : height * 0.25;
+      const end = mobile ? sceneryTop + sceneryHeight - 12 : height * 0.9;
+      const noseY = start + (end - start) * p;
+      const pictureY = Math.max(0, Math.min(1, (noseY + (imageHeight - height) * positionY) / imageHeight));
+      const railX = (0.6 + 0.028 * pictureY) * imageWidth - (imageWidth - width) * positionX;
+      train.style.setProperty("--rail-x", `${railX}px`);
+      train.style.setProperty("--rail-y", `${noseY - spriteHeight * (1 - 0.075 * vehicleScale)}px`);
+      train.style.setProperty("--train-scale", String(vehicleScale));
+    }
     const percent = Math.round(p * 100);
     if (lastPercent !== percent) {
       progress.setAttribute("aria-valuenow", String(percent));
@@ -220,13 +237,14 @@ export function mountStory(
     { threshold: 0.05 },
   );
   const resizeObserver = new ResizeObserver(() => {
-    size = { width: root.clientWidth, height: root.clientHeight };
+    measure();
     update();
   });
   resizeObserver.observe(root);
   observer.observe(root);
   root.addEventListener("click", handleClick);
   document.addEventListener("visibilitychange", visibility);
+  measure();
   update();
   schedule();
   return {

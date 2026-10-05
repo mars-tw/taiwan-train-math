@@ -13,39 +13,40 @@ import {
   memoryTurn,
   rememberTrip,
   seededRandom,
-} from "./engine.js?v=1.8.2";
-import { arithmeticScene, parseArithmeticAnswer } from "./arithmetic-ui.js?v=1.8.2";
-import { homeMarkup } from "./home.js?v=1.8.2";
+} from "./engine.js?v=1.9.0";
+import { arithmeticScene, parseArithmeticAnswer } from "./arithmetic-ui.js?v=1.9.0";
+import { homeMarkup, playroomMarkup } from "./home.js?v=1.9.0";
 import {
   activityScene,
   patternToken,
   patternName,
-} from "./activities.js?v=1.8.2";
-import { mountStory, newStoryState } from "./story.js?v=1.8.2";
+} from "./activities.js?v=1.9.0";
+import { mountStory, newStoryState } from "./story.js?v=1.9.0";
 import {
   newAdventureState,
   trackConnected,
   changeShare,
   SOUVENIRS,
-} from "./adventure.js?v=1.8.2";
+} from "./adventure.js?v=1.9.0";
 import {
   adventureScene,
   souvenirMarkup,
   souvenirCollection,
   giftDetailMarkup,
-} from "./adventure-ui.js?v=1.8.2";
-import { newPuzzleState, selectPuzzlePiece, placePuzzlePiece, puzzleScene } from "./puzzle.js?v=1.8.2";
-import { newExplorerState, selectLuggage, putLuggage, moveMaze, explorerScene } from "./explorers.js?v=1.8.2";
-import { enqueueGift, offerGifts, claimGift } from "./rewards.js?v=1.8.2";
-import { attachPuzzleTouch } from "./puzzle-touch.js?v=1.8.2";
-import { saveTripSession, readTripSession, clearTripSession } from "./trip-session.js?v=1.8.2";
-import { newWorkshopState, appendCommand, removeCommand, evaluateProgram, addWeight, removeWeight, weightTotal, workshopScene } from "./workshop.js?v=1.8.2";
-import { newDiscoveryState, selectMosaicColor, paintMosaicCell, resetMosaic, findDifference, discoveryScene } from "./discovery.js?v=1.8.2";
-import { JOURNEYS, journeyById, journeyMarkup } from "./journeys.js?v=1.8.2";
-import { displayTrain, trainImage, verifiedPhoto, photoLabel, photoGameTrains, samePhotoIdentity } from "./train-images.js?v=1.8.2";
-import { newTicketsState, selectTicket, payToken, returnToken, ticketTotals, ticketsScene } from "./tickets.js?v=1.8.2";
-import { createPhotoLoader } from "./photo-loader.js?v=1.8.2";
-import { createProgramPlayback } from "./program-playback.js?v=1.8.2";
+} from "./adventure-ui.js?v=1.9.0";
+import { newPuzzleState, selectPuzzlePiece, placePuzzlePiece, puzzleScene } from "./puzzle.js?v=1.9.0";
+import { newExplorerState, selectLuggage, putLuggage, moveMaze, explorerScene } from "./explorers.js?v=1.9.0";
+import { enqueueGift, offerGifts, claimGift } from "./rewards.js?v=1.9.0";
+import { attachPuzzleTouch } from "./puzzle-touch.js?v=1.9.0";
+import { saveTripSession, readTripSession, clearTripSession } from "./trip-session.js?v=1.9.0";
+import { newWorkshopState, appendCommand, removeCommand, evaluateProgram, addWeight, removeWeight, weightTotal, workshopScene } from "./workshop.js?v=1.9.0";
+import { newDiscoveryState, selectMosaicColor, paintMosaicCell, resetMosaic, findDifference, discoveryScene } from "./discovery.js?v=1.9.0";
+import { JOURNEYS, journeyById, journeyMarkup } from "./journeys.js?v=1.9.0";
+import { displayTrain, trainImage, verifiedPhoto, photoLabel, photoGameTrains, samePhotoIdentity } from "./train-images.js?v=1.9.0";
+import { newTicketsState, selectTicket, payToken, returnToken, ticketTotals, ticketsScene } from "./tickets.js?v=1.9.0";
+import { createPhotoLoader } from "./photo-loader.js?v=1.9.0";
+import { createProgramPlayback } from "./program-playback.js?v=1.9.0";
+import { resolvePage } from "./navigation.js?v=1.9.0";
 
 const main = document.querySelector("#main");
 const esc = (value) =>
@@ -74,6 +75,7 @@ let catalogue,
   selected = "700t",
   practice = "mixed",
   selectedJourney = null,
+  playroomCategory = null,
   mood = "golden",
   departureToken = null,
   audioContext;
@@ -324,15 +326,10 @@ function renderHome() {
     trains: trains.map(displayTrain),
     selected,
     progress,
-    practice,
-    mood,
     esc,
     image,
-    levelButtons,
-    resume: pausedTrip ? { train: pausedTrip.train, index: pausedTrip.index, total: pausedTrip.questions.length } : null,
+    resume: pausedTrip ? { train: displayTrain(pausedTrip.train), level: pausedTrip.meta.level, index: pausedTrip.index, total: pausedTrip.questions.length } : null,
   });
-  main.insertAdjacentHTML("afterbegin", mobileHomeMarkup());
-  $("#quick-play").insertAdjacentHTML("afterend", journeyMarkup({ level: progress.level, completed: progress.journeysCompleted, availableGames: allowedGames(progress.level), esc }));
   storyHandle = mountStory($("#story-scene"), {
     state: storySession,
     reduced: progress.reduceMotion || motionPreference.matches,
@@ -342,9 +339,22 @@ function renderHome() {
     onAnnounce: announce,
   });
 }
-function mobileHomeMarkup() {
-  const resume = pausedTrip ? `<div class="resume-journey"><span aria-hidden="true">🚆</span><div><strong>剛剛的旅程還在等你</strong><small>${esc(displayTrain(pausedTrip.train).name)} · ${LEVELS[pausedTrip.meta.level].age} · 第 ${pausedTrip.index + 1}／${pausedTrip.questions.length} 站</small></div><button id="journey-resume" class="primary-btn">繼續玩 →</button></div>` : "";
-  return `${resume}<section class="mobile-launch" id="quick-play" aria-labelledby="quick-title"><div class="quick-heading"><div><small>小小列車長</small><h1 id="quick-title">今天想玩什麼？</h1></div><button id="quick-settings" class="secondary-btn">${LEVELS[progress.level].age}<span>換難度 ⚙</span></button></div><div class="quick-game-grid"><button id="quick-mixed" class="quick-game mixed"><span aria-hidden="true">🚆</span><strong>驚喜旅程</strong><small>每站換個玩法</small></button><button data-quick-game="puzzle" class="quick-game puzzle"><span aria-hidden="true">🧩</span><strong>火車拼圖</strong><small>拖一拖，也能點著拼</small></button><button data-quick-game="luggage" class="quick-game luggage"><span aria-hidden="true">🧳</span><strong>行李分類</strong><small>看看顏色和形狀</small></button><button data-quick-game="maze" class="quick-game maze"><span aria-hidden="true">↱</span><strong>車站迷宮</strong><small>找路帶列車到站</small></button></div><a class="quick-more text-link" href="#missions">看看所有遊戲 ↓</a></section>`;
+function renderPlayroom() {
+  stopStory();
+  const journeysWereOpen = $("#theme-journeys")?.open;
+  main.innerHTML = playroomMarkup({ progress, esc, category: playroomCategory,
+    trains: trains.map(displayTrain), selected, image,
+    resume: pausedTrip ? { train: displayTrain(pausedTrip.train), level: pausedTrip.meta.level, index: pausedTrip.index, total: pausedTrip.questions.length } : null,
+    routeMarkup: journeyMarkup({ level: progress.level, completed: progress.journeysCompleted, availableGames: allowedGames(progress.level), esc }) });
+  if (journeysWereOpen) $("#theme-journeys")?.setAttribute("open", "");
+}
+function changeGameCategory(category, focus = true) {
+  if (!["math", "observe", "build", "life"].includes(category)) return;
+  playroomCategory = category;
+  const top = window.scrollY;
+  renderPlayroom();
+  window.scrollTo({ top, behavior: "instant" });
+  if (focus) main.querySelector(`[data-game-category="${category}"]`)?.focus({ preventScroll: true });
 }
 function clearDeparture() {
   departureToken = null;
@@ -355,7 +365,7 @@ function clearDeparture() {
 function depart() {
   if (departureToken) return;
   if (
-    view !== "home" ||
+    !["home", "playroom"].includes(view) ||
     progress.reduceMotion ||
     window.matchMedia("(prefers-reduced-motion: reduce)").matches
   ) {
@@ -369,14 +379,15 @@ function depart() {
   main.setAttribute("aria-busy", "true");
   announce("列車準備出發。下一站，發現數學！");
   setTimeout(() => {
-    if (departureToken === token && view === "home") startTrip();
+    if (departureToken === token && ["home", "playroom"].includes(view)) startTrip();
   }, 420);
 }
 function chooseMission(id, source) {
+  if (!Object.hasOwn(GAMES, id)) return;
   if (!allowedGames(progress.level).includes(id)) {
-    const message = `${GAMES[id].name}適合 5–8 歲。可以先選「火車助手」或「小小列車長」，再來玩這個任務。`;
-    $("#home-notice").textContent = message;
-    $("#age-note").textContent = message;
+    const message = `${GAMES[id].name}適合 5–8 歲。請家長按「換難度」，選擇合適的年齡再玩。`;
+    if ($("#home-notice")) $("#home-notice").textContent = message;
+    if ($("#age-note")) $("#age-note").textContent = message;
     announce(message);
     speak(message);
     const suggested = document.querySelector("[data-level='medium']");
@@ -450,33 +461,28 @@ function prepareQuestionState(q) {
   trip.tickets = q.game === "tickets" ? newTicketsState(q) : null;
 }
 function route() {
-  stopProgramRun();
-  clearPhotoTask();
-  cancelVoice();
-  clearDeparture();
-  const hash = location.hash.slice(1);
-  if (
-    ["departure", "railway-map", "playroom", "missions", "quick-play", "theme-journeys"].includes(hash) &&
-    view === "home" &&
-    $(`#${hash}`)
-  ) {
-    return;
+  const page = resolvePage(location.hash);
+  stopProgramRun(); clearPhotoTask(); cancelVoice(); clearDeparture();
+  const alreadyRendered = view === page.view && ((view === "home" && $("#story-scene")) || (view === "playroom" && $("#playroom")));
+  if (!alreadyRendered) {
+    stopStory(); pauseTrip();
+    view = page.view;
+    trip = null;
+    document.body.classList.remove("in-game"); delete document.body.dataset.game;
+    if (view === "collection") renderCollection();
+    else if (view === "stamps") renderStamps();
+    else if (view === "playroom") renderPlayroom();
+    else renderHome();
+    applyPreferences();
   }
-  stopStory();
-  pauseTrip();
-  view = ["collection", "stamps"].includes(hash) ? hash : "home";
-  trip = null;
-  document.body.classList.remove("in-game");
-  delete document.body.dataset.game;
-  document
-    .querySelectorAll("[data-nav]")
-    .forEach((n) => n.classList.toggle("current", n.dataset.nav === view));
-  if (view === "collection") renderCollection();
-  else if (view === "stamps") renderStamps();
-  else renderHome();
-  applyPreferences();
-  if (["departure", "railway-map", "playroom", "missions", "quick-play", "theme-journeys"].includes(hash))
-    $(`#${hash}`)?.scrollIntoView({ behavior: "instant" });
+  document.querySelectorAll("[data-nav]").forEach(n => {
+    const current = n.dataset.nav === view;
+    n.classList.toggle("current", current);
+    if (current) n.setAttribute("aria-current", "page"); else n.removeAttribute("aria-current");
+  });
+  if (page.openJourneys) $("#theme-journeys")?.setAttribute("open", "");
+  if (page.anchor) $(`#${page.anchor}`)?.scrollIntoView({ behavior: "instant" });
+  else window.scrollTo({ top: 0, behavior: "instant" });
 }
 function detail(id) {
   storyHandle?.pause();
@@ -631,7 +637,7 @@ function renderQuestion() {
   }
   document.body.classList.add("in-game");
   document.body.dataset.game = q.game;
-  main.innerHTML = `<div class="game-wrap"><div class="game-top"><button id="trip-exit" class="text-btn" aria-label="暫停旅程，回遊戲室">← 回遊戲室</button><span class="game-name">${gameLabels[q.game]}</span><div class="game-tools"><button id="question-replay" class="icon-btn" aria-label="聽題目">🔊</button>${fullscreenButton()}</div></div><div class="trip-progress" aria-label="第 ${trip.index + 1} 站，共 ${trip.questions.length} 站">${trip.questions.map((station, i) => `<span class="progress-stop ${i < trip.index ? "done" : ""} ${i === trip.index ? "current" : ""}"><i>${i < trip.index ? "✓" : i + 1}</i><small>${esc(route?.stationLabels[q.level][i] || stationNames[station.game])}</small></span>`).join("")}</div><section class="game-panel"><div class="question-head"><span class="question-icon" aria-hidden="true">${gameIcons[q.game]}</span><h1 id="question-title">${esc(q.prompt)}</h1></div><div class="game-stage" id="game-stage">${gameScene(q)}</div>${answerMarkup(q)}<div class="feedback ${trip.solved ? "success" : ""}" role="status" aria-live="polite">${esc(trip.feedback || "慢慢來，想一想也沒關係。")}</div><div class="question-actions" id="game-actions"><button id="hint-show" class="text-btn" ${trip.solved ? "disabled" : ""}>☀ 一起想一想</button>${trip.solved ? `<button id="question-next" class="primary-btn">${trip.index === trip.questions.length - 1 ? "抵達終點，收集紀念章" : "前往下一站"} →</button>` : ""}</div></section><div class="trip-train-note">${image(trip.train)}<span><strong>${esc(displayTrain(trip.train).name)}</strong><small>${esc(displayTrain(trip.train).model)} · 今天一起旅行的列車</small></span><button data-speak="${trip.train.id}" class="icon-btn" aria-label="聽今天的列車名字">♪</button></div></div>`;
+  main.innerHTML = `<div class="game-wrap"><div class="game-top"><button id="trip-exit" class="text-btn" aria-label="暫停旅程，回遊戲室">← 遊戲室</button><span class="game-name">${gameLabels[q.game]}</span><div class="game-tools"><button id="question-replay" class="icon-btn" aria-label="聽題目">🔊</button>${fullscreenButton()}</div></div><div class="trip-progress" aria-label="第 ${trip.index + 1} 站，共 ${trip.questions.length} 站">${trip.questions.map((station, i) => `<span class="progress-stop ${i < trip.index ? "done" : ""} ${i === trip.index ? "current" : ""}"><i>${i < trip.index ? "✓" : i + 1}</i><small>${esc(route?.stationLabels[q.level][i] || stationNames[station.game])}</small></span>`).join("")}</div><section class="game-panel"><div class="question-head"><span class="question-icon" aria-hidden="true">${gameIcons[q.game]}</span><h1 id="question-title">${esc(q.prompt)}</h1></div><div class="game-stage" id="game-stage">${gameScene(q)}</div>${answerMarkup(q)}<div class="feedback ${trip.solved ? "success" : ""}" role="status" aria-live="polite">${esc(trip.feedback || "慢慢來，想一想也沒關係。")}</div><div class="question-actions" id="game-actions"><button id="hint-show" class="text-btn" ${trip.solved ? "disabled" : ""}>☀ 一起想一想</button>${trip.solved ? `<button id="question-next" class="primary-btn">${trip.index === trip.questions.length - 1 ? "抵達終點，收集紀念章" : "前往下一站"} →</button>` : ""}</div></section><div class="trip-train-note">${image(trip.train)}<span><strong>${esc(displayTrain(trip.train).name)}</strong><small>${esc(displayTrain(trip.train).model)} · 今天一起旅行的列車</small></span><button data-speak="${trip.train.id}" class="icon-btn" aria-label="聽今天的列車名字">♪</button></div></div>`;
   arrangeGameActions(q);
   preparePhotoDisplay(photoStatus);
   for (const [selector, position] of Object.entries(questionScroll.positions)) {
@@ -885,7 +891,7 @@ document.addEventListener("click", (event) => {
   }
   if (
     nav &&
-    ["#home", "#collection", "#stamps"].includes(nav.getAttribute("href")) &&
+    ["#home", "#playroom", "#collection", "#stamps"].includes(nav.getAttribute("href")) &&
     location.hash === nav.getAttribute("href")
   ) {
     event.preventDefault();
@@ -895,6 +901,7 @@ document.addEventListener("click", (event) => {
   }
   const b = event.target.closest("button");
   if (!b) return;
+  if (b.dataset.gameCategory && view === "playroom") { changeGameCategory(b.dataset.gameCategory); return; }
   if (b.dataset.trainPhotoRetry) {
     const train = byId(b.dataset.trainPhotoRetry);
     if (!train) return;
@@ -950,8 +957,8 @@ document.addEventListener("click", (event) => {
       $("#settings-dialog").close();
       settings();
     }
-    if (view === "home") {
-      renderHome();
+    if (["home", "playroom"].includes(view)) {
+      if (view === "home") renderHome(); else renderPlayroom();
       if (!$("#settings-dialog").open)
         document.querySelector(`[data-level="${progress.level}"]`)?.focus({ preventScroll: pointerInteraction });
     }
@@ -970,6 +977,7 @@ document.addEventListener("click", (event) => {
   if (b.dataset.select) {
     selected = b.dataset.select;
     if (view === "home") renderHome();
+    else if (view === "playroom") renderPlayroom();
     else renderCards();
     const t = displayTrain(byId(selected));
     if ($("#selected-name")) $("#selected-name").textContent = t.cardLabel;
@@ -1309,6 +1317,7 @@ document.addEventListener("click", (event) => {
       renderQuestion();
       document.querySelector("[data-ticket-pay]")?.focus({ preventScroll: pointerInteraction });
       break;
+    case "lobby-start":
     case "quick-mixed":
       practice = "mixed";
       selectedJourney = null;
@@ -1412,8 +1421,7 @@ document.addEventListener("click", (event) => {
     }
     case "trip-exit":
       pauseTrip();
-      location.hash = "#home";
-      view = "home";
+      location.hash = "#playroom";
       route();
       break;
     case "hint-show":
@@ -1532,6 +1540,14 @@ attachPuzzleTouch(main, {
   onAnnounce: announce,
 });
 document.addEventListener("keydown", (event) => {
+  const categoryTab = event.target.closest?.("[data-game-category]");
+  if (view === "playroom" && categoryTab && !event.altKey && !event.ctrlKey && !event.metaKey && ["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) {
+    event.preventDefault();
+    const tabs = [...main.querySelectorAll("[data-game-category]")], at = tabs.indexOf(categoryTab);
+    const next = event.key === "Home" ? 0 : event.key === "End" ? tabs.length - 1 : (at + (event.key === "ArrowRight" ? 1 : -1) + tabs.length) % tabs.length;
+    changeGameCategory(tabs[next].dataset.gameCategory);
+    return;
+  }
   const directions = { ArrowUp: "up", ArrowRight: "right", ArrowDown: "down", ArrowLeft: "left" };
   const direction = Object.hasOwn(directions, event.key) ? directions[event.key] : null;
   const q = trip?.questions[trip.index];
@@ -1624,7 +1640,7 @@ try {
   const controller = new AbortController();
   const deadline = setTimeout(() => controller.abort(), 15000);
   let response;
-  try { response = await fetch("data/trains.json?v=1.8.2", { signal: controller.signal }); }
+  try { response = await fetch("data/trains.json?v=1.9.0", { signal: controller.signal }); }
   finally { clearTimeout(deadline); }
   if (!response.ok) throw new Error("Content unavailable");
   catalogue = await response.json();

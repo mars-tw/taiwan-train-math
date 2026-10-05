@@ -170,10 +170,12 @@ export function attachPuzzleTouch(root, { onDrop, onAnnounce = () => {} } = {}) 
     if (gesture?.pointerId === event.pointerId) cancel(true);
   }
   function click(event) {
-    if (!suppressedClick || Date.now() > suppressedClick.until || event.detail === 0 || !root.contains(event.target)) return;
+    if (!suppressedClick || Date.now() > suppressedClick.until || event.detail === 0) return;
     // WebKit emits the touch as pointerId 0, then its compatibility click as
     // a mouse pointer with id 1. A fresh physical pointerdown clears this
     // guard, so that translated click belongs to the touch just handled.
+    // The synthetic action can replace the game and reveal a header link under
+    // the finger; suppress that same trailing click outside the old game too.
     if (event.pointerId !== undefined && event.pointerId !== suppressedClick.pointerId && event.pointerType !== "mouse") return;
     suppressedClick = null;
     event.preventDefault();

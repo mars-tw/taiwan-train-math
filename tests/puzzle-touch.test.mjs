@@ -196,6 +196,26 @@ test("WebKit's translated mouse click cannot toggle or place twice after pointer
   assert.equal(h.click({ pointerId: 1, pointerType: "mouse" }).stopped, true, "drag's translated click is also discarded");
   h.destroy();
 });
+test("leaving a puzzle cannot ghost-tap a header revealed under the same finger", () => {
+  const h = harness(), exit = new Node(h.doc, [], { id: "trip-exit" });
+  const headerLink = new Node(h.doc, [], { href: "#home" });
+  h.root.append(exit); h.doc.body.append(headerLink);
+  h.doc.elementFromPoint = () => exit;
+  exit.click = () => { exit.clicks++; h.stage.remove(); exit.remove(); };
+  h.down({ pointerId: 0 }, exit);
+  h.up({ pointerId: 0, clientX: 30, clientY: 210 });
+  assert.equal(exit.clicks, 1);
+  assert.equal(h.root.contains(headerLink), false);
+  assert.equal(h.click({ detail: 0 }, headerLink).stopped, undefined, "keyboard activation remains available");
+  const trailing = h.click({ pointerId: 1, pointerType: "mouse" }, headerLink);
+  assert.equal(trailing.stopped, true, "the original touch cannot navigate after revealing a header");
+  assert.equal(trailing.defaultPrevented, true);
+  h.down({ pointerId: 0 }, headerLink);
+  h.up({ pointerId: 0 });
+  assert.equal(h.click({ pointerId: 1, pointerType: "mouse" }, headerLink).stopped, undefined, "a new physical press works immediately");
+  h.destroy();
+});
+
 test("only known controls in the current unsolved puzzle receive exactly one touch click", () => {
   for (const id of ["puzzle-preview", "puzzle-reset", "puzzle-submit", "trip-exit", "hint-show", "question-replay", "game-fullscreen"]) {
     const h = harness(), button = new Node(h.doc, [], { id });

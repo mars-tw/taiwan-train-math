@@ -1,4 +1,4 @@
-import { SOUVENIRS, giftChoices } from "./adventure.js?v=1.8.2";
+import { SOUVENIRS, giftChoices } from "./adventure.js?v=1.9.0";
 
 // Unclaimed rewards survive leaving the finish screen. Choices stay fixed
 // until one is claimed, and each completed journey provides one credit.

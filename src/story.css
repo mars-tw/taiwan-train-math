@@ -2,7 +2,7 @@
 .story-scene {
   position: relative;
   isolation: isolate;
-  min-height: 830px;
+  min-height: 760px;
   overflow: hidden;
   color: #fff9e8;
   background: #193f39;
@@ -29,8 +29,7 @@
   top: 0;
   left: var(--rail-x, 60%);
   width: 320px;
-  transform: translate(-50%, calc(-210px + var(--travel, 0) * 570px))
-    scale(calc(0.77 + var(--travel, 0) * 0.23));
+  transform: translate(-50%, var(--rail-y, -210px)) scale(var(--train-scale, 0.77));
   transform-origin: bottom center;
   filter: drop-shadow(8px 13px 10px #081c2255);
   pointer-events: none;
@@ -51,7 +50,8 @@
 }
 .story-copy {
   position: relative;
-  padding: 70px 0 0 6%;
+  z-index: 1;
+  padding: 44px 0 0 6%;
   width: 45%;
 }
 .story-copy h1 {
@@ -78,9 +78,10 @@
   margin-top: 25px;
 }
 .story-controls button {
-  min-height: 45px;
+  min-height: 48px;
+  min-width: 48px;
   border-radius: 8px;
-  font-size: 12px;
+  font-size: 13px;
   border: 1px solid #cdddab66;
   color: #fff5d9;
   background: #264a3cba;
@@ -89,7 +90,7 @@
   padding: 10px 15px;
 }
 .story-icon {
-  width: 44px;
+  width: 48px;
   font-size: 20px !important;
 }
 .story-controls button:hover {
@@ -108,13 +109,14 @@
   font-size: 13px;
   display: inline-block;
   border-bottom: 1px solid #e4d7a477;
-  padding: 7px 0;
-  min-height: 38px;
+  min-height: 48px;
+  padding: 12px 0;
   color: #ffdfa4;
 }
 .story-narrative {
   position: relative;
-  margin: 28px 0 32px 6%;
+  z-index: 1;
+  margin: 24px 0 22px 6%;
   width: 42%;
   border: 1px solid #dbe4c652;
   border-radius: 15px;
@@ -138,7 +140,8 @@
   background: #e7dfc10c;
   padding: 7px 10px;
   border-radius: 8px;
-  min-height: 36px;
+  min-height: 48px;
+  min-width: 48px;
   white-space: nowrap;
   font-size: 11px;
 }
@@ -152,9 +155,9 @@
   font-size: 13px;
   line-height: 1.85;
   color: #d5dfce;
-  min-height: 72px;
+  min-height: 52px;
 }
-.story-chapters {
+.story-scene .story-chapters {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 5px;
@@ -204,6 +207,8 @@
   color: #fff2d1;
   box-shadow: 0 6px 18px #10262f55;
   min-height: 67px;
+  min-width: 64px;
+  pointer-events: auto;
   transition: background 0.2s;
 }
 .scenic-surprise > span {
@@ -213,7 +218,7 @@
 }
 .scenic-surprise small {
   display: block;
-  font-size: 9px;
+  font-size: 11px;
   margin-top: 3px;
 }
 .surprise-bird {
@@ -244,6 +249,7 @@
 }
 .story-discovery-note {
   position: relative;
+  z-index: 1;
   margin: 0 6% 35px;
   font-size: 12px;
   width: 42%;
@@ -293,7 +299,7 @@
   margin-top: 17px;
 }
 .story-letter button {
-  min-height: 44px;
+  min-height: 48px;
   border: 1px solid #c5d0b9;
   border-radius: 8px;
   padding: 10px 12px;
@@ -810,7 +816,7 @@
   .story-copy {
     width: 46%;
     padding-left: 5%;
-    padding-top: 58px;
+    padding-top: 36px;
   }
   .story-copy h1 {
     font-size: 40px;
@@ -834,12 +840,20 @@
     gap: 6px;
   }
   .story-controls .story-action {
-    font-size: 11px;
+    font-size: 12px;
     padding: 9px 10px;
   }
   .surprise-bird {
-    left: 47%;
-    top: 32%;
+    left: auto;
+    right: 5%;
+    top: 18%;
+  }
+  .surprise-letter {
+    right: 6%;
+    top: 43%;
+  }
+  .surprise-light {
+    top: 69%;
   }
   .story-letter {
     width: 320px;
@@ -851,7 +865,8 @@
 }
 @media (max-width: 760px) {
   .story-scene {
-    min-height: 1010px;
+    min-height: 0;
+    padding-bottom: 26px;
   }
   .story-landscape {
     object-position: 58% center;
@@ -869,54 +884,59 @@
   }
   .story-copy {
     width: 100%;
-    padding: 32px 6% 0;
+    padding: 20px 6% 0;
   }
   .story-copy .eyebrow {
     font-size: 9px;
     letter-spacing: 1px;
   }
   .story-copy h1 {
-    font-size: 31px;
-    margin: 16px 0 14px;
-    max-width: 88%;
+    font-size: clamp(25px, 7.2vw, 31px);
+    margin: 12px 0;
+    max-width: 100%;
   }
   .story-copy h1 span {
     display: inline;
   }
   .story-copy > p {
-    font-size: 12px;
+    font-size: 13px;
     line-height: 1.8;
   }
   .story-copy > p br {
     display: none;
   }
   .story-controls {
-    margin-top: 17px;
+    margin-top: 12px;
+    gap: 8px;
   }
   .story-controls .story-action {
-    font-size: 11px;
+    font-size: 13px;
     padding: 8px 12px;
   }
   .story-copy > p {
-    max-width: 65%;
+    max-width: none;
   }
   .story-train {
-    top: 365px;
+    top: 0;
     width: 230px;
-    transform: translate(-50%, calc(-310px + var(--travel, 0) * 410px))
-      scale(calc(0.75 + var(--travel, 0) * 0.25));
   }
   #story-motion-note {
     font-size: 9px;
-    margin: 9px 0 5px;
+    margin: 7px 0 2px;
   }
   .story-map-link {
-    font-size: 11px;
+    font-size: 13px;
+  }
+  .story-discoveries {
+    position: relative;
+    height: 180px;
+    margin: 0 6%;
+    pointer-events: none;
   }
   .story-narrative {
     width: 88%;
-    margin: 415px 6% 10px;
-    padding: 17px 18px;
+    margin: 12px 6% 10px;
+    padding: 14px;
     background: #153a31ed;
   }
   .story-kicker {
@@ -924,43 +944,47 @@
     letter-spacing: 0.3px;
   }
   #story-caption h2 {
-    font-size: 21px;
+    font-size: 20px;
+    margin: 8px 0;
   }
   #story-caption p {
-    font-size: 12px;
-    min-height: 61px;
+    font-size: 13px;
+    min-height: 48px;
   }
-  .story-chapters {
+  .story-scene .story-chapters {
     margin-top: 12px;
   }
   .story-chapters button {
-    font-size: 9px;
+    font-size: 11px;
   }
   .scenic-surprise {
-    min-height: 56px;
-    padding: 8px 10px;
+    width: 64px;
+    min-height: 64px;
+    padding: 7px 4px;
   }
   .scenic-surprise > span {
     font-size: 26px;
   }
   .scenic-surprise small {
-    font-size: 8px;
+    font-size: 11px;
   }
   .surprise-bird {
-    left: 7%;
-    top: 430px;
+    left: 0;
+    right: auto;
+    top: 26px;
   }
   .surprise-letter {
-    top: 385px;
-    right: 6%;
+    top: 4px;
+    right: 0;
   }
   .surprise-light {
-    top: 598px;
-    right: 7%;
+    top: 106px;
+    right: 0;
   }
   .story-discovery-note {
     width: 88%;
-    margin: 10px 6% 27px;
+    min-height: 40px;
+    margin: 10px 6% 12px;
     font-size: 11px;
   }
   .story-credit {
@@ -970,10 +994,12 @@
     right: auto;
   }
   .story-letter {
-    top: 370px;
+    top: var(--story-scenery-top, 280px);
     right: 6%;
     width: 88%;
-    padding: 23px;
+    padding: 20px;
+    max-height: min(450px, calc(100svh - 140px));
+    overflow: auto;
   }
   .story-letter h2 {
     font-size: 20px;

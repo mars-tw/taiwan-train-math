@@ -1,0 +1,162 @@
+.lobby-content,
+.playroom-page {
+  width: min(calc(100% - 32px), 1040px);
+  margin: 24px auto 48px;
+  color: var(--ink, #203d40);
+}
+.lobby-content button,
+.lobby-content a,
+.playroom-page button,
+.playroom-page a,
+.playroom-page summary {
+  min-width: 48px;
+  min-height: 48px;
+  touch-action: manipulation;
+}
+.lobby-content button:focus-visible,
+.lobby-content a:focus-visible,
+.playroom-page button:focus-visible,
+.playroom-page a:focus-visible,
+.playroom-page summary:focus-visible {
+  outline: 3px solid #247fa5;
+  outline-offset: 3px;
+}
+.lobby-anchor { display: block; scroll-margin-top: 16px; }
+.lobby-departure,
+.lobby-resume {
+  padding: clamp(16px, 3vw, 28px);
+  border: 1px solid #b6cbb7;
+  border-radius: 18px;
+  background: #eef3e7;
+}
+.lobby-heading,
+.playroom-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+.lobby-heading > div,
+.playroom-heading > div { min-width: 0; }
+.lobby-heading small { color: var(--green, #246b5e); font-size: 12px; }
+.lobby-heading h2 { font-size: clamp(24px, 4vw, 32px); line-height: 1.4; }
+.lobby-heading p,
+.playroom-heading p { font-size: 14px; color: var(--muted, #647875); }
+.lobby-age {
+  flex: 0 0 auto;
+  display: grid;
+  align-content: center;
+  min-width: 92px;
+  padding: 8px 12px;
+  border: 1px solid #bacbb8;
+  border-radius: 12px;
+  background: #fffdf7;
+  color: var(--green, #246b5e);
+}
+.lobby-age strong { font-size: 15px; }
+.lobby-age span { font-size: 12px; }
+.lobby-start-actions { display: flex; align-items: stretch; flex-wrap: wrap; gap: 10px; margin: 18px 0; }
+.lobby-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 12px 18px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+.lobby-primary { background: var(--orange, #df6939); color: #fff; }
+.lobby-secondary { background: #fffdf7; color: var(--green, #246b5e); border-color: #bacbb8; }
+#lobby-start { flex: 1 1 260px; justify-content: flex-start; min-height: 72px; }
+#lobby-start > span:first-child { font-size: 29px; }
+#lobby-start > span:nth-child(2) { flex: 1; text-align: left; }
+#lobby-start strong { display: block; font-size: 20px; }
+#lobby-start strong > span { display: inline-block; white-space: nowrap; }
+#lobby-start small { display: block; font-size: 13px; font-weight: 400; margin-top: 3px; }
+#lobby-start > b { font-size: 23px; }
+.lobby-train { display: flex; gap: 16px; align-items: center; padding-top: 16px; border-top: 1px solid #cbd8c5; }
+.lobby-train-photo { flex: 0 0 176px; aspect-ratio: 16 / 9; overflow: hidden; border-radius: 10px; background: #e1e9de; }
+.lobby-train-photo img { width: 100%; height: 100%; object-fit: contain; }
+.lobby-train-copy { flex: 1; min-width: 0; }
+.lobby-train-copy > small { display: block; font-size: 12px; color: var(--muted, #647875); }
+.lobby-train-copy > strong { display: block; font-size: 18px; overflow-wrap: anywhere; line-height: 1.5; }
+.lobby-train-actions { display: flex; flex-wrap: wrap; gap: 3px 12px; margin-top: 5px; }
+.lobby-train-actions button,
+.lobby-train-actions a { display: flex; align-items: center; justify-content: center; padding: 4px 6px; border: 0; background: transparent; color: var(--green, #246b5e); font-size: 14px; }
+.lobby-choose-train { display: flex; align-items: center; color: var(--green, #246b5e); font-weight: 700; }
+.lobby-resume { display: flex; gap: 14px; align-items: center; margin-bottom: 16px; background: #e0eddb; border-color: #94b49b; }
+.lobby-resume-icon { font-size: 30px; }
+.lobby-resume > div { flex: 1; min-width: 0; }
+.lobby-resume h2 { font-size: 20px; line-height: 1.4; }
+.lobby-resume p { font-size: 13px; color: #526e5d; overflow-wrap: anywhere; }
+.playroom-heading h1 { font-size: clamp(27px, 4vw, 40px); line-height: 1.4; }
+.playroom-home-link { display: inline-flex; align-items: center; font-size: 14px; color: var(--green, #246b5e); }
+.playroom-selected-train { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 14px 0; padding: 8px 14px; border: 1px solid #d3ddcd; border-radius: 12px; background: #eef3e7; }
+.playroom-selected-train > span { min-width: 0; font-size: 14px; overflow-wrap: anywhere; }
+.playroom-selected-train a,
+.playroom-select-train { display: flex; align-items: center; white-space: nowrap; font-size: 14px; color: var(--green, #246b5e); }
+.playroom-category-tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-top: 18px; }
+.playroom-category-tabs button { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 8px; border: 1px solid #bacbb8; border-radius: 12px; background: #fffdf7; color: #496c5d; }
+.playroom-category-tabs button > span { font-size: 21px; }
+.playroom-category-tabs button > strong { font-size: 15px; }
+.playroom-category-tabs button[aria-selected="true"] { background: #246b5e; border-color: #246b5e; color: #fff; }
+.playroom-game-panel[hidden] { display: none; }
+.playroom-notice { margin-top: 12px; font-size: 14px; line-height: 1.5; color: #985027; }
+.playroom-notice:empty { display: none; }
+.playroom-game-panel { margin-top: 14px; }
+.playroom-category-note { color: var(--muted, #647875); font-size: 13px; margin: 0 0 8px; }
+.playroom-game-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.playroom-game {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr) 18px;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid #c6d5c3;
+  border-radius: 14px;
+  background: #fffdf7;
+  text-align: left;
+}
+.playroom-game-icon { display: grid; place-items: center; min-height: 48px; background: #e8efdf; border-radius: 12px; color: var(--green, #246b5e); font-size: 25px; }
+.playroom-game-copy { display: grid; gap: 4px; min-width: 0; }
+.playroom-game-copy > strong { font-size: 18px; line-height: 1.4; }
+.playroom-game-copy > span { font-size: 13px; line-height: 1.5; color: #647875; }
+.playroom-game-copy > small { font-size: 12px; color: var(--green, #246b5e); }
+.playroom-game-arrow { color: #b34d28; font-size: 20px; }
+.playroom-game-later { background: #f1f0e9; border-color: #dbdcd3; }
+.playroom-game-later .playroom-game-copy > small { color: #737464; }
+.playroom-game-later .playroom-game-icon { background: #e5e6dd; color: #717b69; }
+.playroom-game-later .playroom-game-arrow { color: #8a8d80; }
+.playroom-journeys { margin-top: 26px; border: 1px solid #bacbb8; border-radius: 14px; background: #eef3e7; overflow: hidden; }
+.playroom-journeys > summary { display: flex; align-items: center; gap: 12px; padding: 14px 16px; cursor: pointer; list-style: none; }
+.playroom-journeys > summary::-webkit-details-marker { display: none; }
+.playroom-journeys > summary > span:first-child { font-size: 26px; }
+.playroom-journeys > summary > span:nth-child(2) { flex: 1; min-width: 0; }
+.playroom-journeys > summary strong { display: block; font-size: 17px; }
+.playroom-journeys > summary small { display: block; color: #647875; font-size: 12px; }
+.playroom-journeys > summary > b { font-size: 24px; color: var(--green, #246b5e); }
+.playroom-journeys[open] > summary > b { transform: rotate(45deg); }
+.playroom-journey-content { padding: 0 14px 14px; }
+.playroom-journey-content .journeys-section { width: 100%; margin: 0; }
+@media (max-width: 600px) {
+  .lobby-content, .playroom-page { width: calc(100% - 24px); margin-top: 16px; }
+  .lobby-start-actions { display: grid; grid-template-columns: minmax(0, 1fr); }
+  #lobby-start { min-width: 0; padding: 12px; }
+  #lobby-start strong { font-size: 19px; }
+  .lobby-train { gap: 10px; align-items: flex-start; }
+  .lobby-train-photo { flex-basis: 94px; }
+  .lobby-train-copy > strong { font-size: 16px; }
+  .lobby-train-actions { gap: 0 3px; }
+  .lobby-train-actions button, .lobby-train-actions a { padding: 4px 3px; font-size: 13px; }
+  .lobby-resume { flex-wrap: wrap; gap: 10px; }
+  .lobby-resume > .lobby-button { width: 100%; }
+  .playroom-heading { align-items: flex-start; }
+  .lobby-age { min-width: 86px; padding: 8px; }
+  .playroom-category-tabs { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+  .playroom-game-list { grid-template-columns: minmax(0, 1fr); }
+  .playroom-game { gap: 10px; padding: 12px; }
+  .playroom-selected-train { margin: 10px 0; padding: 6px 10px; }
+  .playroom-selected-train > span, .playroom-selected-train a { font-size: 13px; }
+}

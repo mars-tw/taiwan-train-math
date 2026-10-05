@@ -22,7 +22,7 @@
   .text-btn, .secondary-btn, .settings-btn { font-size: 15px; }
   .site-header { padding-left: max(12px, env(safe-area-inset-left)); padding-right: max(12px, env(safe-area-inset-right)); }
   .main-nav { width: 100%; justify-content: space-around; gap: 0; }
-  .main-nav a { min-height: 48px; display: flex; align-items: center; padding: 0 8px; font-size: 15px; }
+  .main-nav a { min-width: 48px; min-height: 48px; display: flex; align-items: center; justify-content: center; padding: 0 8px; font-size: 15px; }
   .brand small { display: none; }
   .header-actions { gap: 6px; }
   .settings-btn { padding: 7px 9px; }
@@ -273,3 +273,10 @@ img.real-train-photo { object-fit: contain !important; background: #e7ece4; }
 .photo-load-state > span { font-size: 38px; }
 .photo-load-state p { margin: 0; max-width: 32em; font-size: 14px; line-height: 1.7; }
 .photo-load-state button, .train-photo-retry { min-height: 48px; }
+.brand strong, .settings-btn { white-space: nowrap; }
+@media (max-width: 1100px) {
+  .site-header { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 10px; height: auto; min-height: 112px; padding-top: 8px; padding-bottom: 8px; }
+  .brand { grid-column: 1; min-width: 0; }
+  .header-actions { grid-column: 2; grid-row: 1; }
+  .main-nav { grid-column: 1 / -1; grid-row: 2; }
+}

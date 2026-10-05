@@ -1,5 +1,5 @@
-import { LEVELS, GAMES, allowedGames } from "./engine.js?v=1.8.0";
-import { storyMarkup } from "./story.js?v=1.8.0";
+import { LEVELS, GAMES, allowedGames } from "./engine.js?v=1.8.1";
+import { storyMarkup } from "./story.js?v=1.8.1";
 
 export const DESTINATIONS = [
   {

@@ -5,7 +5,7 @@ import { LEVELS, allowedGames, createTrip, seededRandom, newMemoryState, questio
 import { newAdventureState } from "../src/adventure.js";
 import { newPuzzleState } from "../src/puzzle.js";
 import { newExplorerState, moveMaze, MAZE_DIRECTIONS } from "../src/explorers.js";
-import { newWorkshopState, appendCommand, addWeight, PROGRAM_DIRECTIONS } from "../src/workshop.js";
+import { newWorkshopState, appendCommand, addWeight, evaluateProgram, PROGRAM_DIRECTIONS } from "../src/workshop.js";
 import { newDiscoveryState, selectMosaicColor, paintMosaicCell, findDifference } from "../src/discovery.js";
 import { newTicketsState, payToken } from "../src/tickets.js";
 import { TRIP_SESSION_KEY, saveTripSession, readTripSession, clearTripSession } from "../src/trip-session.js";
@@ -136,7 +136,7 @@ test("v1.5 snapshots retain the original fifteen-game recipe and exact question 
     assert.equal(restored.meta.contentVersion, "1.5.0");
     assert.equal(restored.meta.journey, null);
     const current = snapshot(restored);
-    assert.equal(current.gameVersion, "1.8.0");
+    assert.equal(current.gameVersion, "1.8.1");
     assert.deepEqual(readSnapshot(current).questions, fixture.expectedQuestions);
   }
 });
@@ -163,7 +163,7 @@ test("the v1.8 release preserves all twelve captured v1.7 question recipes exact
     assert.deepEqual(restored.questions, fixture.expectedQuestions);
     assert.equal(restored.meta.contentVersion, "1.7.0");
     const updated = snapshot(restored);
-    assert.equal(updated.gameVersion, "1.8.0");
+    assert.equal(updated.gameVersion, "1.8.1");
     assert.deepEqual(readSnapshot(updated).questions, fixture.expectedQuestions);
   }
 });
@@ -356,4 +356,23 @@ test("ticket work rejects sparse, impossible and completed-but-unpaid states wit
   trip.tickets.assignments = Array(trip.questions[0].wallet.length);
   assert.equal(saveTripSession(target, trip), false);
   assert.equal(target.getItem(TRIP_SESSION_KEY), valid);
+});
+
+test("a stopped program retains its actual executed prefix without moving or awarding unexecuted commands", () => {
+  const trip = makeTrip({ level: "small", practice: "program" }), q = trip.questions[0];
+  const first = Object.keys(PROGRAM_DIRECTIONS).find(dir => !(q.walls[q.start] & PROGRAM_DIRECTIONS[dir].bit));
+  trip.workshop = appendCommand(q, trip.workshop, first);
+  const result = evaluateProgram(q, trip.workshop.commands);
+  Object.assign(trip.workshop, {programChecked:true,programPosition:result.position,programTrace:result.trace});
+  trip.workshop = appendCommand(q, trip.workshop, "up");
+  assert.equal(trip.workshop.programPosition,result.position);
+  const saved = snapshot(trip), restored = readSnapshot(saved);
+  assert.equal(saved.work.shownSteps,1);
+  assert.deepEqual(restored.workshop,trip.workshop);
+  assert.equal(restored.solved,false);
+  for(const count of [-1,3,0.5]) { const bad=structuredClone(saved);bad.work.shownSteps=count;assert.equal(readSnapshot(bad),null); }
+  const legacy=structuredClone(saved);legacy.gameVersion="1.8.0";delete legacy.work.shownSteps;
+  const legacyRestored=readSnapshot(legacy);
+  assert.ok(legacyRestored);assert.deepEqual(legacyRestored.workshop.commands,trip.workshop.commands);
+  assert.equal(legacyRestored.workshop.programPosition,q.start);
 });

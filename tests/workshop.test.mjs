@@ -97,6 +97,17 @@ test("planning and editing do not move the train; edits clear only the previous 
   assert.deepEqual(edited.programTrace, [q.start]);
   assert.deepEqual(edited.commands, commands.slice(1));
   assert.equal(ran.programPosition, q.finish);
+  const firstStep = evaluateProgram(q, commands.slice(0, 1));
+  const stopped = { ...initial, commands: commands.slice(0, 1), programPosition: firstStep.position, programTrace: firstStep.trace, programChecked: true };
+  Object.freeze(stopped.commands); Object.freeze(stopped.programTrace); Object.freeze(stopped);
+  const extended = appendCommand(q, stopped, commands[1]);
+  assert.equal(extended.programChecked, false);
+  assert.equal(extended.programPosition, firstStep.position, "planning another step does not send the train backwards");
+  assert.deepEqual(extended.programTrace, firstStep.trace, "an unexecuted extension does not preview a new trace");
+  assert.deepEqual(extended.commands, commands.slice(0, 2));
+  assert.equal(stopped.programChecked, true);
+  assert.equal(removeCommand(q, extended, 1).programPosition, q.start);
+  assert.deepEqual(removeCommand(q, extended, null).programTrace, [q.start]);
   assert.deepEqual(removeCommand(q, planned).commands, []);
   assert.deepEqual(removeCommand(q, ran, null).commands, []);
   assert.deepEqual(resetWorkshopState(q), newWorkshopState(q));
@@ -185,6 +196,63 @@ test("program markup never reads a solution or previews the child's unexecuted c
   const empty = workshopScene(q, { workshop: newWorkshopState(q) });
   assert.match(empty, /id="program-run"[^>]*disabled/);
 });
+test("program explains planning, departure and the real stopping reason without prescribing a route", () => {
+  for (const level of levels) {
+    const q = createProgramQuestion({ level, rng: random(71) }), initial = newWorkshopState(q);
+    const empty = workshopScene(q, { workshop: initial });
+    assert.match(empty, /①<\/span> 按方向排計畫/);
+    assert.match(empty, /②<\/span> 按出發看火車走/);
+    assert.match(empty, /列車還沒出發。先按方向排計畫/);
+    assert.match(empty, /class="program-pad-label"[^>]*>排指令/);
+    const path = programPath(q), planned = { ...initial, commands: path.slice(0, 2) };
+    const before = workshopScene(q, { workshop: planned });
+    assert.match(before, /已排 2 步，按「出發」看火車走/);
+    assert.doesNotMatch(before, /program-visited|遇到牆|還沒到站|停在第/);
+    const renderChecked = commands => {
+      const result = evaluateProgram(q, commands);
+      return workshopScene(q, { workshop: { ...initial, commands, programChecked: true, programPosition: result.position, programTrace: result.trace } });
+    };
+    const wall = renderChecked(["up", "right"]);
+    assert.match(wall, /data-program-phase="blocked"/);
+    assert.match(wall, /第 1 步遇到牆，列車停在第 1 排、第 1 格/);
+    assert.doesNotMatch(wall, /接著往|改往|正確指令|最短路線/);
+    const partial = evaluateProgram(q, planned.commands);
+    const stopped = renderChecked(planned.commands);
+    assert.match(stopped, /data-program-phase="stopped"/);
+    assert.ok(stopped.includes(`指令跑完了，列車停在第 ${Math.floor(partial.position / q.columns) + 1} 排、第 ${partial.position % q.columns + 1} 格，還沒到站`));
+    assert.doesNotMatch(stopped, /遇到牆|還差 \d|再排 \d/);
+    const arrived = renderChecked(path);
+    assert.match(arrived, /data-program-phase="arrived"/);
+    assert.match(arrived, /照計畫到站了！列車停在終點站/);
+    const first = evaluateProgram(q, path.slice(0, 1));
+    const checkedFirst = { ...initial, commands: path.slice(0, 1), programPosition: first.position, programTrace: first.trace, programChecked: true };
+    const extension = appendCommand(q, checkedFirst, path[1]);
+    const retained = workshopScene(q, { workshop: extension });
+    assert.match(retained, /指令和停車位置還在，按「出發」從起點再走一次/);
+    assert.ok(retained.includes(`data-program-cell="${first.position}"`));
+    assert.equal((retained.match(/program-visited/g) || []).length, new Set(first.trace).size);
+    assert.doesNotMatch(retained, /到站了|遇到牆|指令跑完了/);
+    assert.notEqual(first.position, partial.position);
+  }
+});
+test("running program displays only the supplied intermediate step and locks plan controls", () => {
+  const q = createProgramQuestion({ level: "large", rng: random(83) }), initial = newWorkshopState(q);
+  const commands = programPath(q), intermediate = evaluateProgram(q, commands.slice(0, 2));
+  for (const key of ["answer", "solution", "path"]) Object.defineProperty(q, key, { get() { assert.fail(`running UI must not read ${key}`); } });
+  const state = { ...initial, commands, programChecked: true, programPosition: intermediate.position, programTrace: intermediate.trace };
+  const running = workshopScene(q, { workshop: state, programRunning: true });
+  assert.match(running, /data-program-phase="running"/);
+  assert.match(running, /正在走第 2 步，想改計畫可以先按「停車」/);
+  assert.ok(running.includes(`data-program-cell="${intermediate.position}"`));
+  assert.equal((running.match(/program-visited/g) || []).length, new Set(intermediate.trace).size);
+  assert.doesNotMatch(running, /照計畫到站了|指令跑完了|遇到牆/);
+  assert.ok([...running.matchAll(/<button\b[^>]*>/g)].every(match => match[0].includes("disabled")));
+  assert.equal((running.match(/data-program-direction=/g) || []).length, 4);
+  const stoppedRunning = workshopScene(q, { workshop: state, programRunning: false });
+  assert.match(stoppedRunning, /照計畫到站了/);
+  assert.match(stoppedRunning, /data-program-cell="24"[^>]*><span class="program-train"/);
+  assert.equal((stoppedRunning.match(/program-visited/g) || []).length, new Set(evaluateProgram(q, commands).trace).size);
+});
 test("balance remains neutral before checking and never shows a wrong or pending total", () => {
   const q = { ...createBalanceQuestion({ level: "medium", rng: random(37) }), target: 7 };
   Object.defineProperty(q, "answer", { get() { assert.fail("the illustration must not read the answer"); } });
@@ -212,6 +280,8 @@ test("workshop controls are keyboard buttons with bounded responsive containers"
   }
   const css = readFileSync(new URL("../src/workshop.css", import.meta.url), "utf8");
   assert.match(css, /min-width: 48px/); assert.match(css, /min-height: 48px/);
+  assert.match(css, /min-width: 56px/); assert.match(css, /min-height: 56px/);
+  assert.match(css, /grid-template-areas: "\. up \." "left label right" "\. down \."/);
   assert.match(css, /minmax\(0, 1fr\)/); assert.match(css, /overflow-x: auto/);
   assert.match(css, /:focus-visible/); assert.match(css, /orientation: landscape/);
   assert.equal(workshopScene(null, {}), ""); assert.equal(workshopScene({ game: "unknown" }, {}), "");

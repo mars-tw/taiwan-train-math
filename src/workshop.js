@@ -143,7 +143,9 @@ function unrun(q, state, commands) {
 }
 export function appendCommand(q, state, direction) {
   if (!programStateValid(q, state) || typeof direction !== "string" || !Object.hasOwn(PROGRAM_DIRECTIONS, direction) || state.commands.length >= q.maxCommands) return state;
-  return unrun(q, state, [...state.commands, direction]);
+  // Extending the plan does not undo the train's last actual journey. The
+  // next departure restarts at the beginning; deleting/resetting still unrun.
+  return { ...state, commands: [...state.commands, direction], programChecked: false };
 }
 export function removeCommand(q, state, index) {
   if (!programStateValid(q, state)) return state;
@@ -207,10 +209,23 @@ export function workshopScene(q, trip, { esc = escHtml } = {}) {
   if (q.game === "program") {
     if (!programValid(q)) return "";
     const state = programStateValid(q, trip?.workshop) ? trip.workshop : fallback;
-    const position = state.programChecked ? state.programPosition : q.start;
-    const visited = new Set(state.programChecked ? state.programTrace : []);
+    const running = trip?.programRunning === true, locked = solved || running;
+    // Evaluate only a submitted plan after it finishes. During execution or
+    // after extending a plan, show only the supplied trace already travelled.
+    const execution = state.programChecked && !running ? evaluateProgram(q, state.commands) : null;
+    const pastJourney = !state.programChecked && state.programTrace.length > 1;
+    const position = running || pastJourney ? state.programPosition : execution ? execution.position : q.start;
+    const visited = new Set(running || pastJourney ? state.programTrace : execution ? execution.trace : []);
+    const place = `第 ${Math.floor(position / q.columns) + 1} 排、第 ${position % q.columns + 1} 格`;
+    const phase = running ? "running" : !execution ? "planning" : execution.arrived ? "arrived" : execution.blocked ? "blocked" : "stopped";
+    const status = running ? `正在走第 ${Math.max(1, state.programTrace.length - 1)} 步，想改計畫可以先按「停車」。` : !execution
+      ? pastJourney ? "指令和停車位置還在，按「出發」從起點再走一次。"
+        : state.commands.length ? `已排 ${state.commands.length} 步，按「出發」看火車走。` : "列車還沒出發。先按方向排計畫。"
+      : execution.arrived ? "照計畫到站了！列車停在終點站。"
+        : execution.blocked ? `第 ${execution.trace.length} 步遇到牆，列車停在${place}。改好指令，再按「出發」。`
+          : `指令跑完了，列車停在${place}，還沒到站。改好指令，再按「出發」。`;
     const board = q.walls.map((walls, index) => `<span class="program-cell ${Object.entries(PROGRAM_DIRECTIONS).filter(([, direction]) => walls & direction.bit).map(([name]) => `wall-${name}`).join(" ")} ${visited.has(index) ? "program-visited" : ""}" data-program-cell="${index}" aria-label="第 ${Math.floor(index / q.columns) + 1} 排，第 ${index % q.columns + 1} 格${index === position ? "，列車在這裡" : ""}${index === q.finish ? "，終點" : ""}">${index === position ? '<span class="program-train" aria-hidden="true">🚆</span>' : index === q.start ? '<span aria-hidden="true">起</span>' : ""}${index === q.finish ? '<span class="program-finish" aria-hidden="true">站</span>' : ""}</span>`).join("");
-    return `<div class="workshop-stage program-stage"><div class="program-map" style="--program-columns:${q.columns}" role="group" aria-label="指令路線圖">${board}</div><div class="program-plan"><p class="workshop-note">${state.programChecked ? "看看實際走過的路，改好指令再試。" : "先排指令，列車會等你按「出發」。"}</p><div class="program-queue" role="group" aria-label="已排好的指令，依序執行">${state.commands.map((direction, index) => `<button type="button" class="program-command" data-program-remove="${index}" aria-label="第 ${index + 1} 步，往${PROGRAM_DIRECTIONS[direction].name}，刪除這一步" ${solved ? "disabled" : ""}><small>${index + 1}</small>${PROGRAM_DIRECTIONS[direction].symbol}</button>`).join("") || '<span class="program-plan-empty">還沒排指令，先選一個方向。</span>'}</div><div class="program-directions" role="group" aria-label="加入方向指令">${Object.entries(PROGRAM_DIRECTIONS).map(([name, direction]) => `<button type="button" data-program-direction="${name}" aria-label="加入往${direction.name}的指令" ${solved || state.commands.length >= q.maxCommands ? "disabled" : ""}>${direction.symbol}<span>${direction.name}</span></button>`).join("")}</div><p class="program-limit">最多排 ${q.maxCommands} 步；點指令可以刪除。</p><div class="workshop-actions"><button type="button" id="program-reset" class="text-btn" ${solved ? "disabled" : ""}>清空指令</button><button type="button" id="program-run" class="primary-btn" ${solved || !state.commands.length ? "disabled" : ""}>照指令出發 →</button></div></div></div>`;
+    return `<div class="workshop-stage program-stage"><ol class="program-steps" aria-label="玩法步驟"><li><span aria-hidden="true">①</span> 按方向排計畫</li><li><span aria-hidden="true">②</span> 按出發看火車走</li></ol><div class="program-map" style="--program-columns:${q.columns}" role="group" aria-label="指令路線圖">${board}</div><div class="program-plan"><p class="program-status" data-program-phase="${phase}" role="status">${esc(status)}</p><div class="program-queue" role="group" aria-label="已排好的指令，按出發才會依序執行">${state.commands.map((direction, index) => `<button type="button" class="program-command ${execution?.blocked && index === execution.trace.length - 1 ? "program-command-blocked" : running && index === Math.max(0, state.programTrace.length - 2) ? "program-command-current" : ""}" data-program-remove="${index}" aria-label="第 ${index + 1} 步，往${PROGRAM_DIRECTIONS[direction].name}，刪除這一步" ${locked ? "disabled" : ""}><small>${index + 1}</small>${PROGRAM_DIRECTIONS[direction].symbol}</button>`).join("") || '<span class="program-plan-empty">計畫空空的，先按方向排一步。</span>'}</div><div class="program-directions" role="group" aria-label="排方向指令，按出發才會移動"><span class="program-pad-label" aria-hidden="true">排指令</span>${Object.entries(PROGRAM_DIRECTIONS).map(([name, direction]) => `<button type="button" data-program-direction="${name}" aria-label="排一個往${direction.name}的指令" ${locked || state.commands.length >= q.maxCommands ? "disabled" : ""}>${direction.symbol}<span>排往${direction.name}</span></button>`).join("")}</div><p class="program-limit">${state.commands.length >= q.maxCommands ? `計畫已滿 ${q.maxCommands} 步，點指令刪除或按「重排」。` : `已排 ${state.commands.length}／${q.maxCommands} 步，點指令可以刪除。`}</p><div class="workshop-actions"><button type="button" id="program-reset" class="text-btn" ${locked ? "disabled" : ""}>清空計畫</button><button type="button" id="program-run" class="primary-btn" ${locked || !state.commands.length ? "disabled" : ""}>出發，看火車走 →</button></div></div></div>`;
   }
   if (q.game === "balance") {
     if (!balanceValid(q)) return "";

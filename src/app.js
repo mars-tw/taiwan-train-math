@@ -13,38 +13,39 @@ import {
   memoryTurn,
   rememberTrip,
   seededRandom,
-} from "./engine.js?v=1.8.0";
-import { arithmeticScene, parseArithmeticAnswer } from "./arithmetic-ui.js?v=1.8.0";
-import { homeMarkup } from "./home.js?v=1.8.0";
+} from "./engine.js?v=1.8.1";
+import { arithmeticScene, parseArithmeticAnswer } from "./arithmetic-ui.js?v=1.8.1";
+import { homeMarkup } from "./home.js?v=1.8.1";
 import {
   activityScene,
   patternToken,
   patternName,
-} from "./activities.js?v=1.8.0";
-import { mountStory, newStoryState } from "./story.js?v=1.8.0";
+} from "./activities.js?v=1.8.1";
+import { mountStory, newStoryState } from "./story.js?v=1.8.1";
 import {
   newAdventureState,
   trackConnected,
   changeShare,
   SOUVENIRS,
-} from "./adventure.js?v=1.8.0";
+} from "./adventure.js?v=1.8.1";
 import {
   adventureScene,
   souvenirMarkup,
   souvenirCollection,
   giftDetailMarkup,
-} from "./adventure-ui.js?v=1.8.0";
-import { newPuzzleState, selectPuzzlePiece, placePuzzlePiece, puzzleScene } from "./puzzle.js?v=1.8.0";
-import { newExplorerState, selectLuggage, putLuggage, moveMaze, explorerScene } from "./explorers.js?v=1.8.0";
-import { enqueueGift, offerGifts, claimGift } from "./rewards.js?v=1.8.0";
-import { attachPuzzleTouch } from "./puzzle-touch.js?v=1.8.0";
-import { saveTripSession, readTripSession, clearTripSession } from "./trip-session.js?v=1.8.0";
-import { newWorkshopState, appendCommand, removeCommand, evaluateProgram, addWeight, removeWeight, weightTotal, workshopScene } from "./workshop.js?v=1.8.0";
-import { newDiscoveryState, selectMosaicColor, paintMosaicCell, resetMosaic, findDifference, discoveryScene } from "./discovery.js?v=1.8.0";
-import { JOURNEYS, journeyById, journeyMarkup } from "./journeys.js?v=1.8.0";
-import { displayTrain, trainImage, verifiedPhoto, photoLabel, photoGameTrains, samePhotoIdentity } from "./train-images.js?v=1.8.0";
-import { newTicketsState, selectTicket, payToken, returnToken, ticketTotals, ticketsScene } from "./tickets.js?v=1.8.0";
-import { createPhotoLoader } from "./photo-loader.js?v=1.8.0";
+} from "./adventure-ui.js?v=1.8.1";
+import { newPuzzleState, selectPuzzlePiece, placePuzzlePiece, puzzleScene } from "./puzzle.js?v=1.8.1";
+import { newExplorerState, selectLuggage, putLuggage, moveMaze, explorerScene } from "./explorers.js?v=1.8.1";
+import { enqueueGift, offerGifts, claimGift } from "./rewards.js?v=1.8.1";
+import { attachPuzzleTouch } from "./puzzle-touch.js?v=1.8.1";
+import { saveTripSession, readTripSession, clearTripSession } from "./trip-session.js?v=1.8.1";
+import { newWorkshopState, appendCommand, removeCommand, evaluateProgram, addWeight, removeWeight, weightTotal, workshopScene } from "./workshop.js?v=1.8.1";
+import { newDiscoveryState, selectMosaicColor, paintMosaicCell, resetMosaic, findDifference, discoveryScene } from "./discovery.js?v=1.8.1";
+import { JOURNEYS, journeyById, journeyMarkup } from "./journeys.js?v=1.8.1";
+import { displayTrain, trainImage, verifiedPhoto, photoLabel, photoGameTrains, samePhotoIdentity } from "./train-images.js?v=1.8.1";
+import { newTicketsState, selectTicket, payToken, returnToken, ticketTotals, ticketsScene } from "./tickets.js?v=1.8.1";
+import { createPhotoLoader } from "./photo-loader.js?v=1.8.1";
+import { createProgramPlayback } from "./program-playback.js?v=1.8.1";
 
 const main = document.querySelector("#main");
 const esc = (value) =>
@@ -78,6 +79,8 @@ let catalogue,
   audioContext;
 let pausedTrip = null, pointerInteraction = false, tripSaveWarning = false;
 let questionScroll = { key: null, positions: {} };
+let activeProgramRun = null;
+const programPlayer = createProgramPlayback({ delay: () => progress?.reduceMotion || motionPreference.matches ? 0 : 420 });
 let activePhotoTask = null, photoRenderRequest = null;
 const photoLoader = createPhotoLoader({ onChange(path) {
   if (view !== "game" || !trip || trip.awarded || !activePhotoTask?.paths.includes(path)) return;
@@ -148,12 +151,14 @@ function saveCurrentTrip() {
   tripSaveWarning = !saved;
 }
 function pauseTrip() {
+  stopProgramRun();
   if (trip && !trip.awarded) {
     pausedTrip = trip;
     saveCurrentTrip();
   }
 }
 function resumeJourney() {
+  stopProgramRun();
   if (!pausedTrip) return;
   stopStory();
   clearDeparture();
@@ -445,6 +450,7 @@ function prepareQuestionState(q) {
   trip.tickets = q.game === "tickets" ? newTicketsState(q) : null;
 }
 function route() {
+  stopProgramRun();
   clearPhotoTask();
   cancelVoice();
   clearDeparture();
@@ -482,6 +488,7 @@ function detail(id) {
   $("#detail-dialog").showModal();
 }
 function settings() {
+  if (activeProgramRun) { stopProgramRun(); renderQuestion(); }
   storyHandle?.pause();
   cancelVoice();
   clearDeparture();
@@ -490,6 +497,7 @@ function settings() {
   $("#settings-dialog").showModal();
 }
 function startTrip() {
+  stopProgramRun();
   clearPhotoTask();
   if (practice !== "mixed" && !allowedGames(progress.level).includes(practice)) practice = "mixed";
   stopStory();
@@ -693,6 +701,11 @@ function arrangeGameActions(q) {
     reset.setAttribute("aria-label", q.game === "program" ? "清空指令，重新排" : q.game === "tickets" ? "取回所有代幣，重新分配" : "清空畫板，重新拼搭");
     dock.insertBefore(reset, button);
     button.textContent = q.game === "program" ? "出發 →" : q.game === "tickets" ? "付好了 ✓" : "拼好了 ✓";
+    if (q.game === "program" && trip.programRunning) {
+      button.disabled = false;
+      button.textContent = "停車 ▪";
+      button.setAttribute("aria-label", "停車，保留指令和目前位置");
+    }
   }
   if (q.game === "puzzle" && !trip.solved) {
     const preview = $("#puzzle-preview");
@@ -773,6 +786,54 @@ function next() {
     $("#question-title").focus({ preventScroll: pointerInteraction });
   } else finishTrip();
 }
+function stopProgramRun() {
+  programPlayer.stop();
+  if (activeProgramRun) {
+    activeProgramRun.trip.programRunning = false;
+    activeProgramRun.trip.feedback = "火車停在這裡，指令和位置都保留了；按出發會從起點重新走。";
+  }
+  activeProgramRun = null;
+}
+function showProgramCommand(index) {
+  const queue = main.querySelector(".program-queue"), command = main.querySelector(`[data-program-remove="${index}"]`);
+  if (!queue || !command) return;
+  const commandBox = command.getBoundingClientRect(), queueBox = queue.getBoundingClientRect();
+  queue.scrollLeft += commandBox.left - queueBox.left - (queue.clientWidth - commandBox.width) / 2;
+}
+function startProgramRun() {
+  const q = trip?.questions[trip.index];
+  if (q?.game !== "program" || trip.solved || trip.programRunning || !trip.workshop.commands.length) return;
+  stopProgramRun();
+  const run = { trip, index: trip.index }, result = evaluateProgram(q, trip.workshop.commands);
+  activeProgramRun = run;
+  trip.programRunning = true;
+  trip.workshop.programChecked = false;
+  trip.feedback = "火車正在照你排的方向走，看看每一步。";
+  const current = () => activeProgramRun === run && trip === run.trip && trip.index === run.index && view === "game" && !trip.awarded;
+  programPlayer.start(result, {
+    onStep(step) {
+      if (!current()) return;
+      Object.assign(trip.workshop, { programPosition: step.position, programTrace: [...step.trace] });
+      renderQuestion();
+      showProgramCommand(Math.max(0, step.index - 1));
+    },
+    onDone() {
+      if (!current()) return;
+      activeProgramRun = null;
+      trip.programRunning = false;
+      Object.assign(trip.workshop, { programChecked: true, programPosition: result.position, programTrace: [...result.trace] });
+      if (result.arrived) answer("arrived");
+      else {
+        trip.attempts++;
+        trip.feedback = result.blocked ? "這一步碰到牆了。點指令修改，再按出發試一次。" : "這段走完了，還沒到站。可以再接幾個方向，按出發試一次。";
+        renderQuestion();
+        showProgramCommand(result.blocked ? result.trace.length - 1 : trip.workshop.commands.length - 1);
+        speak(trip.feedback);
+        $("#program-run")?.focus({ preventScroll: pointerInteraction });
+      }
+    },
+  });
+}
 function stepMaze(direction) {
   const q = trip?.questions[trip.index];
   if (q?.game !== "maze" || trip.solved) return;
@@ -791,6 +852,7 @@ function stepMaze(direction) {
 }
 function finishTrip() {
   if (!trip) return;
+  stopProgramRun();
   clearPhotoTask();
   view = "finish";
   clearTripSession(tripStorage);
@@ -991,6 +1053,7 @@ document.addEventListener("click", (event) => {
     return;
   }
   const q = trip?.questions[trip.index];
+  if (trip?.programRunning && (b.dataset.programDirection || b.dataset.programRemove !== undefined || b.id === "program-reset")) return;
   if (q && !trip.awarded && view === "game" && ["identify", "memory", "puzzle"].includes(q.game)
     && photoLoader.status(gamePhotoPaths(q)) !== "ready"
     && !["photo-retry", "trip-exit", "hint-show", "question-replay", "question-next", "game-fullscreen"].includes(b.id)) return;
@@ -1188,10 +1251,8 @@ document.addEventListener("click", (event) => {
   }
   switch (b.id) {
     case "program-run": {
-      if (q?.game !== "program" || trip.solved) break;
-      const result = evaluateProgram(q, trip.workshop.commands);
-      Object.assign(trip.workshop, { programChecked: true, programPosition: result.position, programTrace: [...result.trace] });
-      answer(result.arrived ? "arrived" : "not-arrived");
+      if (q?.game === "program" && trip.programRunning) { stopProgramRun(); renderQuestion(); }
+      else startProgramRun();
       break;
     }
     case "program-reset":
@@ -1359,7 +1420,10 @@ document.addEventListener("click", (event) => {
       hint();
       break;
     case "question-replay":
-      speak(trip?.questions[trip.index].prompt || "", true);
+      const spokenQuestion = trip?.questions[trip.index];
+      speak(spokenQuestion?.game === "program"
+        ? `${spokenQuestion.prompt} ${main.querySelector(".program-status")?.textContent || ""}`
+        : spokenQuestion?.prompt || "", true);
       break;
     case "question-next":
       next();
@@ -1469,9 +1533,34 @@ attachPuzzleTouch(main, {
 });
 document.addEventListener("keydown", (event) => {
   const directions = { ArrowUp: "up", ArrowRight: "right", ArrowDown: "down", ArrowLeft: "left" };
-  const direction = directions[event.key];
-  if (!direction || view !== "game" || trip?.questions[trip.index].game !== "maze" || trip.solved) return;
+  const direction = Object.hasOwn(directions, event.key) ? directions[event.key] : null;
+  const q = trip?.questions[trip.index];
+  if (view !== "game" || !q) return;
+  if (event.altKey || event.ctrlKey || event.metaKey) return;
   if (document.querySelector("dialog[open]") || /^(INPUT|TEXTAREA|SELECT)$/.test(event.target.tagName)) return;
+  if (q.game === "program" && event.key === "Enter" && event.repeat) { event.preventDefault(); return; }
+  if (trip.solved) return;
+  if (q.game === "program") {
+    if (direction) {
+      event.preventDefault();
+      if (event.repeat || trip.programRunning) return;
+      trip.workshop = appendCommand(q, trip.workshop, direction);
+      trip.feedback = "";
+      renderQuestion();
+      const queue = main.querySelector(".program-queue");
+      if (queue) queue.scrollLeft = queue.scrollWidth;
+      main.focus({ preventScroll: true });
+      return;
+    }
+    if (event.key === "Enter" && (event.target === main || event.target === document.body)) {
+      event.preventDefault();
+      if (event.repeat) return;
+      if (trip.programRunning) { stopProgramRun(); renderQuestion(); }
+      else startProgramRun();
+    }
+    return;
+  }
+  if (!direction || q.game !== "maze") return;
   event.preventDefault();
   stepMaze(direction);
 });
@@ -1495,12 +1584,16 @@ for (const d of document.querySelectorAll("dialog"))
   });
 window.addEventListener("hashchange", route);
 window.addEventListener("pagehide", () => {
+  stopProgramRun();
   saveCurrentTrip();
   cancelVoice();
   storyHandle?.pause();
 });
 document.addEventListener("visibilitychange", () => {
   if (!document.hidden) return;
+  const programWasRunning = Boolean(activeProgramRun);
+  stopProgramRun();
+  if (programWasRunning && view === "game" && trip) renderQuestion();
   saveCurrentTrip();
   cancelVoice();
   storyHandle?.pause();
@@ -1531,7 +1624,7 @@ try {
   const controller = new AbortController();
   const deadline = setTimeout(() => controller.abort(), 15000);
   let response;
-  try { response = await fetch("data/trains.json?v=1.8.0", { signal: controller.signal }); }
+  try { response = await fetch("data/trains.json?v=1.8.1", { signal: controller.signal }); }
   finally { clearTimeout(deadline); }
   if (!response.ok) throw new Error("Content unavailable");
   catalogue = await response.json();

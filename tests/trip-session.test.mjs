@@ -136,7 +136,7 @@ test("v1.5 snapshots retain the original fifteen-game recipe and exact question 
     assert.equal(restored.meta.contentVersion, "1.5.0");
     assert.equal(restored.meta.journey, null);
     const current = snapshot(restored);
-    assert.equal(current.gameVersion, "1.8.1");
+    assert.equal(current.gameVersion, "1.8.2");
     assert.deepEqual(readSnapshot(current).questions, fixture.expectedQuestions);
   }
 });
@@ -163,7 +163,7 @@ test("the v1.8 release preserves all twelve captured v1.7 question recipes exact
     assert.deepEqual(restored.questions, fixture.expectedQuestions);
     assert.equal(restored.meta.contentVersion, "1.7.0");
     const updated = snapshot(restored);
-    assert.equal(updated.gameVersion, "1.8.1");
+    assert.equal(updated.gameVersion, "1.8.2");
     assert.deepEqual(readSnapshot(updated).questions, fixture.expectedQuestions);
   }
 });

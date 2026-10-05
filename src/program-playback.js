@@ -19,7 +19,9 @@ export function createProgramPlayback({ schedule = setTimeout, cancel = clearTim
         if (run.index >= run.trace.length) { active = null; onDone(result); return; }
         onStep({ position: run.trace[run.index], trace: run.trace.slice(0, run.index + 1), index: run.index });
         run.index++;
-        if (active === run) run.timer = schedule(step, typeof delay === "function" ? delay() : delay);
+        if (active !== run) return;
+        if (run.index === run.trace.length) { active = null; onDone(result); return; }
+        run.timer = schedule(step, typeof delay === "function" ? delay() : delay);
       }
       step();
     },

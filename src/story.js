@@ -6,7 +6,7 @@ import {
   storyChapter,
   advanceStory,
   goToChapter,
-} from "./story-model.js?v=1.8.1";
+} from "./story-model.js?v=1.8.2";
 export { newStoryState };
 export function storyMarkup() {
   return `<section class="story-scene" id="story-scene" aria-labelledby="story-title">

@@ -28,8 +28,8 @@ jobs:
       APK_SHA256: af762bde770643c122d74b0c8ec3318f756005fea84bed477b0f3f9d8ecf5f00
       APK_BYTES: '22848415'
       SYSTEM_IMAGE: 'system-images;android-35;google_apis;x86_64'
-      ANDROID_AVD_HOME: ${{ runner.temp }}/train-math-store-avd
-      ANDROID_USER_HOME: ${{ runner.temp }}/train-math-store-android
+      ANDROID_AVD_HOME: ${{ github.workspace }}/.ci-owned-android/avd
+      ANDROID_USER_HOME: ${{ github.workspace }}/.ci-owned-android/user
       EVIDENCE: ${{ github.workspace }}/output/android-store-screenshots
     steps:
       - name: Require KVM and install only official Android SDK packages

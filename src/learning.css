@@ -1,0 +1,78 @@
+.learning-action {
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  border-left: 4px solid var(--green, #246b5e);
+  border-radius: 6px;
+  background: #e8f1e5;
+  color: #285e50;
+  font-size: 15px;
+  line-height: 1.5;
+}
+.learning-action > small { color: #55766b; margin-right: 8px; }
+.learning-discovery {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  margin-top: 12px;
+  padding: 14px;
+  border: 1px solid #c0d1b8;
+  border-radius: 12px;
+  background: #edf3e6;
+}
+.learning-discovery > div { flex: 1; min-width: 0; }
+.learning-discovery-icon { font-size: 28px; }
+.learning-discovery small { color: #477265; font-size: 12px; }
+.learning-discovery-text { color: var(--ink, #203d40); font-size: 16px; line-height: 1.6; margin-top: 4px; }
+.learning-discovery .icon-btn { width: 48px; height: 48px; flex: 0 0 48px; }
+.learning-sources > summary,
+.learning-sources a,
+.train-more > summary,
+.playroom-later > summary { display: flex; align-items: center; min-height: 48px; cursor: pointer; color: #356b5b; }
+.learning-sources > summary { font-size: 12px; }
+.learning-sources a { font-size: 13px; overflow-wrap: anywhere; }
+.playroom-later { margin-top: 10px; border-top: 1px solid #d7dfd0; }
+.playroom-later > summary { font-size: 14px; }
+.train-more { border-top: 1px solid #d7dfd0; margin-top: 14px; }
+.photo-credit a,
+.detail-source a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 48px;
+  min-width: 48px;
+  max-width: 100%;
+}
+.question-actions { flex-wrap: wrap; gap: 8px; }
+.question-actions > .feedback {
+  flex: 0 0 100%;
+  width: 100%;
+  min-height: 0;
+  max-height: 25vh;
+  overflow-y: auto;
+  margin: 0;
+  padding: 6px 8px;
+  background: #edf1e6;
+  color: #355c50;
+  line-height: 1.5;
+  font-size: 14px;
+  text-align: left;
+  justify-content: flex-start;
+}
+.question-actions > .feedback:empty { display: none; }
+.question-actions > .feedback.success { font-size: 13px; }
+/* The common one-step guide replaces repeated paragraphs in each stage. */
+.game-stage .discovery-help,
+.game-stage .explorer-instruction,
+.game-stage .workshop-note,
+.game-stage .tickets-instruction,
+.game-stage .puzzle-instruction,
+.game-stage .program-steps { display: none; }
+.game-stage .puzzle-board { scroll-margin-top: 12px; }
+@media (pointer: coarse), (max-width: 1100px) {
+  .in-game #main { padding-bottom: calc(var(--game-dock-height, 88px) + var(--keyboard-inset, 0px)); }
+  html { scroll-padding-bottom: calc(var(--game-dock-height, 0px) + var(--keyboard-inset, 0px)); }
+  .in-game #main button { scroll-margin-bottom: calc(var(--game-dock-height, 88px) + 12px); }
+  .learning-action { font-size: 14px; padding: 6px 8px; }
+  .learning-discovery { gap: 8px; padding: 10px; }
+  .learning-discovery-text { font-size: 15px; }
+  .learning-discovery-icon { display: none; }
+}

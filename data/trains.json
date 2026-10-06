@@ -820,8 +820,8 @@
       "modelKind": "type",
       "image": "assets/images/diesel-railcar.webp",
       "imageKind": "family",
-      "intro": "我是 DRC1000 型柴油客車，記得名字裡多了一個 C。",
-      "fact": "DR1000 和 DRC1000 是不同的型號名稱。",
+      "intro": "我是 DR1000 系列的柴油客車，車身車號會寫作 DRC10xx。這是同一批車的兩種寫法。",
+      "fact": "DR1000 和 DRC1000 是同型列車的不同寫法，不是兩種不同車型。",
       "status": "catalogue",
       "sources": [
         "https://www.railway.gov.tw/tra-tip-web/tip/file/1bdbac06-508d-4249-a400-7ca1d610381f"

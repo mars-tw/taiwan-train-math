@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { GAMES, LEVELS } from "../src/engine.js";
-import { homeMarkup, playroomMarkup, PLAYROOM_CATEGORIES } from "../src/home.js";
+import { homeMarkup, playroomMarkup, PLAYROOM_CATEGORIES, starterPractice } from "../src/home.js";
 import { journeyMarkup } from "../src/journeys.js";
 const trains = [{ id: "emu3000", cardLabel: "EMU3000 新自強號", name: "新自強號" }, { id: "700t", cardLabel: "台灣高鐵 700T", name: "台灣高鐵" }];
 const picture = train => `<img src="assets/images/${train.id}.webp" alt="${train.name}">`;
@@ -13,7 +13,7 @@ test("home keeps the original story once and one compact departure without repea
   assert.ok(markup.startsWith('<section class="story-scene"'));
   assert.equal(count(markup, /id="story-scene"/g), 1); assert.equal(count(markup, /id="departure"/g), 1);
   assert.match(markup, /<span id="railway-map"[^>]*><\/span>/);
-  assert.equal(count(markup, /id="lobby-start"/g), 1); assert.match(markup, /驚喜旅程，/); assert.match(markup, /出發！/); assert.match(markup, /href="#playroom"/);
+  assert.equal(count(markup, /id="lobby-start"/g), 1); assert.match(markup, /先玩數數，/); assert.match(markup, /出發！/); assert.match(markup, /href="#playroom"/);
   assert.match(markup, /data-detail="emu3000"/); assert.match(markup, /data-speak="emu3000"/); assert.match(markup, /href="#collection"/); assert.match(markup, /3–4 歲/);
   assert.doesNotMatch(markup, /class="railway-world|new-adventures|boarding-pass|featured-trains|mission-hall|passport-invite|data-mission=|id="practice-select"|data-level=/);
 });
@@ -38,7 +38,7 @@ test("four categories partition all twenty engine games without repeated launch 
     const markup = playroomMarkup({ progress: { level } }), launches = [...markup.matchAll(/data-mission="([^"]+)"/g)].map(match => match[1]);
     assert.equal(launches.length, 20); assert.equal(new Set(launches).size, 20); assert.deepEqual([...launches].sort(), grouped.slice().sort());
     assert.equal(count(markup, /role="tab"/g), 4); assert.equal(count(markup, /role="tabpanel"/g), 4); assert.equal(count(markup, /role="tabpanel"[^>]* hidden/g), 3);
-    assert.match(markup, new RegExp(`data-game-category="${level === "small" ? "build" : "math"}" aria-selected="true"`));
+    assert.match(markup, /data-game-category="math" aria-selected="true"/);
     assert.match(markup, /<h1 id="playroom-title">遊戲室/); assert.match(markup, /id="quick-settings"/); assert.doesNotMatch(markup, /id="story-scene"|id="practice-select"/);
   }
 });
@@ -50,7 +50,18 @@ test("tab selection has matching panel semantics and unavailable age games remai
     assert.doesNotMatch(markup.match(new RegExp(`<section[^>]*id="playroom-panel-${category.id}"[^>]*>`))[0], / hidden/);
     for (const id of ["boarding", "compare", "clock"]) assert.match(markup, new RegExp(`data-mission="${id}" aria-label="[^\"]*適合 5–8 歲，查看提示`));
   }
-  assert.match(playroomMarkup({ progress: { level: "small" }, category: "unknown" }), /data-game-category="build" aria-selected="true"/);
+  assert.match(playroomMarkup({ progress: { level: "small" }, category: "unknown" }), /data-game-category="math" aria-selected="true"/);
+  assert.match(playroomMarkup({ progress: { level: "small" } }), /<details class="playroom-later">/);
+  assert.doesNotMatch(playroomMarkup({ progress: { level: "medium" } }), /class="playroom-later"/);
+});
+
+test("a first journey stays with counting while an existing passport keeps varied surprise journeys", () => {
+  for (const level of Object.keys(LEVELS)) {
+    assert.equal(starterPractice({ level, trips: 0 }), "count");
+    assert.match(homeMarkup({ progress: { level, trips: 0 } }), /先學一種玩法，每站換一題/);
+    assert.equal(starterPractice({ level, trips: 4 }), "mixed");
+    assert.match(homeMarkup({ progress: { level, trips: 4 } }), /驚喜旅程，/);
+  }
 });
 
 test("six routes live only in a closed disclosure without duplicate legacy anchors", () => {

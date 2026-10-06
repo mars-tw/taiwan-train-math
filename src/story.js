@@ -6,14 +6,14 @@ import {
   storyChapter,
   advanceStory,
   goToChapter,
-} from "./story-model.js?v=1.9.0";
+} from "./story-model.js?v=1.10.0";
 export { newStoryState };
 export function storyMarkup() {
   return `<section class="story-scene" id="story-scene" aria-labelledby="story-title">
     <img class="story-landscape" src="assets/images/story-coast-v3.webp" alt="電影風想像山海鐵道，軌道由山林延伸到海邊" width="1672" height="941" fetchpriority="high" decoding="async"><div class="story-vignette"></div>
     <div class="story-atmosphere" aria-hidden="true"><i></i><i></i><i></i></div>
     <div class="story-train" id="story-train"><img src="assets/images/star-express-v3.webp" alt="星光高鐵，白色與金橘色的想像故事列車，車頭朝畫面下方" width="1024" height="1536" fetchpriority="high" decoding="async"><span class="train-headlight" aria-hidden="true"></span></div>
-    <div class="story-copy"><div class="eyebrow">INTERACTIVE RAILWAY STORY · 01</div><h1 id="story-title">搭上星光高鐵，<br>把驚喜送到<span>下一站。</span></h1><p>看列車慢慢走，點點山海裡的小驚喜。</p><div class="story-controls"><button id="story-toggle" class="story-action">Ⅱ 暫停故事</button><button id="story-next" class="story-action">下一段 →</button><button id="story-replay" class="story-icon" aria-label="重播星光高鐵故事">↺</button></div><small id="story-motion-note"></small><a href="#departure" class="story-map-link">開始旅程 ↓</a></div>
+    <div class="story-copy"><div class="eyebrow">想像故事 · 星光高鐵</div><h1 id="story-title">搭上星光高鐵，<br>把驚喜送到<span>下一站。</span></h1><p>看列車慢慢走，點點山海裡的小驚喜。</p><div class="story-controls"><button id="story-toggle" class="story-action">Ⅱ 暫停故事</button><button id="story-next" class="story-action">下一段 →</button><button id="story-replay" class="story-icon" aria-label="重播星光高鐵故事">↺</button></div><small id="story-motion-note"></small><a href="#departure" class="story-map-link">開始旅程 ↓</a></div>
     <div class="story-discoveries" role="group" aria-label="故事風景中的小驚喜"><button data-discover="bird" class="scenic-surprise surprise-bird" aria-label="叫醒山谷的小鳥" aria-pressed="false"><span aria-hidden="true">🐦</span><small>小鳥的話</small></button><button data-discover="light" class="scenic-surprise surprise-light" aria-label="點亮海邊燈塔" aria-pressed="false"><span aria-hidden="true">☀</span><small>點亮燈塔</small></button><button data-discover="letter" class="scenic-surprise surprise-letter" aria-label="看看星光信封" aria-pressed="false"><span aria-hidden="true">✉</span><small>星光信封</small></button></div>
     <div class="story-narrative"><div class="story-kicker"><span>星光高鐵 · <b id="story-place"></b></span><button id="story-read" aria-label="朗讀這一段故事">♪ 聽故事</button></div><div id="story-caption" aria-live="polite"><h2></h2><p></p></div><div class="story-chapters" role="group" aria-label="四段故事，可直接選擇">${CHAPTERS.map((c, i) => `<button data-chapter="${i}" aria-label="第 ${i + 1} 段，${c.short}" aria-pressed="${i === 0}"><span>${String(i + 1).padStart(2, "0")}</span>${c.short}</button>`).join("")}</div><div class="story-progress" role="progressbar" aria-label="星光高鐵故事進度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i></i></div></div>
     <div class="story-discovery-note" id="story-discovery-note" role="status">三個小驚喜，隨時都能點開。</div>

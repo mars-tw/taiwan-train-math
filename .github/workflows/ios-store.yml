@@ -1,0 +1,114 @@
+name: Export verified iOS archive for App Store Connect
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_run:
+        description: Native workflow run containing apple-app-packages
+        type: string
+        default: '37458546306'
+        required: true
+      strategy:
+        description: Re-archive only if existing unsigned archive export is rejected
+        type: choice
+        options: [export-existing, signed-rearchive]
+        default: export-existing
+      upload:
+        description: Validate and upload to Apple (not App Store publication)
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: train-math-ios-store
+  cancel-in-progress: false
+
+jobs:
+  export:
+    if: github.ref == 'refs/heads/main'
+    runs-on: macos-15
+    environment: apple-store
+    timeout-minutes: 45
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
+      IOS_SOURCE_RUN: ${{ inputs.source_run }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with: {persist-credentials: false}
+      - name: Check artifact source provenance
+        id: source
+        env:
+          GH_API_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import json,os,pathlib,re,urllib.request
+          run=os.environ['IOS_SOURCE_RUN']; repo=os.environ['GITHUB_REPOSITORY']
+          if not re.fullmatch(r'[1-9][0-9]{0,19}',run): raise SystemExit('Invalid source run')
+          def get(path):
+              req=urllib.request.Request('https://api.github.com/repos/'+repo+path,headers={'Authorization':'Bearer '+os.environ['GH_API_TOKEN'],'Accept':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'})
+              try:
+                  with urllib.request.urlopen(req,timeout=30) as response: return json.load(response)
+              except Exception: raise SystemExit('Cannot verify source run/artifact')
+          source=get('/actions/runs/'+run)
+          if source.get('status')!='completed' or source.get('head_branch')!='main' or source.get('event') not in ['push','workflow_dispatch'] or source.get('head_repository',{}).get('full_name')!=repo or source.get('path','').split('@')[0]!='.github/workflows/native.yml': raise SystemExit('Rejected untrusted source run')
+          sha=source.get('head_sha','')
+          if not re.fullmatch(r'[0-9a-f]{40}',sha): raise SystemExit('Invalid source SHA')
+          artifacts=get('/actions/runs/'+run+'/artifacts?per_page=100')['artifacts']
+          matches=[a for a in artifacts if a.get('name')=='apple-app-packages' and not a.get('expired')]
+          if len(matches)!=1: raise SystemExit('Need one unexpired apple-app-packages artifact')
+          report={'sourceRun':run,'sourceSha':sha,'sourceConclusion':source.get('conclusion'),'artifactId':matches[0]['id'],'artifactName':'apple-app-packages'}
+          out=pathlib.Path('output'); out.mkdir(parents=True,exist_ok=True)
+          (out/'ios-store-provenance.json').write_text(json.dumps(report,indent=2))
+          with open(os.environ['GITHUB_OUTPUT'],'a') as f: f.write('sha='+sha+'\n')
+          PY
+      - name: Download the already compiled archive and manifest
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: apple-app-packages
+          path: output/ios-store-source
+          run-id: ${{ inputs.source_run }}
+          github-token: ${{ github.token }}
+      - name: Fetch the exact source only for explicitly selected fallback
+        if: inputs.strategy == 'signed-rearchive'
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ steps.source.outputs.sha }}
+          path: source-archive
+          persist-credentials: false
+      - if: inputs.strategy == 'signed-rearchive'
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with: {node-version: '24'}
+      - name: Install pinned source dependencies without signing secrets
+        if: inputs.strategy == 'signed-rearchive'
+        working-directory: source-archive
+        run: npm ci
+      - name: Export and verify signed IPA
+        id: sign
+        env:
+          APPLE_DISTRIBUTION_P12_BASE64: ${{ secrets.APPLE_DISTRIBUTION_P12_BASE64 }}
+          APPLE_DISTRIBUTION_P12_PASSWORD: ${{ secrets.APPLE_DISTRIBUTION_P12_PASSWORD }}
+          APPLE_APPSTORE_PROFILE_BASE64: ${{ secrets.APPLE_APPSTORE_PROFILE_BASE64 }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          IOS_ARCHIVE_STRATEGY: ${{ inputs.strategy }}
+        run: bash scripts/export-ios-store.sh sign
+      - name: Validate and upload only when explicitly requested
+        if: inputs.upload == true && steps.sign.outcome == 'success'
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_PRIVATE_KEY_BASE64: ${{ secrets.ASC_PRIVATE_KEY_BASE64 }}
+        run: bash scripts/export-ios-store.sh upload
+      - name: Preserve only the IPA and non-secret verification results
+        if: always() && steps.sign.outcome == 'success'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: train-math-appstore-1.0.0-1-${{ github.run_id }}
+          path: |
+            output/ios-store/TrainMath.ipa
+            output/ios-store/verification.json
+            output/ios-store/upload-result.json
+          if-no-files-found: error
+          retention-days: 7

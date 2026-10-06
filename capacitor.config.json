@@ -1,0 +1,18 @@
+{
+  "appId": "tw.mars.trainmath",
+  "appName": "小小列車長",
+  "webDir": "dist-native",
+  "server": {
+    "hostname": "localhost",
+    "androidScheme": "https"
+  },
+  "android": {
+    "allowMixedContent": false,
+    "webContentsDebuggingEnabled": false,
+    "backgroundColor": "#f8f6f0"
+  },
+  "ios": {
+    "contentInset": "automatic",
+    "backgroundColor": "#f8f6f0"
+  }
+}

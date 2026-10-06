@@ -1,6 +1,6 @@
 # 小小列車長｜台灣火車數學樂園
 
-給 **3–8 歲**小小鐵道迷的免費繁體中文網頁遊戲。陪星光高鐵送信到海邊，打開故事任務，再選喜歡的真實列車，練習數數、簡單加減、排序、規律、裝箱、記憶、時鐘、空間方向、分享與尋寶。
+給 **3–8 歲**小小鐵道迷的免費繁體中文遊戲，提供網頁及 Android／iPhone／iPad 原生專案。陪星光高鐵送信到海邊，打開故事任務，再選喜歡的真實列車，練習數數、簡單加減、排序、規律、裝箱、記憶、時鐘、空間方向、分享與尋寶。
 
 [直接遊玩](https://mars-tw.github.io/taiwan-train-math/) · [公開程式庫](https://github.com/mars-tw/taiwan-train-math)
 
@@ -37,11 +37,12 @@
 
 ## 在自己的電腦執行
 
-需要 Node.js 20 以上。無執行期套件依賴，無須 `npm install`。
+需要 Node.js 22 以上。開發與 App 建置套件使用鎖定版本；一般網頁在瀏覽器執行時不載入 Capacitor。
 
 ```sh
 git clone https://github.com/mars-tw/taiwan-train-math.git
 cd taiwan-train-math
+npm ci
 npm run dev
 ```
 
@@ -62,6 +63,22 @@ node scripts/serve.mjs --dist
 ```
 
 `dist/` 可放到一般靜態主機。手機瀏覽公開網址即可，不需要安裝 App。首次載入需要網路，尚未提供離線快取。
+
+## Android 與 Apple App
+
+原生 App 名稱為「小小列車長」，獨立識別碼為 `tw.mars.trainmath`，首版 `1.0.0`／build `1`。二十種玩法、58 張已核對的照片、故事及授權文件一起包入，安裝後可離線玩。App 與網頁各自保存進度；家長可從網頁下載護照備份，再匯入 App，匯入前會確認是否取代原紀錄。
+
+App 使用系統本機繁中語音，沒有已安裝語音時隱藏朗讀按鈕，不改用網路朗讀。切到背景會停車、停止語音及保存操作；Android 返回鍵先關視窗，再回遊戲室與首頁。App 外連結先經家長關卡，照片作者及授權文件可在 App 內離線閱讀。沒有廣告、帳號或分析追蹤；Android 套件不要求網路權限。
+
+```sh
+npm run native:icons
+npm run native:sync
+node scripts/verify-native-package.mjs
+```
+
+Android 使用 JDK 21、Android SDK 36；從 `android/` 執行 `./gradlew assembleDebug assembleRelease bundleRelease`。Windows 可使用 `scripts/sign-android.ps1` 將正式 APK／AAB 簽署，金鑰保存在程式庫外，密碼只從 process environment 讀取。iOS 使用 macOS／Xcode 26 以上，開啟 `ios/App/App.xcodeproj`，選自己的 Team。GitHub Actions 的 **Build Android and Apple apps** 會產生可安裝 Android 測試 APK、未簽 APK／AAB、iOS Simulator App 及未簽裝置 archive；iOS 簽署、TestFlight 和商店提交仍需這個 App 的正式簽署設定。
+
+App 建置與商店資料不代表已經商店審核或公開上架。詳見 [商店準備](docs/app-store-preparation.md)、[iOS 建置與簽署](docs/native-ios.md)、[隱私](privacy.html)及[客服](support.html)。
 
 ## GitHub Pages
 
@@ -84,6 +101,8 @@ node scripts/serve.mjs --dist
 - `src/rewards.js`／`src/souvenirs.css`：待領小禮物、固定選項、收藏冊與互動小物。
 - `src/mobile.css`／`src/puzzle-touch.js`：手機／平板畫面、觸控拖放與手勢取消。
 - `src/trip-session.js`：同分頁的旅程生成配方、操作保存與恢復。
+- `src/native-runtime.js`／`src/native-atomic-preferences.js`：原生生命週期、進度同步介面與護照／旅程單筆保存；`src/progress-backup.js`：護照備份檢查與匯入。
+- `native/`、`android/`、`ios/`：離線 App 接線、原生語音與平台專案；`store-listing/`：商店文案與圖示。
 - `src/tickets.js`／`src/tickets.css`：共用有限代幣的車票分配；`src/photo-loader.js`：照片狀態、重試及過時回應隔離。
 - `src/workshop.js`／`src/discovery.js`：指令、天平、拼搭、找不同；`src/journeys.js`：六條主題旅程。
 - `src/train-images.js`：照片資格、型號別名去重及舊圖片相容；`data/train-photos-*.json`：逐張車號、來源、授權與 SHA-256。
@@ -96,6 +115,6 @@ node scripts/serve.mjs --dist
 
 沿用此儲存庫建立時選擇的 **Apache-2.0** 程式授權；原創教材與 AI 插圖採 **CC BY 4.0**，實車照片各依原作者授權。請見 [LICENSE](LICENSE)、[素材授權](ASSET-LICENSE.md)、[NOTICE](NOTICE)、[隱私說明](PRIVACY.md) 與 [貢獻指南](CONTRIBUTING.md)。
 
-非官方教育專案，不代表台鐵、高鐵、林鐵或海外營運單位。語音預設關閉；裝置是否使用遠端朗讀依瀏覽器供應商而定。遊戲不設帳號、廣告或追蹤程式，集章與禮物僅儲存在本機。
+非官方教育專案，不代表台鐵、高鐵、林鐵或海外營運單位。語音預設關閉；網頁是否使用遠端朗讀依瀏覽器供應商而定，原生 App 僅選系統本機繁中語音。遊戲不設帳號、廣告或追蹤程式，集章與禮物僅儲存在本機。
 
-目前版本 1.10.1，保留 v1 本機護照與偏好，以及 1.5／1.6／1.7／1.8／1.9／1.10 的未完成旅程。已驗證觸控模擬與 WebKit 引擎；實體行動裝置仍需親子試玩。推送 main 後由 GitHub Actions 測試、建置及更新公開遊戲。
+目前網頁版本 1.11.0，保留 v1 本機護照與偏好，以及 1.5／1.6／1.7／1.8／1.9／1.10 的未完成旅程。已驗證觸控模擬與 WebKit 引擎；實體行動裝置仍需親子試玩。推送 main 後由 GitHub Actions 測試、建置及更新公開遊戲。

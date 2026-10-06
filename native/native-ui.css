@@ -1,0 +1,13 @@
+body.native-app { -webkit-touch-callout: none; }
+.native-no-speech #sound-toggle,
+.native-no-speech #question-replay,
+.native-no-speech #story-read,
+.native-no-speech #learning-read,
+.native-no-speech [data-speak] { display: none; }
+.native-app .native-document-text { white-space: pre-wrap; overflow-wrap: anywhere; padding: 14px; font-family: inherit; font-size: 15px; line-height: 1.6; }
+.native-app #native-parent-gate { max-width: 440px; padding: 22px; }
+.native-app #native-parent-gate input { display: block; width: 100%; min-height: 48px; margin: 12px 0; font-size: 22px; padding: 8px; }
+.native-app #native-parent-gate .primary-btn { width: 100%; }
+.native-app #native-parent-gate p { line-height: 1.6; margin: 8px 0; }
+.native-app .native-storage-note { padding: 12px; background: #fff1c9; color: #604923; margin: 8px 0; }
+.native-app .native-local-note { color: #607c71; font-size: 13px; line-height: 1.6; margin-top: 12px; }

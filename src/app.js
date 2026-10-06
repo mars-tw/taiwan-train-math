@@ -13,45 +13,70 @@ import {
   memoryTurn,
   rememberTrip,
   seededRandom,
-} from "./engine.js?v=1.10.1";
-import { arithmeticScene, parseArithmeticAnswer } from "./arithmetic-ui.js?v=1.10.1";
-import { homeMarkup, playroomMarkup, starterPractice } from "./home.js?v=1.10.1";
-import { countingScene, discoveryMarkup } from "./learning-ui.js?v=1.10.1";
-import { learningGuide } from "./learning-guide.js?v=1.10.1";
-import { learningDiscovery } from "./learning-content.js?v=1.10.1";
+} from "./engine.js?v=1.11.0";
+import { arithmeticScene, parseArithmeticAnswer } from "./arithmetic-ui.js?v=1.11.0";
+import { homeMarkup, playroomMarkup, starterPractice } from "./home.js?v=1.11.0";
+import { countingScene, discoveryMarkup } from "./learning-ui.js?v=1.11.0";
+import { learningGuide } from "./learning-guide.js?v=1.11.0";
+import { learningDiscovery } from "./learning-content.js?v=1.11.0";
 import {
   activityScene,
   patternToken,
   patternName,
-} from "./activities.js?v=1.10.1";
-import { mountStory, newStoryState } from "./story.js?v=1.10.1";
+} from "./activities.js?v=1.11.0";
+import { mountStory, newStoryState } from "./story.js?v=1.11.0";
 import {
   newAdventureState,
   trackConnected,
   changeShare,
   SOUVENIRS,
-} from "./adventure.js?v=1.10.1";
+} from "./adventure.js?v=1.11.0";
 import {
   adventureScene,
   souvenirMarkup,
   souvenirCollection,
   giftDetailMarkup,
-} from "./adventure-ui.js?v=1.10.1";
-import { newPuzzleState, selectPuzzlePiece, placePuzzlePiece, puzzleScene } from "./puzzle.js?v=1.10.1";
-import { newExplorerState, selectLuggage, putLuggage, moveMaze, explorerScene } from "./explorers.js?v=1.10.1";
-import { enqueueGift, offerGifts, claimGift } from "./rewards.js?v=1.10.1";
-import { attachPuzzleTouch } from "./puzzle-touch.js?v=1.10.1";
-import { saveTripSession, readTripSession, clearTripSession } from "./trip-session.js?v=1.10.1";
-import { newWorkshopState, appendCommand, removeCommand, evaluateProgram, addWeight, removeWeight, weightTotal, workshopScene } from "./workshop.js?v=1.10.1";
-import { newDiscoveryState, selectMosaicColor, paintMosaicCell, resetMosaic, findDifference, discoveryScene } from "./discovery.js?v=1.10.1";
-import { JOURNEYS, journeyById, journeyMarkup } from "./journeys.js?v=1.10.1";
-import { displayTrain, trainImage, verifiedPhoto, photoLabel, photoGameTrains, samePhotoIdentity } from "./train-images.js?v=1.10.1";
-import { newTicketsState, selectTicket, payToken, returnToken, ticketTotals, ticketsScene } from "./tickets.js?v=1.10.1";
-import { createPhotoLoader } from "./photo-loader.js?v=1.10.1";
-import { createProgramPlayback } from "./program-playback.js?v=1.10.1";
-import { resolvePage } from "./navigation.js?v=1.10.1";
+} from "./adventure-ui.js?v=1.11.0";
+import { newPuzzleState, selectPuzzlePiece, placePuzzlePiece, puzzleScene } from "./puzzle.js?v=1.11.0";
+import { newExplorerState, selectLuggage, putLuggage, moveMaze, explorerScene } from "./explorers.js?v=1.11.0";
+import { enqueueGift, offerGifts, claimGift } from "./rewards.js?v=1.11.0";
+import { attachPuzzleTouch } from "./puzzle-touch.js?v=1.11.0";
+import { saveTripSession, readTripSession, clearTripSession, TRIP_SESSION_KEY } from "./trip-session.js?v=1.11.0";
+import { newWorkshopState, appendCommand, removeCommand, evaluateProgram, addWeight, removeWeight, weightTotal, workshopScene } from "./workshop.js?v=1.11.0";
+import { newDiscoveryState, selectMosaicColor, paintMosaicCell, resetMosaic, findDifference, discoveryScene } from "./discovery.js?v=1.11.0";
+import { JOURNEYS, journeyById, journeyMarkup } from "./journeys.js?v=1.11.0";
+import { displayTrain, trainImage, verifiedPhoto, photoLabel, photoGameTrains, samePhotoIdentity } from "./train-images.js?v=1.11.0";
+import { newTicketsState, selectTicket, payToken, returnToken, ticketTotals, ticketsScene } from "./tickets.js?v=1.11.0";
+import { createPhotoLoader } from "./photo-loader.js?v=1.11.0";
+import { createProgramPlayback } from "./program-playback.js?v=1.11.0";
+import { resolvePage } from "./navigation.js?v=1.11.0";
+import { backAction, attachNativeLifecycle } from "./native-runtime.js?v=1.11.0";
+import { encodeBackup, decodeBackup } from "./progress-backup.js?v=1.11.0";
+
+const nativeHost = window.TrainMathNative;
+if (nativeHost?.native) {
+  await nativeHost.ready;
+  document.body.classList.add("native-app");
+  document.body.classList.toggle("native-no-speech", !nativeHost.speechAvailable);
+}
+const voiceSupported = () => nativeHost?.native ? nativeHost.speechAvailable : "speechSynthesis" in window;
+window.addEventListener("train-native-voice", () => {
+  document.body.classList.toggle("native-no-speech", !nativeHost?.speechAvailable);
+  const checkbox = document.querySelector('[data-pref="voice"]');
+  if (checkbox) checkbox.disabled = !voiceSupported();
+});
 
 const main = document.querySelector("#main");
+function nativeStorageWarning() {
+  if (!nativeHost?.native || !nativeHost.storageFailed || document.querySelector("#native-storage-warning")) return;
+  const notice = document.createElement("p");
+  notice.id = "native-storage-warning"; notice.className = "native-storage-note";
+  notice.setAttribute("role", "alert");
+  notice.textContent = "儲存服務曾發生錯誤。可以繼續玩，但關閉 App 前請家長確認進度是否已保存。";
+  main.before(notice);
+}
+window.addEventListener("train-native-storage-error", nativeStorageWarning);
+nativeStorageWarning();
 const esc = (value) =>
   String(value).replace(
     /[&<>"']/g,
@@ -107,6 +132,7 @@ function stopGameDock() {
   document.documentElement.style.removeProperty("--game-dock-height");
 }
 let pausedTrip = null, pointerInteraction = false, tripSaveWarning = false;
+let pendingBackup = null;
 let questionScroll = { key: null, positions: {} };
 let activeProgramRun = null;
 const programPlayer = createProgramPlayback({ delay: () => progress?.reduceMotion || motionPreference.matches ? 0 : 420 });
@@ -129,7 +155,7 @@ function clearPhotoTask() {
   activePhotoTask = null;
 }
 let tripStorage;
-try { tripStorage = sessionStorage; } catch { tripStorage = null; }
+try { tripStorage = nativeHost?.native ? nativeHost.storage : sessionStorage; } catch { tripStorage = null; }
 const touchDevice = () => window.matchMedia("(pointer: coarse)").matches || navigator.maxTouchPoints > 0;
 document.addEventListener("pointerdown", () => {
   pointerInteraction = true;
@@ -163,7 +189,7 @@ const stationNames = {
 const byId = (id) => trains.find((t) => t.id === id);
 let storage;
 try {
-  storage = localStorage;
+  storage = nativeHost?.native ? nativeHost.storage : localStorage;
 } catch {
   storage = { getItem: () => null, setItem: () => { throw new Error("Storage unavailable"); }, removeItem: () => {} };
 }
@@ -238,6 +264,16 @@ function applyPreferences() {
   storyHandle?.setReduced(progress.reduceMotion || motionPreference.matches);
 }
 function speak(text, force = false) {
+  if (nativeHost?.native) {
+    if (!progress.voice && !force) return;
+    const spoken = text.replace(/TEMU/gi, "T，E，M，U，").replace(/EMU/gi, "E，M，U，");
+    nativeHost.speak(spoken).then(ok => {
+      if (!ok && force) {
+        announce("這台裝置尚未提供本機中文語音，仍可看畫面繼續玩。" );
+      }
+    });
+    return;
+  }
   if (!("speechSynthesis" in window) || (!progress.voice && !force)) return;
   window.speechSynthesis.cancel();
   const u = new SpeechSynthesisUtterance(
@@ -253,6 +289,7 @@ function speak(text, force = false) {
   window.speechSynthesis.speak(u);
 }
 function cancelVoice() {
+  if (nativeHost?.native) { nativeHost.cancelSpeech(); return; }
   if ("speechSynthesis" in window) window.speechSynthesis.cancel();
 }
 async function chime() {
@@ -526,8 +563,9 @@ function settings() {
   cancelVoice();
   clearDeparture();
   $("#settings-content").innerHTML =
-    `<p>按孩子的理解程度選難度，隨時都能更換。</p><div class="settings-levels">${levelButtons()}</div><label class="setting-row"><span><strong>中文語音</strong><small>${"speechSynthesis" in window ? "使用這台裝置的中文語音" : "這台裝置沒有語音服務，仍可使用畫面提示"}</small></span><input type="checkbox" data-pref="voice" ${progress.voice ? "checked" : ""} ${"speechSynthesis" in window ? "" : "disabled"}></label><label class="setting-row"><span><strong>柔和音效</strong><small>完成任務時的小小慶祝</small></span><input type="checkbox" data-pref="effects" ${progress.effects ? "checked" : ""}></label><label class="setting-row"><span><strong>減少動畫</strong><small>讓畫面更加平靜</small></span><input type="checkbox" data-pref="reduceMotion" ${progress.reduceMotion ? "checked" : ""}></label><label class="setting-row"><span><strong>跨十加減挑戰</strong><small>只在 7–8 歲模式啟用</small></span><input type="checkbox" data-pref="challenge" ${progress.challenge ? "checked" : ""}></label><div class="clear-record"><button id="clear-progress" class="danger-btn">清除本機紀錄</button><p>只會清除這台裝置的護照與設定。</p><div id="clear-confirm"></div></div>`;
+    `<p>按孩子的理解程度選難度，隨時都能更換。</p>${nativeHost?.native ? "<p class=\"native-local-note\">護照與未完成旅程保存在這個 App。網頁與 App 的紀錄各自保存，不會自動同步。</p>" : ""}<div class="settings-levels">${levelButtons()}</div><label class="setting-row"><span><strong>中文語音</strong><small>${voiceSupported() ? "使用這台裝置的中文語音" : "這台裝置沒有本機中文語音，仍可使用畫面提示"}</small></span><input type="checkbox" data-pref="voice" ${progress.voice ? "checked" : ""} ${voiceSupported() ? "" : "disabled"}></label><label class="setting-row"><span><strong>柔和音效</strong><small>完成任務時的小小慶祝</small></span><input type="checkbox" data-pref="effects" ${progress.effects ? "checked" : ""}></label><label class="setting-row"><span><strong>減少動畫</strong><small>讓畫面更加平靜</small></span><input type="checkbox" data-pref="reduceMotion" ${progress.reduceMotion ? "checked" : ""}></label><label class="setting-row"><span><strong>跨十加減挑戰</strong><small>只在 7–8 歲模式啟用</small></span><input type="checkbox" data-pref="challenge" ${progress.challenge ? "checked" : ""}></label><div class="clear-record"><button id="clear-progress" class="danger-btn">清除本機紀錄</button><p>只會清除這台裝置的護照與設定。</p><div id="clear-confirm"></div></div>`;
   $("#settings-dialog").showModal();
+  $("#settings-content").insertAdjacentHTML("beforeend", `<section class="backup-controls"><h3>護照備份</h3><p>${nativeHost?.native ? "選擇網頁下載的備份檔，將護照與合法的未完成旅程帶進 App。" : "下載本機護照，之後可在 App 家長設定選擇檔案匯入。"}</p>${nativeHost?.native ? "" : '<button type="button" id="backup-export" class="secondary-btn">下載護照備份</button>'}<button type="button" id="backup-import" class="secondary-btn">匯入護照備份</button><input id="backup-file" type="file" accept="application/json,.json" hidden><p id="backup-status" role="status"></p><div id="backup-confirm"></div></section>`);
 }
 function startTrip() {
   stopProgramRun();
@@ -918,7 +956,7 @@ function finishTrip() {
   clearPhotoTask();
   view = "finish";
   stopGameDock();
-  clearTripSession(tripStorage);
+  if (!nativeHost?.native) clearTripSession(tripStorage);
   pausedTrip = null;
   document.body.classList.remove("in-game");
   delete document.body.dataset.game;
@@ -929,7 +967,14 @@ function finishTrip() {
     if (!progress.completed.includes(trip.train.id))
       progress.completed.push(trip.train.id);
     if (trip.meta.journey && !progress.journeysCompleted.includes(trip.meta.journey)) progress.journeysCompleted.push(trip.meta.journey);
-    persist();
+    if (nativeHost?.native) {
+      try {
+        nativeHost.storage.commit({
+          [STORAGE_KEY]: JSON.stringify(progress),
+          [TRIP_SESSION_KEY]: null,
+        }).then(ok => { if (!ok) { nativeHost.storageFailed = true; nativeStorageWarning(); } });
+      } catch { nativeHost.storageFailed = true; nativeStorageWarning(); }
+    } else persist();
   }
   const t = displayTrain(trip.train);
   const route = journeyById(trip.meta.journey);
@@ -938,7 +983,7 @@ function finishTrip() {
   speak(`抵達終點，做得好！今天一起搭乘了${t.name}。`);
   main.focus({ preventScroll: pointerInteraction });
 }
-document.addEventListener("click", (event) => {
+document.addEventListener("click", async (event) => {
   const nav = event.target.closest('a[href^="#"]');
   if (nav?.getAttribute("href") === "#main") {
     event.preventDefault();
@@ -1334,6 +1379,38 @@ document.addEventListener("click", (event) => {
     return;
   }
   switch (b.id) {
+    case "backup-export": {
+      saveCurrentTrip();
+      const text = encodeBackup(progress, tripStorage?.getItem(TRIP_SESSION_KEY), { trains });
+      const url = URL.createObjectURL(new Blob([text], { type: "application/json" }));
+      const link = document.createElement("a"); link.href = url; link.download = "小小列車長-護照備份.json";
+      link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+      $("#backup-status").textContent = "備份檔已準備好，請保留在家長自己的裝置。";
+      break;
+    }
+    case "backup-import": $("#backup-file").click(); break;
+    case "backup-cancel": pendingBackup = null; $("#backup-confirm").replaceChildren(); break;
+    case "backup-apply": {
+      if (!pendingBackup) break;
+      stopProgramRun(); cancelVoice(); clearPhotoTask(); stopGameDock();
+      progress = pendingBackup.progress; trip = null; pausedTrip = pendingBackup.trip;
+      try {
+        if (nativeHost?.native) {
+          const saved = await nativeHost.storage.commit({ [STORAGE_KEY]: JSON.stringify(progress), [TRIP_SESSION_KEY]: pendingBackup.session });
+          if (!saved) nativeStorageWarning();
+        } else {
+          persist();
+          if (pendingBackup.session) tripStorage.setItem(TRIP_SESSION_KEY, pendingBackup.session);
+          else clearTripSession(tripStorage);
+        }
+      } catch { if (nativeHost?.native) nativeHost.storageFailed = true; nativeStorageWarning(); }
+      pendingBackup = null;
+      document.body.classList.remove("in-game"); delete document.body.dataset.game;
+      $("#settings-dialog").close(); location.hash = "#home"; view = "home"; renderHome(); applyPreferences();
+      if (nativeHost?.native && !(await nativeHost.storage.flush())) nativeStorageWarning();
+      announce("護照已匯入這個畫面，請確認紀錄。" );
+      break;
+    }
     case "program-run": {
       if (q?.game === "program" && trip.programRunning) { stopProgramRun(); renderQuestion(); }
       else startProgramRun();
@@ -1575,20 +1652,27 @@ document.addEventListener("click", (event) => {
     case "clear-no":
       $("#clear-confirm").innerHTML = "";
       break;
-    case "clear-yes":
+    case "clear-yes": {
+      let cleared = true;
       progress = defaults();
       trip = null;
       pausedTrip = null;
-      clearTripSession(tripStorage);
-      try {
-        storage.removeItem(STORAGE_KEY);
-      } catch {}
-      persist();
+      if (nativeHost?.native) {
+        try { cleared = await nativeHost.storage.commit({ [STORAGE_KEY]: JSON.stringify(progress), [TRIP_SESSION_KEY]: null }); }
+        catch { cleared = false; }
+        if (!cleared) { nativeHost.storageFailed = true; nativeStorageWarning(); }
+      } else {
+        clearTripSession(tripStorage);
+        try { storage.removeItem(STORAGE_KEY); } catch {}
+        persist();
+      }
       applyPreferences();
       $("#settings-dialog").close();
+      if (view === "home") renderHome(); else if (view === "playroom") renderPlayroom();
       route();
-      announce("本機紀錄已清除。");
+      announce(cleared ? "本機紀錄已清除。" : "目前畫面的紀錄已清除，但未能保存。關閉 App 後可能恢復原紀錄。");
       break;
+    }
   }
 });
 for (const [eventName, status] of [["load", "ready"], ["error", "error"]]) document.addEventListener(eventName, event => {
@@ -1668,7 +1752,18 @@ document.addEventListener("keydown", (event) => {
   event.preventDefault();
   stepMaze(direction);
 });
-document.addEventListener("change", (event) => {
+document.addEventListener("change", async (event) => {
+  if (event.target.id === "backup-file") {
+    const file = event.target.files?.[0]; if (!file) return;
+    pendingBackup = null; $("#backup-confirm").replaceChildren();
+    try {
+      if (file.size > 262144) throw new Error("備份檔案太大。");
+      pendingBackup = decodeBackup(await file.text(), { trains });
+      $("#backup-status").textContent = "備份格式已檢查。匯入會取代這台裝置目前的護照，請家長確認。";
+      $("#backup-confirm").innerHTML = "<button type=\"button\" id=\"backup-apply\" class=\"primary-btn\">確認取代並匯入</button><button type=\"button\" id=\"backup-cancel\" class=\"secondary-btn\">取消</button>";
+    } catch (error) { pendingBackup = null; $("#backup-status").textContent = error.message; }
+    event.target.value = ""; return;
+  }
   if (event.target.id === "practice-select") {
     practice = event.target.value;
     selectedJourney = null;
@@ -1724,11 +1819,34 @@ window.visualViewport?.addEventListener("scroll", syncKeyboardDock);
 document.addEventListener("focusin", syncKeyboardDock);
 document.addEventListener("focusout", () => requestAnimationFrame(syncKeyboardDock));
 motionPreference.addEventListener("change", applyPreferences);
+if (nativeHost?.native) {
+  await attachNativeLifecycle(nativeHost.App, {
+    async onPause() {
+      const programWasRunning = !!activeProgramRun;
+      stopProgramRun();
+      if (programWasRunning && view === "game" && trip && !trip.awarded) renderQuestion();
+      saveCurrentTrip(); cancelVoice(); storyHandle?.pause();
+      if (audioContext?.state === "running") await audioContext.suspend().catch(() => {});
+      await nativeHost.storage.flush();
+    },
+    async onBack() {
+      const openDialog = [...document.querySelectorAll("dialog[open]")].at(-1);
+      const letterOpen = !!document.querySelector("#story-letter:not([hidden])");
+      switch (backAction({ dialogOpen: !!openDialog, storyMenuOpen: letterOpen, view })) {
+        case "close-dialog": openDialog.close(); break;
+        case "close-story": document.querySelector("#story-letter-close")?.click(); break;
+        case "pause-trip": pauseTrip(); location.hash = "#playroom"; route(); break;
+        case "go-home": location.hash = "#home"; route(); break;
+        case "minimize": saveCurrentTrip(); await nativeHost.storage.flush(); await nativeHost.minimize(); break;
+      }
+    },
+  });
+}
 try {
   const controller = new AbortController();
   const deadline = setTimeout(() => controller.abort(), 15000);
   let response;
-  try { response = await fetch("data/trains.json?v=1.10.1", { signal: controller.signal }); }
+  try { response = await fetch("data/trains.json?v=1.11.0", { signal: controller.signal }); }
   finally { clearTimeout(deadline); }
   if (!response.ok) throw new Error("Content unavailable");
   catalogue = await response.json();

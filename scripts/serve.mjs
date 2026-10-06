@@ -5,7 +5,7 @@ import { resolve, relative, extname, isAbsolute, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const publicDirectories = new Set(["src", "data", "assets", "docs", "licenses"]);
-const publicFiles = new Set(["index.html", "manifest.webmanifest", "LICENSE", "NOTICE", "ASSET-LICENSE.md", "PRIVACY.md"]);
+const publicFiles = new Set(["index.html", "privacy.html", "support.html", "manifest.webmanifest", "LICENSE", "NOTICE", "ASSET-LICENSE.md", "PRIVACY.md"]);
 const mime = {
   ".html": "text/html; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",

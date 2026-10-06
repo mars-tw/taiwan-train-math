@@ -32,6 +32,9 @@
 .learning-sources a { font-size: 13px; overflow-wrap: anywhere; }
 .playroom-later { margin-top: 10px; border-top: 1px solid #d7dfd0; }
 .playroom-later > summary { font-size: 14px; }
+.backup-controls { border-top: 1px solid #d7dfd0; margin-top: 18px; padding-top: 12px; }
+.backup-controls p { font-size: 14px; line-height: 1.6; margin: 8px 0; }
+.backup-controls button { min-height: 48px; margin: 4px; }
 .train-more { border-top: 1px solid #d7dfd0; margin-top: 14px; }
 .photo-credit a,
 .detail-source a {

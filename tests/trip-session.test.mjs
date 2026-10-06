@@ -136,12 +136,12 @@ test("v1.5 snapshots retain the original fifteen-game recipe and exact question 
     assert.equal(restored.meta.contentVersion, "1.5.0");
     assert.equal(restored.meta.journey, null);
     const current = snapshot(restored);
-    assert.equal(current.gameVersion, "1.10.1");
+    assert.equal(current.gameVersion, "1.11.0");
     assert.deepEqual(readSnapshot(current).questions, fixture.expectedQuestions);
   }
 });
 test("the guided game preserves v1.8 and v1.9 journeys, original difficulty and partial work", () => {
-  for (const gameVersion of ["1.8.0", "1.8.1", "1.8.2", "1.9.0", "1.10.0"]) {
+  for (const gameVersion of ["1.8.0", "1.8.1", "1.8.2", "1.9.0", "1.10.0", "1.10.1"]) {
     for (const practice of ["program", "puzzle", "tickets"]) {
       const trip = partialWork(makeTrip({ level: "large", practice, seed: 1900 }));
       const saved = snapshot(trip);
@@ -151,7 +151,7 @@ test("the guided game preserves v1.8 and v1.9 journeys, original difficulty and 
       assert.deepEqual(restored.meta, trip.meta);
       assert.deepEqual(restored.questions, trip.questions);
       assert.deepEqual(snapshot(restored).work, saved.work);
-      assert.equal(snapshot(restored).gameVersion, "1.10.1");
+      assert.equal(snapshot(restored).gameVersion, "1.11.0");
     }
   }
 });
@@ -179,7 +179,7 @@ test("the v1.8 release preserves all twelve captured v1.7 question recipes exact
     assert.deepEqual(restored.questions, fixture.expectedQuestions);
     assert.equal(restored.meta.contentVersion, "1.7.0");
     const updated = snapshot(restored);
-    assert.equal(updated.gameVersion, "1.10.1");
+    assert.equal(updated.gameVersion, "1.11.0");
     assert.deepEqual(readSnapshot(updated).questions, fixture.expectedQuestions);
   }
 });

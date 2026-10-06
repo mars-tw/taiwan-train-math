@@ -19,6 +19,8 @@ async function fixture(t) {
     await writeFile(join(root, path), text);
   };
   await put("index.html", '<link rel="stylesheet" href="src/main.css?v=1"><script type="module" src="src/main.js?v=1"></script><a href="PRIVACY.md">Privacy</a>');
+  await put("privacy.html", '<a href="support.html">Support</a>');
+  await put("support.html", '<a href="privacy.html">Privacy</a>');
   await put("manifest.webmanifest", JSON.stringify({ start_url: "./", scope: "./", icons: [{ src: "assets/icon.svg" }] }));
   await put("src/main.js", 'import { value } from "./value.js?v=1"; fetch("data/trains.json?v=1"); export { value };');
   await put("src/value.js", "export const value = 1;");

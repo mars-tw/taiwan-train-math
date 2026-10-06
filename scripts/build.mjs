@@ -3,7 +3,7 @@ import { basename, dirname, join, posix, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const publicEntries = [
-  "index.html", "manifest.webmanifest", "src", "data", "assets", "docs",
+  "index.html", "privacy.html", "support.html", "manifest.webmanifest", "src", "data", "assets", "docs",
   "LICENSE", "NOTICE", "ASSET-LICENSE.md", "PRIVACY.md",
 ];
 

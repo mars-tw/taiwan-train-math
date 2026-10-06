@@ -1,0 +1,81 @@
+name: Build Android and Apple apps
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'assets/**'
+      - 'data/**'
+      - 'index.html'
+      - 'privacy.html'
+      - 'support.html'
+      - 'PRIVACY.md'
+      - 'docs/**'
+      - 'native/**'
+      - 'android/**'
+      - 'ios/**'
+      - 'capacitor.config.json'
+      - 'package*.json'
+      - 'scripts/**'
+      - '.github/workflows/native.yml'
+permissions:
+  contents: read
+concurrency:
+  group: train-math-native-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with: {node-version: '24', cache: npm}
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with: {distribution: temurin, java-version: '21'}
+      - run: npm ci
+      - run: npm test
+      - run: npm run native:build
+      - run: npx cap sync android
+      - name: Compile installable APK and unsigned store bundle
+        run: |
+          chmod +x android/gradlew
+          android/gradlew -p android assembleDebug assembleRelease bundleRelease --no-daemon
+          mkdir -p output/native-artifacts/android
+          cp android/app/build/outputs/apk/debug/app-debug.apk output/native-artifacts/android/train-math-test.apk
+          cp android/app/build/outputs/apk/release/app-release-unsigned.apk output/native-artifacts/android/train-math-unsigned.apk
+          cp android/app/build/outputs/bundle/release/app-release.aab output/native-artifacts/android/train-math-unsigned.aab
+          cp output/native/bundle-manifest.json output/native-artifacts/android/
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with: {name: android-app-packages, path: output/native-artifacts/android, retention-days: 14}
+  ios:
+    runs-on: macos-26
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with: {node-version: '24', cache: npm}
+      - run: npm ci
+      - run: npm run native:sync
+      - name: Compile iPhone and iPad simulator app
+        run: |
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-version
+          xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Debug -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath output/ios-derived CODE_SIGNING_ALLOWED=NO build
+      - name: Archive iOS device build without signing credentials
+        run: |
+          xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Release -destination 'generic/platform=iOS' -archivePath output/TrainMath-unsigned.xcarchive CODE_SIGNING_ALLOWED=NO archive
+      - name: Verify privacy manifest and package actual Apple builds
+        run: |
+          test -f output/ios-derived/Build/Products/Debug-iphonesimulator/App.app/PrivacyInfo.xcprivacy
+          plutil -lint output/ios-derived/Build/Products/Debug-iphonesimulator/App.app/PrivacyInfo.xcprivacy
+          mkdir -p output/native-artifacts/ios
+          ditto -c -k --sequesterRsrc --keepParent output/ios-derived/Build/Products/Debug-iphonesimulator/App.app output/native-artifacts/ios/TrainMath-simulator.app.zip
+          ditto -c -k --sequesterRsrc --keepParent output/TrainMath-unsigned.xcarchive output/native-artifacts/ios/TrainMath-unsigned.xcarchive.zip
+          cp output/native/bundle-manifest.json output/native-artifacts/ios/
+      - name: Launch actual iOS Simulator and capture offline app
+        run: node scripts/ios-simulator-smoke.mjs
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with: {name: apple-app-packages, path: output/native-artifacts/ios, retention-days: 14}

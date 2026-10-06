@@ -37,6 +37,9 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "$EVIDENCE" "$ANDROID_AVD_HOME" "$ANDROID_USER_HOME"
+          # Preserve the precise SDK failure in the job log as well as files.
+          # The first run returned 127, but cancellation lost redirected stderr.
+          trap 'SDK_RESULT=$?; printf "SDK preparation failed (exit %s): %s\n" "$SDK_RESULT" "$BASH_COMMAND"; for SDK_LOG in sdk-licenses.log sdk-install.log kvm-accel-check.log emulator-version.log; do if [ -f "$EVIDENCE/$SDK_LOG" ]; then printf "%s\n" "$SDK_LOG"; tail -n 80 "$EVIDENCE/$SDK_LOG"; fi; done; exit "$SDK_RESULT"' ERR
           test -c /dev/kvm
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
@@ -248,14 +251,20 @@ jobs:
 
       - name: Retain diagnostics and stop only this CI-owned emulator
         if: always()
+        timeout-minutes: 2
         shell: bash
         run: |
-          if [ -n "${SDK_ROOT:-}" ] && [ -x "$SDK_ROOT/platform-tools/adb" ]; then
-            "$SDK_ROOT/platform-tools/adb" -s emulator-5554 logcat -d -t 400 '*:E' > "$EVIDENCE/android-errors.log" 2>&1 || true
-            OWNED_NAME=$("$SDK_ROOT/platform-tools/adb" -s emulator-5554 emu avd name 2>/dev/null | head -n 1 | tr -d '\r')
+          mkdir -p "$EVIDENCE"
+          # SDK setup can fail before any emulator exists. adb would otherwise
+          # wait indefinitely for emulator-5554 even in this always() step.
+          if [ -n "${SDK_ROOT:-}" ] && [ -n "${AVD_NAME:-}" ] && [ -f "$RUNNER_TEMP/train-math-store-emulator.pid" ] && [ -x "$SDK_ROOT/platform-tools/adb" ]; then
+            timeout 15 "$SDK_ROOT/platform-tools/adb" -s emulator-5554 logcat -d -t 400 '*:E' > "$EVIDENCE/android-errors.log" 2>&1 || true
+            OWNED_NAME=$(timeout 10 "$SDK_ROOT/platform-tools/adb" -s emulator-5554 emu avd name 2>/dev/null | head -n 1 | tr -d '\r') || OWNED_NAME=''
             if [ -n "${AVD_NAME:-}" ] && [ "$OWNED_NAME" = "$AVD_NAME" ]; then
-              "$SDK_ROOT/platform-tools/adb" -s emulator-5554 emu kill > "$EVIDENCE/emulator-stop.log" 2>&1 || true
+              timeout 10 "$SDK_ROOT/platform-tools/adb" -s emulator-5554 emu kill > "$EVIDENCE/emulator-stop.log" 2>&1 || true
             fi
+          else
+            printf 'No CI-owned emulator was started; adb cleanup skipped.\n' > "$EVIDENCE/emulator-stop.log"
           fi
           python3 - <<'PY'
           import json, os, pathlib

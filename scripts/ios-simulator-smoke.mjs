@@ -67,13 +67,13 @@ export async function prepareSimulators({ run = runSimctl, output = target, writ
   tag = `TrainMath-CI-${process.env.GITHUB_RUN_ID || "local"}-${process.env.GITHUB_RUN_ATTEMPT || "1"}-${randomUUID().slice(0, 8)}` } = {}) {
   if (!/^TrainMath-CI-[a-zA-Z0-9-]+$/.test(tag)) throw new Error("Invalid CI Simulator ownership tag");
   const inventory = await inventoryFrom(run), plan = selectSimulatorPlan(inventory);
-  const existing = new Set(Object.values(inventory.devices || {}).flat().map(device => device.udid));
+  const existing = new Set(Object.values(inventory.devices || {}).flat().map(device => String(device.udid).toLowerCase()));
   const prepared = { format: "taiwan-train-math.ios-simulators", version: 1, owner: tag, runtime: plan.runtime, devices: [] };
   await ensureDirectory(output, { recursive: true });
   for (const model of plan.models) {
     const name = `${tag}-${model.kind}`;
     const udid = String(await run(["create", name, model.identifier, plan.runtime.identifier])).trim();
-    if (!uuid(udid) || existing.has(udid) || prepared.devices.some(device => device.udid === udid))
+    if (!uuid(udid) || existing.has(udid.toLowerCase()) || prepared.devices.some(device => device.udid.toLowerCase() === udid.toLowerCase()))
       throw new Error("simctl create did not return a distinct new Simulator UUID");
     prepared.devices.push({ kind: model.kind, name, model: model.name, deviceTypeIdentifier: model.identifier, udid });
     // Retain ownership evidence even if a later create/boot command fails.
@@ -87,17 +87,18 @@ function ownedDevices(prepared, inventory) {
   if (prepared?.format !== "taiwan-train-math.ios-simulators" || prepared.version !== 1
     || !/^TrainMath-CI-[a-zA-Z0-9-]+$/.test(prepared.owner) || !Array.isArray(prepared.devices) || prepared.devices.length !== 2)
     throw new Error("Invalid prepared Simulator ownership record");
-  const runtime = (inventory.runtimes || []).find(runtime => runtime.identifier === prepared.runtime?.identifier && runtime.isAvailable === true);
+  const runtime = (inventory.runtimes || []).find(runtime => runtime.identifier === prepared.runtime?.identifier
+    && runtime.isAvailable === true && !runtime.availabilityError);
   if (!runtime) throw new Error("The prepared iOS runtime is no longer available");
   const actual = inventory.devices?.[runtime.identifier] || [], seen = new Set();
   return ["iphone", "ipad"].map(kind => {
     const device = prepared.devices.find(device => device.kind === kind);
-    if (!device || !uuid(device.udid) || seen.has(device.udid) || device.name !== `${prepared.owner}-${kind}` || !typeId(device.deviceTypeIdentifier))
+    if (!device || !uuid(device.udid) || seen.has(device.udid.toLowerCase()) || device.name !== `${prepared.owner}-${kind}` || !typeId(device.deviceTypeIdentifier))
       throw new Error("Prepared Simulator IDs are not the expected CI-owned pair");
-    const found = actual.find(item => item.udid === device.udid && item.isAvailable === true);
+    const found = actual.find(item => String(item.udid).toLowerCase() === device.udid.toLowerCase() && item.isAvailable === true);
     if (!found || found.name !== device.name || found.deviceTypeIdentifier !== device.deviceTypeIdentifier)
       throw new Error("Prepared Simulator ownership does not match the current inventory");
-    seen.add(device.udid);
+    seen.add(device.udid.toLowerCase());
     return device;
   });
 }
@@ -122,10 +123,10 @@ export async function smokeSimulators({ run = runSimctl, output = target, read =
         await run(["ui", device.udid, "appearance", "light"]);
         await run(["status_bar", device.udid, "override", "--time", "9:41", "--batteryState", "charged", "--batteryLevel", "100"]);
         stage = "install";
-        await run(["install", device.udid, appPath]);
+        await run(["install", device.udid, appPath], { timeout: 360000 });
         stage = "launch";
         const launch = await run(["launch", device.udid, appId]);
-        await pause(7000);
+        await pause(30000);
         stage = "screenshot";
         const firstPath = join(output, `${device.kind}-simulator-home.png`);
         await run(["io", device.udid, "screenshot", firstPath]);
@@ -135,11 +136,13 @@ export async function smokeSimulators({ run = runSimctl, output = target, read =
         stage = "relaunch";
         await run(["terminate", device.udid, appId]);
         await run(["launch", device.udid, appId]);
-        await pause(4000);
+        await pause(12000);
         await run(["io", device.udid, "screenshot", join(output, `${device.kind}-simulator-relaunch.png`)]);
         results.push({ kind: device.kind, device: device.model, simulatorName: device.name, udid: device.udid,
           runtime: prepared.runtime.identifier, width: dimensions.width, height: dimensions.height,
           launch: String(launch).trim(), status: "completed" });
+        // Release the first device's processes before booting the tablet.
+        await run(["shutdown", device.udid]);
       } catch (error) {
         results.push({ kind: device.kind, device: device.model, udid: device.udid, status: "failed", stage, error: summary(error) });
         throw error;

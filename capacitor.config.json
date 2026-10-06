@@ -12,7 +12,7 @@
     "backgroundColor": "#f8f6f0"
   },
   "ios": {
-    "contentInset": "automatic",
+    "contentInset": "never",
     "backgroundColor": "#f8f6f0"
   }
 }

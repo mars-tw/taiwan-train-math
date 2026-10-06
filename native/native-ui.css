@@ -1,4 +1,5 @@
 body.native-app { -webkit-touch-callout: none; }
+.native-app:not(.in-game) .site-header { padding-top: calc(8px + env(safe-area-inset-top)); }
 .native-no-speech #sound-toggle,
 .native-no-speech #question-replay,
 .native-no-speech #story-read,

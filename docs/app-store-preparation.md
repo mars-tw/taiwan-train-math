@@ -1,8 +1,8 @@
 # 小小列車長：App 商店準備
 
-查核日期：2026-10-06。這是原生包與送審資料的準備清單，未代表已簽署、已上傳、已通過審查或已完成實體裝置驗收。平台要求會更新，送件當日再核一次。
+查核日期：2026-10-06。Android release APK／AAB 已完成獨立金鑰簽署；Apple 已完成原生編譯。尚未上傳商店、通過審查或完成實體裝置驗收。平台要求會更新，送件當日再核一次。
 
-版本基準：原生 App **1.0.0／build 1**，Web **1.11.0**。Android 首輪測試 APK 已實際編譯成功，release AAB 未簽署；iOS 的 macOS 26 雲端編譯仍在準備，尚無成功建置記錄。
+版本基準：原生 App **1.0.0／build 1**，Web **1.11.0**。Android 正式 APK／AAB 已簽署並核驗，165 個離線檔案完整包入；iOS 使用 Xcode 26.6／SDK 26.5 編譯成功，已有 Simulator App 及未簽 device archive。首輪 CI 後續模擬器預裝資料遷移逾時，編譯產物仍完整；新版 CI 使用專屬新模擬器重新驗證啟動。
 
 ## 已知帳戶與待填資料
 
@@ -14,14 +14,16 @@
 | 公開客服信箱 | a820628a@gmail.com，使用者已選擇並公開 |
 | Apple Developer Program | 使用者已確認會員啟用；本遊戲 App Store Connect 紀錄、Team ID／Seller 名稱尚未確認 |
 | Google Play 帳戶 | 身分已驗證；裝置／電話驗證仍待完成 |
-| 支援頁 URL | https://mars-tw.github.io/taiwan-train-math/support.html，來源已完成，公開部署待確認 |
-| 原生 App 隱私政策 URL | https://mars-tw.github.io/taiwan-train-math/privacy.html，來源已完成，公開部署待確認；區分 Web／原生語音與儲存行為 |
+| 支援頁 URL | https://mars-tw.github.io/taiwan-train-math/support.html，2026-10-06 已部署，HTTP 200，含公開客服 |
+| 原生 App 隱私政策 URL | https://mars-tw.github.io/taiwan-train-math/privacy.html，2026-10-06 已部署，HTTP 200；區分 Web／原生語音與儲存行為 |
 | 商店年齡問卷、Kids 分組、IARC | 未填；遊戲的 3–4／5–6／7–8 難度不是商店自動評級 |
 | 原生版本／Build Number | 1.0.0／1；Android versionName／versionCode 及 iOS Version／Build 對應這組數值 |
 | Web 版本 | 1.11.0，與原生 App 商店版本分開 |
 | 截圖、價格／地區 | 待正式包驗收及發布者選擇 |
 
 本遊戲不得使用其他遊戲的 Bundle ID 或 App Store 紀錄。另一遊戲的 Apple 私鑰授權僅限該遊戲，不共用到本 App；本遊戲簽署方式仍須另行確認。帳戶名稱與公開信箱可用於本稿，Apple Seller／法定權利人仍以該帳戶實際資料為準。
+
+本遊戲的獨立 Android 上傳金鑰已建立，私檔保存在 repo 外並登記 live source。已簽 release APK 通過 v2／v3 核驗，AAB 通過 JAR 簽章核驗；App ID、版本、165 個離線素材及無 INTERNET／無 backup 設定均已核對。Windows 重跑路徑是 `scripts/sign-android.ps1`，需 JDK 21、Android Build Tools 36；密碼只由授權憑證流程放入當次 process environment，不放原始碼、CLI 引數、日誌或公開 artifact。
 
 ## 官方要求與本案做法
 
@@ -39,7 +41,7 @@
 
 Apple Kids 對外連結需位於家長門檻後；這也包含照片原檔、作者授權、政府來源、GitHub、客服郵件與外部隱私網站。App 內可直接閱讀本地來源署名與隱私文字，點外連才請家長操作。[Apple Kids 要求](https://developer.apple.com/kids/)
 
-本 App 的「兒童家長關卡」攔截離開 App 的連結，要求成人計算畫面上的乘法題後才放行，並可取消返回。它不驗證身分，也不代表法律上的兒童資料蒐集同意。通過只放行本次目的，不將關卡結果寫進兒童護照；退到背景、取消或重新啟動後收回放行。[Apple 5.1.4](https://developer.apple.com/app-store/review/guidelines/#kids)
+本 App 的「兒童家長關卡」攔截離開 App 的連結，要求成人計算畫面上的乘法題後才放行，並可取消返回。它不是身分驗證，也不代表法律同意。通過只放行本次目的，不將關卡結果寫進兒童護照；退到背景、取消或重新啟動後收回放行。[Apple 5.1.4](https://developer.apple.com/app-store/review/guidelines/#kids)
 
 遊戲、選車、難度、故事章節與免費禮物不增加額外門檻。沒有購買功能，不增加 IAP 或廣告 SDK。清除本機紀錄維持清楚的確認與取消操作。
 
@@ -60,6 +62,6 @@ Google 新個人帳戶的裝置驗證需實體、非 root、Android 10+ 裝置�
 
 若本帳戶屬 2023-11-13 之後建立的個人帳戶，正式發佈前另需至少 12 位測試者連續加入封閉測試 14 天，再申請 Production access。帳戶適用性與完成狀態尚待 Play Console 確認，不從另一個 App 的進度推定本 App 已完成。[Google 封閉測試](https://support.google.com/googleplay/android-developer/answer/14151465)
 
-此 Windows 工作環境沒有實體 Mac；本 repo 正在準備 `macos-26` GitHub Actions 的 unsigned iOS simulator App／archive 編譯，尚未宣稱成功。取得本遊戲成功 build 後，再依 [iOS 建置文件](native-ios.md) 完成簽署與 TestFlight。這一輪不新增帳戶、付費、操作另一個 App 的簽章流程或上傳。
+此 Windows 工作環境沒有實體 Mac；本 repo 的 `macos-26` [native run 37451433812](https://github.com/mars-tw/taiwan-train-math/actions/runs/37451433812) 已完成 Simulator build、device archive 與隱私檔核驗，後續 OS 啟動逾時仍需補驗。簽署及 TestFlight 依 [iOS 建置文件](native-ios.md) 接續；沒有新增付費帳戶或未經授權使用另一個 App 的私鑰。
 
 商店草稿位於 repo 的 `store-listing/zh-TW/`；它們是送審維護稿，不是 App 內已公開的隱私政策頁。最終發布者需核實平台表單、權利與適用兒童隱私法規；本文件不作法律或獲審保證。

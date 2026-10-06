@@ -11,7 +11,12 @@ on:
       - 'privacy.html'
       - 'support.html'
       - 'PRIVACY.md'
-      - 'docs/**'
+      - 'docs/train-photo-credits.md'
+      - 'docs/sources-and-licenses.md'
+      - 'docs/catalogue-coverage.md'
+      - 'docs/art-direction-v2.md'
+      - 'docs/story-adventure-v3.md'
+      - 'docs/native-support.md'
       - 'native/**'
       - 'android/**'
       - 'ios/**'
@@ -58,6 +63,8 @@ jobs:
         with: {node-version: '24', cache: npm}
       - run: npm ci
       - run: npm run native:sync
+      - name: Prepare fresh app-owned iPhone and iPad simulators
+        run: node scripts/ios-simulator-smoke.mjs --prepare
       - name: Compile iPhone and iPad simulator app
         run: |
           xcodebuild -version

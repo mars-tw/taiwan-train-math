@@ -1,5 +1,17 @@
 # 驗證紀錄
 
+## v1.11.0／App 1.0.0 — 2026-10-06
+
+202 組 Node 測試通過；原生包包含 165 個離線檔案及 58 張已核對實照。Chrome／WebKit 使用合成 Capacitor transport 驗冷啟續玩、返回、背景停車、語音接線、家長外連關卡及護照備份；不是 Android／iOS 真機驗收。
+
+- 修正 finish 刪除失敗後重領：護照及旅程整筆保存。故障注入讓最後提交失敗，冷啟仍保留原護照和已解最後站，恢復後只增一趟／一份禮物；合法備份確認前不改原紀錄，匯入後相同 cargo 題與一箱工作保留。
+- 修正背景停車仍留下執行中畫面、儲存錯誤未提醒、部分離線授權文件缺接線、清除失敗卻報成功。家長支援在 App 內讀本機文字，返回能關閉，不開外站。
+- Android 三包實際編譯，各自 165／165 素材 bytes＋SHA-256 相符；version 1.0.0／build 1、min24／target36、無 INTERNET／無 backup、TTS query 正確。Release 無 debuggable，正式 APK／AAB 已用獨立金鑰簽署並核驗。另獨立讀 Capacitor 8.5.2 BridgeActivity 與編譯後 javap，修正語音註冊晚於 bridge 建立：registerPlugin invocation 必須在 super.onCreate 前。
+- Apple 在 macOS 26／Xcode 26.6（17F113）／SDK 26.5 完成 Simulator build、device archive 與 PrivacyInfo 核驗；真實編譯包已下載。首輪 Simulator OS 資料遷移超過180秒，尚未執行到 App 安裝，已準備專屬新模擬器與較長等待補驗，不將環境逾時列為 App 崩潰。
+- main 已推送，Pages run 37451433503 成功；公開 Web 1.11.0、privacy.html／support.html 實際 HTTP 200，網頁不載入原生 host。
+
+原生音色、揚聲器、實體最低 OS 裝置與商店審核仍需另驗。證據保存在忽略的 output/native、output/playwright；公開程式、照片及素材授權保留。
+
 ## v1.10.1 — 2026-10-06
 
 移除首頁小鳥、燈塔裝飾按鈕及舊提示列，保留可以開遊戲的故事任務。170 組自動測試、154 個公開檔案建置、語法與差異檢查通過。

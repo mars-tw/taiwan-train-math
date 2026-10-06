@@ -2,7 +2,9 @@
 
 更新：2026-10-06。原生離線、儲存與外連門檻需 final release AAB 驗收後再提交本稿。
 
-原生 **1.0.0／build 1**，Web **1.11.0**。Android 首輪測試 APK 已實際編譯成功，release AAB 未簽署；不是 Google Play 已上架。iOS macOS 26 雲端編譯仍在準備。
+原生 **1.0.0／build 1**，Web **1.11.0**。Android release APK／AAB 已使用這款遊戲獨立金鑰簽署並核驗，Google Play 尚未上架。iOS 已完成 Xcode 26.6／SDK 26.5 原生編譯，Apple 正式簽署及 TestFlight 尚待設定。
+
+本遊戲的獨立 Android 上傳金鑰已建立，私檔在 repo 外並登記 live source；尚未把它當成已簽署 release 證據。Apple 的另一遊戲私鑰授權不適用本遊戲。
 
 | 欄位 | 草稿／狀態 |
 | --- | --- |
@@ -14,8 +16,8 @@
 | 目標年齡 | 建議 5 歲以下、6–8 歲，按最終包填寫；不因家長陪玩勾選成人群組 |
 | Ads | 無；需確認所有 final 依賴與 manifest 沒有廣告行為 |
 | IARC 評級問卷 | 未完成，不能直接宣稱已評為 Everyone 或 PEGI 3 |
-| 支援網址 | https://mars-tw.github.io/taiwan-train-math/support.html，來源就緒，部署待確認 |
-| 原生隱私網址 | https://mars-tw.github.io/taiwan-train-math/privacy.html，來源就緒，部署待確認 |
+| 支援網址 | https://mars-tw.github.io/taiwan-train-math/support.html，2026-10-06 已部署，HTTP 200 |
+| 原生隱私網址 | https://mars-tw.github.io/taiwan-train-math/privacy.html，2026-10-06 已部署，HTTP 200 |
 | versionName／versionCode | 1.0.0／1；Web 1.11.0 為獨立版本 |
 | release 簽署、發布地區／價格 | 尚未完成／設定 |
 | 身分／電話／裝置驗證 | 身分已完成；電話與裝置仍待，本輪不代辦 |
@@ -44,6 +46,19 @@
 
 新手機／平板 App 需 target API 36+；Families、Data safety、App access、內容評級均依實際 release AAB 填寫。此產品無登入，App access 可說明不需帳號，另提供家長門檻實際操作方式。[API 要求](https://support.google.com/googleplay/android-developer/answer/11926878)、[Families](https://support.google.com/googleplay/android-developer/answer/9893335)
 
-成人乘法關卡只攔截離開 App 的連結，不驗證身分，也不代表法律同意。客服與公開資料沿用 MARS_TW／a820628a@gmail.com；帳戶裝置與電話驗證限制仍需按 Play Console 完成。
+成人乘法關卡只攔截離開 App 的連結，不是身分驗證，也不代表法律同意。客服與公開資料沿用 MARS_TW／a820628a@gmail.com；帳戶裝置與電話驗證限制仍需按 Play Console 完成。
 
 帳戶若屬適用的新個人帳戶，須完成 12 位測試者連續 14 天的封閉測試及 Production access 申請；不能用另一 App 的測試或 emulator 代替裝置驗證。[封閉測試](https://support.google.com/googleplay/android-developer/answer/14151465)、[裝置驗證](https://support.google.com/googleplay/android-developer/answer/14316361)
+
+## Windows release 簽署重跑
+
+使用 JDK 21、Android Build Tools 36，先產生 `assembleRelease`／`bundleRelease` 輸入，再由授權憑證流程設定當次 process environment 的 `TRAIN_MATH_STORE_PASSWORD` 與 `TRAIN_MATH_KEY_PASSWORD`。不要把密碼值打進原始碼、CLI 引數或日誌；以下只有參數位置，未提供秘密值。
+
+```powershell
+& ./scripts/sign-android.ps1 `
+  -KeyStoreFile '<repo 外已登記的本遊戲 keystore>' `
+  -KeyAlias '<本遊戲已登記的 alias>' `
+  -BuildToolsDirectory '<本機 Android Build Tools 36 目錄>'
+```
+
+腳本用 `apksigner`／`jarsigner` 簽署與核驗，輸出版本 1.0.0 的 APK／AAB 及 `signed-artifacts.json`。是否成功以 root 讀回簽章、App ID、版本／build、hash 為準，不因金鑰建立或文件提供命令就宣稱成功；本輪未操作商店。

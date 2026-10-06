@@ -2,7 +2,9 @@
 
 更新：2026-10-06。離線、家長門檻及本機語音文字，需 final signed build 驗收後才能作為商店承諾；不是已送審紀錄。
 
-原生 **1.0.0／build 1**；Web **1.11.0**。Android 首輪 APK 編譯成功、AAB 未簽；iOS macOS 26 雲端編譯仍在準備，尚未成功驗證。
+原生 **1.0.0／build 1**；Web **1.11.0**。Android release APK／AAB 已簽署並核驗；iOS 使用 Xcode 26.6／SDK 26.5 編譯出 Simulator App 與未簽 device archive，Apple 正式簽署及 TestFlight 尚待本遊戲授權設定。
+
+Android 的本遊戲上傳金鑰已獨立建立，`scripts/sign-android.ps1` 為 Windows 重跑路徑（JDK 21／Build Tools 36，密碼僅在 process environment）；目前尚不作已簽署證據。Apple 仍待本遊戲專用授權設定，不使用另一遊戲的私鑰授權。
 
 ## 欄位
 
@@ -17,8 +19,8 @@
 | App Store 年齡評級 | 未完成當前問卷，不硬填 4+ 或其他等級 |
 | 客服／Review email | a820628a@gmail.com |
 | Apple Seller、Review 姓名／電話 | 未設定；不以 Google 的公開名稱推定 |
-| 支援 URL | https://mars-tw.github.io/taiwan-train-math/support.html，來源已完成，部署待確認 |
-| 原生隱私 URL | https://mars-tw.github.io/taiwan-train-math/privacy.html，來源已完成，部署待確認 |
+| 支援 URL | https://mars-tw.github.io/taiwan-train-math/support.html，2026-10-06 已部署，HTTP 200 |
+| 原生隱私 URL | https://mars-tw.github.io/taiwan-train-math/privacy.html，2026-10-06 已部署，HTTP 200 |
 | Version／Build | 1.0.0／1；Web 1.11.0 不填入這兩個欄位 |
 | 著作權權利人、價格／地區 | 未設定 |
 | Marketing URL | 可用既有網站 https://mars-tw.github.io/taiwan-train-math/，提交前核正常 |

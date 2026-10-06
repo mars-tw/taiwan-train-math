@@ -2,7 +2,7 @@
 
 官方查核日期：2026-10-06。此文件提供操作路徑，尚無本遊戲的已簽署 IPA、TestFlight 上傳或實體 iPhone／iPad 驗收證據。
 
-原生 App 版本為 **1.0.0／build 1**，Web 為 **1.11.0**。本地沒有實體 Mac，`macos-26` 雲端編譯仍在準備，尚無本遊戲的成功 iOS 編譯記錄；Android 首輪 APK 成功不代表 iOS 已成功。
+原生 App 版本為 **1.0.0／build 1**，Web 為 **1.11.0**。本地沒有實體 Mac，已由 `macos-26` 實際使用 Xcode 26.6（17F113）／iOS SDK 26.5 成功編譯 Simulator App 及未簽 device archive。兩包已讀回核對識別、版本、裝置家族與素材；首輪後續 Simulator OS 資料遷移逾時，啟動驗證另行補做。
 
 ## 工具與平台紀錄
 
@@ -19,11 +19,13 @@ Apple 上傳下限為 Xcode 26+／iOS 26 SDK。Xcode 26／26.3 可在 macOS Sequ
 | Version／Build | 1.0.0／1；Web 1.11.0 為獨立版本 |
 | Apple membership | 使用者已確認啟用 |
 | Team ID／Apple Seller／App Store Connect App 記錄 | 未設定／未確認 |
-| 簽署憑證、私鑰、Provisioning Profile | 本遊戲仍待确认；另一遊戲的私鑰授權僅限該遊戲，不共用或複製到本 App |
+| 簽署憑證、私鑰、Provisioning Profile | 本遊戲仍待確認；另一遊戲的私鑰授權僅限該遊戲，不共用或複製到本 App |
 | Review／TestFlight 聯絡信箱 | a820628a@gmail.com |
 | Review 聯絡姓名／電話 | 未設定 |
-| 支援 URL | https://mars-tw.github.io/taiwan-train-math/support.html，來源就緒，部署待確認 |
-| 隱私 URL | https://mars-tw.github.io/taiwan-train-math/privacy.html，來源就緒，部署待確認 |
+| 支援 URL | https://mars-tw.github.io/taiwan-train-math/support.html，2026-10-06 已部署，HTTP 200 |
+| 隱私 URL | https://mars-tw.github.io/taiwan-train-math/privacy.html，2026-10-06 已部署，HTTP 200 |
+
+Android 的本遊戲獨立上傳金鑰已建立，release APK／AAB 已簽署並核驗。其 Windows `scripts/sign-android.ps1` 路線需 JDK 21、Build Tools 36、當次 process environment 密碼；不是 Apple 簽署方案。
 
 ## 先建立 unsigned 可驗證產物
 
@@ -46,7 +48,7 @@ xcodebuild -project ios/App/App.xcodeproj -scheme App \
   CODE_SIGNING_ALLOWED=NO archive
 ```
 
-Windows 不能本機執行 Xcode，但可由本 repo 的 `macos-26` GitHub Actions runner 執行上述建置。目前仍是準備狀態；建置成功後才會產生 simulator `.app` 與 unsigned `.xcarchive`，兩者不是已簽署 IPA，不能當作實體手機安裝包或 TestFlight 已完成。CI 記錄 commit、工具版本、素材清單、archive 路徑及 hash；不把私鑰放公開 artifact。[GitHub runner](https://docs.github.com/en/actions/reference/runners/github-hosted-runners)
+Windows 不能本機執行 Xcode，但可由本 repo 的 `macos-26` GitHub Actions runner 執行上述建置。[run 37451433812](https://github.com/mars-tw/taiwan-train-math/actions/runs/37451433812) 的 Simulator build、device archive 及 PrivacyInfo 檢查成功，產出 simulator `.app` 與 unsigned `.xcarchive`；整體 run 因隨後 Simulator OS 初始化逾時而失敗，不能把它寫成啟動成功。新版腳本建立本 CI 專屬 iPhone／iPad，提早啟動並延長初始化等待。兩份編譯包不是已簽署 IPA，不能當作實體手機安裝包或 TestFlight 已完成。CI 記錄 commit、工具版本、素材清單、archive 路徑及 hash；不把私鑰放公開 artifact。[GitHub runner](https://docs.github.com/en/actions/reference/runners/github-hosted-runners)
 
 簽署與上傳也可由具備本遊戲授權設定的 macOS CI 執行，不必推定使用者一定要先購買實體 Mac；目前尚未配置本遊戲的簽署流程。本文件保留 Xcode 手動路徑供實際持有工具與權限的人操作，實體 iPhone／iPad 驗收仍需另做。
 
@@ -77,4 +79,4 @@ Windows 不能本機執行 Xcode，但可由本 repo 的 `macos-26` GitHub Actio
 
 優先測最低支援 iOS、目前 iOS、iPhone／iPad、飛航首次啟動及語音不可用的裝置；收集匿名操作問題即可，不在兒童 App 內加入分析 SDK。不要把 simulator 截圖或 unsigned archive 標為實機成果。
 
-正式送審用 repo 的 `store-listing/zh-TW/review-notes.md`；以原生 1.0.0／build 1 核對截圖與 App Privacy，再確認公開支援／隱私 URL 可讀，補 Kids 分組及聯絡姓名／電話。未完成欄位在送出前解決，不用 Web 1.11.0 取代原生版本。
+正式送審用 repo 的 `store-listing/zh-TW/review-notes.md`；以原生 1.0.0／build 1 核對截圖與 App Privacy。支援／隱私頁已在 2026-10-06 驗 HTTP 200，送件前仍需再讀回；補 Kids 分組及聯絡姓名／電話，不用 Web 1.11.0 取代原生版本。

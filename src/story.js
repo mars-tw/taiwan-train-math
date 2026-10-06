@@ -6,17 +6,16 @@ import {
   storyChapter,
   advanceStory,
   goToChapter,
-} from "./story-model.js?v=1.10.0";
+} from "./story-model.js?v=1.10.1";
 export { newStoryState };
 export function storyMarkup() {
   return `<section class="story-scene" id="story-scene" aria-labelledby="story-title">
     <img class="story-landscape" src="assets/images/story-coast-v3.webp" alt="電影風想像山海鐵道，軌道由山林延伸到海邊" width="1672" height="941" fetchpriority="high" decoding="async"><div class="story-vignette"></div>
     <div class="story-atmosphere" aria-hidden="true"><i></i><i></i><i></i></div>
     <div class="story-train" id="story-train"><img src="assets/images/star-express-v3.webp" alt="星光高鐵，白色與金橘色的想像故事列車，車頭朝畫面下方" width="1024" height="1536" fetchpriority="high" decoding="async"><span class="train-headlight" aria-hidden="true"></span></div>
-    <div class="story-copy"><div class="eyebrow">想像故事 · 星光高鐵</div><h1 id="story-title">搭上星光高鐵，<br>把驚喜送到<span>下一站。</span></h1><p>看列車慢慢走，點點山海裡的小驚喜。</p><div class="story-controls"><button id="story-toggle" class="story-action">Ⅱ 暫停故事</button><button id="story-next" class="story-action">下一段 →</button><button id="story-replay" class="story-icon" aria-label="重播星光高鐵故事">↺</button></div><small id="story-motion-note"></small><a href="#departure" class="story-map-link">開始旅程 ↓</a></div>
-    <div class="story-discoveries" role="group" aria-label="故事風景中的小驚喜"><button data-discover="bird" class="scenic-surprise surprise-bird" aria-label="叫醒山谷的小鳥" aria-pressed="false"><span aria-hidden="true">🐦</span><small>小鳥的話</small></button><button data-discover="light" class="scenic-surprise surprise-light" aria-label="點亮海邊燈塔" aria-pressed="false"><span aria-hidden="true">☀</span><small>點亮燈塔</small></button><button data-discover="letter" class="scenic-surprise surprise-letter" aria-label="看看星光信封" aria-pressed="false"><span aria-hidden="true">✉</span><small>星光信封</small></button></div>
+    <div class="story-copy"><div class="eyebrow">想像故事 · 星光高鐵</div><h1 id="story-title">搭上星光高鐵，<br>把驚喜送到<span>下一站。</span></h1><p>看列車穿過山海，打開信封選一個遊戲。</p><div class="story-controls"><button id="story-toggle" class="story-action">Ⅱ 暫停故事</button><button id="story-next" class="story-action">下一段 →</button><button id="story-replay" class="story-icon" aria-label="重播星光高鐵故事">↺</button></div><small id="story-motion-note"></small><a href="#departure" class="story-map-link">開始旅程 ↓</a></div>
+    <div class="story-scenery"><button type="button" id="story-letter-open" class="scenic-surprise surprise-letter" aria-label="打開故事任務，選一個遊戲" aria-expanded="false" aria-controls="story-letter"><span aria-hidden="true">✉</span><small>故事任務</small></button></div>
     <div class="story-narrative"><div class="story-kicker"><span>星光高鐵 · <b id="story-place"></b></span><button id="story-read" aria-label="朗讀這一段故事">♪ 聽故事</button></div><div id="story-caption" aria-live="polite"><h2></h2><p></p></div><div class="story-chapters" role="group" aria-label="四段故事，可直接選擇">${CHAPTERS.map((c, i) => `<button data-chapter="${i}" aria-label="第 ${i + 1} 段，${c.short}" aria-pressed="${i === 0}"><span>${String(i + 1).padStart(2, "0")}</span>${c.short}</button>`).join("")}</div><div class="story-progress" role="progressbar" aria-label="星光高鐵故事進度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i></i></div></div>
-    <div class="story-discovery-note" id="story-discovery-note" role="status">三個小驚喜，隨時都能點開。</div>
     <div class="story-letter" id="story-letter" hidden><span aria-hidden="true">✉ ✦</span><h2>給小小站長的一封信</h2><p>謝謝你陪我旅行！我們一起接好軌道、分享點心，再去山海風景找寶物吧。</p><div><button data-story-game="tracks">⌁ 幫列車接軌道</button><button data-story-game="sharing">🍎 和朋友分點心</button><button data-story-game="treasure">✦ 去山海尋寶</button></div><button id="story-letter-close" class="story-letter-close">收好信，繼續看風景</button></div>
     <span class="story-credit">AI 電影風素材 · 星光高鐵為想像故事列車</span>
   </section>`;
@@ -34,7 +33,8 @@ export function mountStory(
   let layout = null;
   const train = root.querySelector("#story-train"),
     landscape = root.querySelector(".story-landscape"),
-    discoveriesArea = root.querySelector(".story-discoveries"),
+    sceneryArea = root.querySelector(".story-scenery"),
+    letterToggle = root.querySelector("#story-letter-open"),
     progress = root.querySelector('[role="progressbar"]'),
     caption = root.querySelector("#story-caption"),
     toggle = root.querySelector("#story-toggle"),
@@ -46,7 +46,7 @@ export function mountStory(
     const position = getComputedStyle(landscape).objectPosition.split(" ").map(value => parseFloat(value) / 100);
     layout = {
       width, height, mobile: width <= 760, spriteHeight: train.clientWidth * 1.5,
-      sceneryTop: discoveriesArea.offsetTop, sceneryHeight: discoveriesArea.clientHeight,
+      sceneryTop: sceneryArea.offsetTop, sceneryHeight: sceneryArea.clientHeight,
       imageWidth: 1672 * scale, imageHeight: 941 * scale,
       positionX: Number.isFinite(position[0]) ? position[0] : 0.5,
       positionY: Number.isFinite(position[1]) ? position[1] : 0.5,
@@ -113,11 +113,7 @@ export function mountStory(
       : "36 秒的山海旅程，隨時可以暫停。";
     if (note.textContent !== motionText) note.textContent = motionText;
     letter.hidden = !state.letterOpen;
-    root.querySelectorAll("[data-discover]").forEach((b) => {
-      const pressed = String(state.discoveries.includes(b.dataset.discover));
-      if (b.getAttribute("aria-pressed") !== pressed)
-        b.setAttribute("aria-pressed", pressed);
-    });
+    letterToggle.setAttribute("aria-expanded", String(state.letterOpen));
   }
   function cancel() {
     if (frame !== null) cancelAnimationFrame(frame);
@@ -147,11 +143,6 @@ export function mountStory(
     update();
     schedule();
   }
-  const discoveries = {
-    bird: "啾啾！小鳥說：先看看兩段軌道有沒有接在一起。",
-    light: "燈塔亮了！海邊小站準備迎接星光高鐵。",
-    letter: "星光信封裡，藏著三個可以馬上玩的新任務。",
-  };
   function handleClick(event) {
     const b = event.target.closest("button");
     if (!b || !root.contains(b)) return;
@@ -162,20 +153,14 @@ export function mountStory(
       onAnnounce(CHAPTERS[storyChapter(state)].title);
       return;
     }
-    if (b.dataset.discover) {
-      const key = b.dataset.discover;
-      if (!state.discoveries.includes(key)) state.discoveries.push(key);
-      root.querySelector("#story-discovery-note").textContent =
-        discoveries[key];
-      if (key === "letter") {
-        state.letterOpen = true;
-        state.playing = false;
-        cancel();
-      }
+    if (b.id === "story-letter-open") {
+      state.letterOpen = true;
+      state.playing = false;
+      cancel();
       onSound();
       update();
-      onAnnounce(discoveries[key]);
-      if (key === "letter") root.querySelector("[data-story-game]")?.focus();
+      onAnnounce("選一個故事任務，開始遊戲。");
+      root.querySelector("[data-story-game]")?.focus();
       return;
     }
     if (b.dataset.storyGame) {
@@ -185,7 +170,7 @@ export function mountStory(
     if (b.id === "story-letter-close") {
       state.letterOpen = false;
       update();
-      root.querySelector("[data-discover='letter']")?.focus();
+      letterToggle.focus();
       return;
     }
     if (b.id === "story-read") {

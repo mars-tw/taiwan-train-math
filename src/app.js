@@ -13,43 +13,43 @@ import {
   memoryTurn,
   rememberTrip,
   seededRandom,
-} from "./engine.js?v=1.10.0";
-import { arithmeticScene, parseArithmeticAnswer } from "./arithmetic-ui.js?v=1.10.0";
-import { homeMarkup, playroomMarkup, starterPractice } from "./home.js?v=1.10.0";
-import { countingScene, discoveryMarkup } from "./learning-ui.js?v=1.10.0";
-import { learningGuide } from "./learning-guide.js?v=1.10.0";
-import { learningDiscovery } from "./learning-content.js?v=1.10.0";
+} from "./engine.js?v=1.10.1";
+import { arithmeticScene, parseArithmeticAnswer } from "./arithmetic-ui.js?v=1.10.1";
+import { homeMarkup, playroomMarkup, starterPractice } from "./home.js?v=1.10.1";
+import { countingScene, discoveryMarkup } from "./learning-ui.js?v=1.10.1";
+import { learningGuide } from "./learning-guide.js?v=1.10.1";
+import { learningDiscovery } from "./learning-content.js?v=1.10.1";
 import {
   activityScene,
   patternToken,
   patternName,
-} from "./activities.js?v=1.10.0";
-import { mountStory, newStoryState } from "./story.js?v=1.10.0";
+} from "./activities.js?v=1.10.1";
+import { mountStory, newStoryState } from "./story.js?v=1.10.1";
 import {
   newAdventureState,
   trackConnected,
   changeShare,
   SOUVENIRS,
-} from "./adventure.js?v=1.10.0";
+} from "./adventure.js?v=1.10.1";
 import {
   adventureScene,
   souvenirMarkup,
   souvenirCollection,
   giftDetailMarkup,
-} from "./adventure-ui.js?v=1.10.0";
-import { newPuzzleState, selectPuzzlePiece, placePuzzlePiece, puzzleScene } from "./puzzle.js?v=1.10.0";
-import { newExplorerState, selectLuggage, putLuggage, moveMaze, explorerScene } from "./explorers.js?v=1.10.0";
-import { enqueueGift, offerGifts, claimGift } from "./rewards.js?v=1.10.0";
-import { attachPuzzleTouch } from "./puzzle-touch.js?v=1.10.0";
-import { saveTripSession, readTripSession, clearTripSession } from "./trip-session.js?v=1.10.0";
-import { newWorkshopState, appendCommand, removeCommand, evaluateProgram, addWeight, removeWeight, weightTotal, workshopScene } from "./workshop.js?v=1.10.0";
-import { newDiscoveryState, selectMosaicColor, paintMosaicCell, resetMosaic, findDifference, discoveryScene } from "./discovery.js?v=1.10.0";
-import { JOURNEYS, journeyById, journeyMarkup } from "./journeys.js?v=1.10.0";
-import { displayTrain, trainImage, verifiedPhoto, photoLabel, photoGameTrains, samePhotoIdentity } from "./train-images.js?v=1.10.0";
-import { newTicketsState, selectTicket, payToken, returnToken, ticketTotals, ticketsScene } from "./tickets.js?v=1.10.0";
-import { createPhotoLoader } from "./photo-loader.js?v=1.10.0";
-import { createProgramPlayback } from "./program-playback.js?v=1.10.0";
-import { resolvePage } from "./navigation.js?v=1.10.0";
+} from "./adventure-ui.js?v=1.10.1";
+import { newPuzzleState, selectPuzzlePiece, placePuzzlePiece, puzzleScene } from "./puzzle.js?v=1.10.1";
+import { newExplorerState, selectLuggage, putLuggage, moveMaze, explorerScene } from "./explorers.js?v=1.10.1";
+import { enqueueGift, offerGifts, claimGift } from "./rewards.js?v=1.10.1";
+import { attachPuzzleTouch } from "./puzzle-touch.js?v=1.10.1";
+import { saveTripSession, readTripSession, clearTripSession } from "./trip-session.js?v=1.10.1";
+import { newWorkshopState, appendCommand, removeCommand, evaluateProgram, addWeight, removeWeight, weightTotal, workshopScene } from "./workshop.js?v=1.10.1";
+import { newDiscoveryState, selectMosaicColor, paintMosaicCell, resetMosaic, findDifference, discoveryScene } from "./discovery.js?v=1.10.1";
+import { JOURNEYS, journeyById, journeyMarkup } from "./journeys.js?v=1.10.1";
+import { displayTrain, trainImage, verifiedPhoto, photoLabel, photoGameTrains, samePhotoIdentity } from "./train-images.js?v=1.10.1";
+import { newTicketsState, selectTicket, payToken, returnToken, ticketTotals, ticketsScene } from "./tickets.js?v=1.10.1";
+import { createPhotoLoader } from "./photo-loader.js?v=1.10.1";
+import { createProgramPlayback } from "./program-playback.js?v=1.10.1";
+import { resolvePage } from "./navigation.js?v=1.10.1";
 
 const main = document.querySelector("#main");
 const esc = (value) =>
@@ -1728,7 +1728,7 @@ try {
   const controller = new AbortController();
   const deadline = setTimeout(() => controller.abort(), 15000);
   let response;
-  try { response = await fetch("data/trains.json?v=1.10.0", { signal: controller.signal }); }
+  try { response = await fetch("data/trains.json?v=1.10.1", { signal: controller.signal }); }
   finally { clearTimeout(deadline); }
   if (!response.ok) throw new Error("Content unavailable");
   catalogue = await response.json();

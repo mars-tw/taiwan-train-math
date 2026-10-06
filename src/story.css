@@ -221,40 +221,18 @@
   font-size: 11px;
   margin-top: 3px;
 }
-.surprise-bird {
-  left: 47%;
-  top: 29%;
-}
-.surprise-light {
-  right: 5%;
-  top: 62%;
-}
+
 .surprise-letter {
   right: 10%;
   top: 31%;
 }
 .scenic-surprise:hover,
-.scenic-surprise[aria-pressed="true"] {
+.scenic-surprise[aria-expanded="true"] {
   background: #f3d69e;
   color: #254332;
   border-color: #fff9e1;
 }
-.surprise-bird[aria-pressed="true"] > span {
-  animation: bird-say 1.2s ease-in-out 2;
-}
-.surprise-light[aria-pressed="true"] {
-  box-shadow:
-    0 0 0 7px #f9e6a72c,
-    0 0 50px #f9e6a757;
-}
-.story-discovery-note {
-  position: relative;
-  z-index: 1;
-  margin: 0 6% 35px;
-  font-size: 12px;
-  width: 42%;
-  color: #e3dbb7;
-}
+
 .story-credit {
   position: absolute;
   bottom: 10px;
@@ -783,15 +761,6 @@
     opacity: 0.85;
   }
 }
-@keyframes bird-say {
-  0%,
-  100% {
-    transform: rotate(-6deg);
-  }
-  50% {
-    transform: translateY(-6px) rotate(7deg);
-  }
-}
 @keyframes arrive {
   from {
     transform: translateX(-25px);
@@ -829,10 +798,7 @@
     margin-left: 5%;
     padding: 18px;
   }
-  .story-discovery-note {
-    margin-left: 5%;
-    width: 42%;
-  }
+
   .story-train {
     width: 290px;
   }
@@ -843,18 +809,12 @@
     font-size: 12px;
     padding: 9px 10px;
   }
-  .surprise-bird {
-    left: auto;
-    right: 5%;
-    top: 18%;
-  }
+
   .surprise-letter {
     right: 6%;
     top: 43%;
   }
-  .surprise-light {
-    top: 69%;
-  }
+
   .story-letter {
     width: 320px;
     right: 4%;
@@ -927,7 +887,7 @@
   .story-map-link {
     font-size: 13px;
   }
-  .story-discoveries {
+  .story-scenery {
     position: relative;
     height: 180px;
     margin: 0 6%;
@@ -968,25 +928,12 @@
   .scenic-surprise small {
     font-size: 11px;
   }
-  .surprise-bird {
-    left: 0;
-    right: auto;
-    top: 26px;
-  }
+
   .surprise-letter {
     top: 4px;
     right: 0;
   }
-  .surprise-light {
-    top: 106px;
-    right: 0;
-  }
-  .story-discovery-note {
-    width: 88%;
-    min-height: 40px;
-    margin: 10px 6% 12px;
-    font-size: 11px;
-  }
+
   .story-credit {
     font-size: 8px;
     bottom: 8px;

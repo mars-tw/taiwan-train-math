@@ -1,5 +1,5 @@
-import { LEVELS, GAMES, allowedGames } from "./engine.js?v=1.10.0";
-import { storyMarkup } from "./story.js?v=1.10.0";
+import { LEVELS, GAMES, allowedGames } from "./engine.js?v=1.10.1";
+import { storyMarkup } from "./story.js?v=1.10.1";
 
 export const PLAYROOM_CATEGORIES = Object.freeze([
   { id: "math", name: "數學", icon: "123", games: ["count", "order", "compare", "boarding", "pattern", "clock"] },

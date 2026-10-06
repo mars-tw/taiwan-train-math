@@ -1,14 +1,14 @@
-import { LEVELS, HISTORY_LIMITS, V15_GAME_IDS, V17_GAME_IDS, allowedGames, createTrip, seededRandom, newMemoryState } from "./engine.js?v=1.10.0";
-import { newAdventureState, trackConnected } from "./adventure.js?v=1.10.0";
-import { newPuzzleState } from "./puzzle.js?v=1.10.0";
-import { newExplorerState } from "./explorers.js?v=1.10.0";
-import { newWorkshopState, PROGRAM_DIRECTIONS, evaluateProgram, weightTotal } from "./workshop.js?v=1.10.0";
-import { newDiscoveryState } from "./discovery.js?v=1.10.0";
-import { journeyById } from "./journeys.js?v=1.10.0";
-import { newTicketsState, ticketTotals } from "./tickets.js?v=1.10.0";
+import { LEVELS, HISTORY_LIMITS, V15_GAME_IDS, V17_GAME_IDS, allowedGames, createTrip, seededRandom, newMemoryState } from "./engine.js?v=1.10.1";
+import { newAdventureState, trackConnected } from "./adventure.js?v=1.10.1";
+import { newPuzzleState } from "./puzzle.js?v=1.10.1";
+import { newExplorerState } from "./explorers.js?v=1.10.1";
+import { newWorkshopState, PROGRAM_DIRECTIONS, evaluateProgram, weightTotal } from "./workshop.js?v=1.10.1";
+import { newDiscoveryState } from "./discovery.js?v=1.10.1";
+import { journeyById } from "./journeys.js?v=1.10.1";
+import { newTicketsState, ticketTotals } from "./tickets.js?v=1.10.1";
 
 export const TRIP_SESSION_KEY = "taiwan-train-math.session.v1";
-const GAME_VERSION = "1.10.0";
+const GAME_VERSION = "1.10.1";
 const MAX_BYTES = 131072;
 const LEGACY_META_KEYS = ["level", "trainId", "practice", "challenge", "seed", "recentQuestions", "recentGames"];
 const META_KEYS = [...LEGACY_META_KEYS, "journey", "contentVersion"];
@@ -288,7 +288,7 @@ export function readTripSession(storage, { trains } = {}) {
     requireValid(typeof data === "string" && data.length > 0 && data.length <= MAX_BYTES);
     const snapshot = JSON.parse(data);
     exactKeys(snapshot, SNAPSHOT_KEYS);
-    requireValid(snapshot.version === 1 && [GAME_VERSION, "1.9.0", "1.8.2", "1.8.1", "1.8.0", "1.7.0", "1.6.0", "1.5.0"].includes(snapshot.gameVersion)
+    requireValid(snapshot.version === 1 && [GAME_VERSION, "1.10.0", "1.9.0", "1.8.2", "1.8.1", "1.8.0", "1.7.0", "1.6.0", "1.5.0"].includes(snapshot.gameVersion)
       && snapshot.awarded === false && typeof snapshot.solved === "boolean" && typeof snapshot.assisted === "boolean");
     const meta = recipe(snapshot.meta, snapshot.gameVersion === "1.5.0");
     requireValid(Array.isArray(trains));

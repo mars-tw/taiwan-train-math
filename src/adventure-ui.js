@@ -1,4 +1,4 @@
-import { railLinks, DIRECTIONS, SOUVENIRS, SOUVENIR_THEMES } from "./adventure.js?v=1.10.0";
+import { railLinks, DIRECTIONS, SOUVENIRS, SOUVENIR_THEMES } from "./adventure.js?v=1.10.1";
 const treasureIcons = {
   star: { icon: "✦", name: "星星" },
   leaf: { icon: "🍃", name: "葉子" },

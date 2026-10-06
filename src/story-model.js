@@ -30,7 +30,7 @@ export const CHAPTERS = [
   },
 ];
 export function newStoryState() {
-  return { elapsed: 0, playing: true, discoveries: [], letterOpen: false };
+  return { elapsed: 0, playing: true, letterOpen: false };
 }
 export function storyProgress(state) {
   return Math.max(0, Math.min(1, state.elapsed / STORY_DURATION));

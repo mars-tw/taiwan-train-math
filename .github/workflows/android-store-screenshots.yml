@@ -1,0 +1,282 @@
+name: Capture actual Android app store screenshots
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: train-math-android-store-screenshots
+  cancel-in-progress: false
+
+# Runs only on a disposable GitHub VM. No local SDK, store account or keystore.
+# Official KVM support:
+# https://github.blog/changelog/2024-04-02-github-actions-hardware-accelerated-android-virtualization-now-available/
+# Official SDK/emulator/adb:
+# https://developer.android.com/studio/run/emulator-commandline
+# https://developer.android.com/studio/run/emulator-acceleration
+# https://developer.android.com/tools/adb#screencap
+jobs:
+  screenshots:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      APP_ID: tw.mars.trainmath
+      RELEASE_TAG: native-v1.0.0-rc.1
+      APK_URL: https://github.com/mars-tw/taiwan-train-math/releases/download/native-v1.0.0-rc.1/train-math-1.0.0.apk
+      APK_SHA256: af762bde770643c122d74b0c8ec3318f756005fea84bed477b0f3f9d8ecf5f00
+      APK_BYTES: '22848415'
+      SYSTEM_IMAGE: 'system-images;android-35;google_apis;x86_64'
+      ANDROID_AVD_HOME: ${{ runner.temp }}/train-math-store-avd
+      ANDROID_USER_HOME: ${{ runner.temp }}/train-math-store-android
+      EVIDENCE: ${{ github.workspace }}/output/android-store-screenshots
+    steps:
+      - name: Require KVM and install only official Android SDK packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$EVIDENCE" "$ANDROID_AVD_HOME" "$ANDROID_USER_HOME"
+          test -c /dev/kvm
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          test -r /dev/kvm && test -w /dev/kvm
+          SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
+          test -d "$SDK_ROOT"
+          SDKMANAGER="$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
+          test -x "$SDKMANAGER"
+          printf 'SDK_ROOT=%s\n' "$SDK_ROOT" >> "$GITHUB_ENV"
+          # yes may exit with SIGPIPE after sdkmanager has accepted every license.
+          set +o pipefail
+          yes | "$SDKMANAGER" --licenses > "$EVIDENCE/sdk-licenses.log" 2>&1
+          LICENSE_RESULT=${PIPESTATUS[1]}
+          set -o pipefail
+          test "$LICENSE_RESULT" -eq 0
+          "$SDKMANAGER" 'platform-tools' 'emulator' 'platforms;android-35' 'build-tools;35.0.0' "$SYSTEM_IMAGE" > "$EVIDENCE/sdk-install.log" 2>&1
+          "$SDK_ROOT/emulator/emulator" -accel-check > "$EVIDENCE/kvm-accel-check.log" 2>&1
+          grep -q 'KVM.*installed and usable' "$EVIDENCE/kvm-accel-check.log"
+          "$SDK_ROOT/emulator/emulator" -version > "$EVIDENCE/emulator-version.log" 2>&1
+          "$SDK_ROOT/platform-tools/adb" version > "$EVIDENCE/adb-version.log"
+          cp "$SDK_ROOT/system-images/android-35/google_apis/x86_64/source.properties" "$EVIDENCE/system-image-source.properties"
+
+      - name: Download and verify this repository's signed release APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="$RUNNER_TEMP/train-math-release.apk"
+          printf 'APK=%s\n' "$APK" >> "$GITHUB_ENV"
+          curl --fail --location --retry 3 --proto '=https' --tlsv1.2 --max-time 180 "$APK_URL" --output "$APK"
+          test "$(stat -c '%s' "$APK")" -eq "$APK_BYTES"
+          printf '%s  %s\n' "$APK_SHA256" "$APK" | sha256sum --check > "$EVIDENCE/apk-sha256.log"
+          "$SDK_ROOT/build-tools/35.0.0/apksigner" verify --verbose --print-certs "$APK" > "$EVIDENCE/apk-signature.log" 2>&1
+          "$SDK_ROOT/build-tools/35.0.0/aapt" dump badging "$APK" > "$EVIDENCE/apk-badging.log"
+          grep -q "package: name='tw.mars.trainmath' versionCode='1' versionName='1.0.0'" "$EVIDENCE/apk-badging.log"
+          if grep -q 'application-debuggable' "$EVIDENCE/apk-badging.log"; then
+            echo 'The published APK must be the signed release build.' >&2
+            exit 1
+          fi
+
+      - name: Boot a fresh owned API 35 phone emulator and launch the actual APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          AVD_NAME="TrainMathStore-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          printf 'AVD_NAME=%s\n' "$AVD_NAME" >> "$GITHUB_ENV"
+          printf 'no\n' | "$SDK_ROOT/cmdline-tools/latest/bin/avdmanager" create avd -n "$AVD_NAME" -k "$SYSTEM_IMAGE" -d pixel_2 > "$EVIDENCE/avd-create.log" 2>&1
+          cat >> "$ANDROID_AVD_HOME/$AVD_NAME.avd/config.ini" <<'CONFIG'
+          hw.lcd.width=1080
+          hw.lcd.height=1920
+          hw.lcd.density=440
+          hw.ramSize=2048
+          hw.initialOrientation=Portrait
+          showDeviceFrame=no
+          CONFIG
+          "$SDK_ROOT/emulator/emulator" -avd "$AVD_NAME" -port 5554 -no-window -no-audio -no-boot-anim -no-snapshot -accel on -gpu swiftshader -memory 2048 -cores 2 -camera-back none -camera-front none > "$EVIDENCE/emulator.log" 2>&1 &
+          echo "$!" > "$RUNNER_TEMP/train-math-store-emulator.pid"
+          ADB="$SDK_ROOT/platform-tools/adb"
+          timeout 360 "$ADB" -s emulator-5554 wait-for-device
+          BOOTED=false
+          for attempt in $(seq 1 180); do
+            if [ "$("$ADB" -s emulator-5554 shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = 1 ]; then BOOTED=true; break; fi
+            sleep 2
+          done
+          test "$BOOTED" = true
+          "$ADB" -s emulator-5554 shell input keyevent 82
+          "$ADB" -s emulator-5554 shell wm size 1080x1920
+          "$ADB" -s emulator-5554 shell wm density 440
+          "$ADB" -s emulator-5554 shell settings put system accelerometer_rotation 0
+          "$ADB" -s emulator-5554 shell settings put system user_rotation 0
+          "$ADB" -s emulator-5554 shell settings put global window_animation_scale 0
+          "$ADB" -s emulator-5554 shell settings put global transition_animation_scale 0
+          "$ADB" -s emulator-5554 shell settings put global animator_duration_scale 0
+          "$ADB" -s emulator-5554 install "$APK" > "$EVIDENCE/adb-install.log" 2>&1
+          "$ADB" -s emulator-5554 logcat -c
+          "$ADB" -s emulator-5554 shell am start -W -n "$APP_ID/.MainActivity" > "$EVIDENCE/adb-launch.log" 2>&1
+          "$ADB" -s emulator-5554 shell dumpsys package "$APP_ID" > "$EVIDENCE/installed-package.log"
+          "$ADB" -s emulator-5554 shell dumpsys webviewupdate > "$EVIDENCE/webview-provider.log"
+          "$ADB" -s emulator-5554 shell wm size > "$EVIDENCE/display-size.log"
+
+      - name: Capture real home and playroom screens with native accessibility navigation
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, os, pathlib, re, struct, subprocess, time
+          import xml.etree.ElementTree as ET
+
+          out = pathlib.Path(os.environ['EVIDENCE'])
+          adb = str(pathlib.Path(os.environ['SDK_ROOT']) / 'platform-tools/adb')
+          report = {
+              'status': 'RUNNING', 'captureMethod': 'adb exec-out screencap -p',
+              'environment': 'GitHub-hosted Ubuntu 24.04 disposable Android Emulator',
+              'systemImage': os.environ['SYSTEM_IMAGE'], 'apiLevel': 35,
+              'appId': os.environ['APP_ID'], 'nativeVersion': '1.0.0', 'nativeBuild': 1,
+              'releaseTag': os.environ['RELEASE_TAG'], 'apkUrl': os.environ['APK_URL'],
+              'apkSha256': os.environ['APK_SHA256'], 'apkBytes': int(os.environ['APK_BYTES']),
+              'githubRunId': os.environ['GITHUB_RUN_ID'], 'workflowCommit': os.environ['GITHUB_SHA'],
+              'physicalDeviceTested': False, 'hardwareTouchTested': False,
+              'nativeVoicePlaybackTested': False, 'visualReviewRequired': True,
+              'screenPixels': [1080, 1920], 'density': 440,
+              'osAnimationScales': 0, 'screenshots': [], 'navigation': [], 'warnings': [],
+          }
+          def run(*args, timeout=25, binary=False):
+              result = subprocess.run([adb, '-s', 'emulator-5554', *args],
+                                      capture_output=True, timeout=timeout, check=True)
+              return result.stdout if binary else result.stdout.decode('utf-8', errors='replace')
+
+          def dump(label):
+              run('shell', 'uiautomator', 'dump', '--compressed', '/sdcard/train-math-window.xml')
+              xml = run('exec-out', 'cat', '/sdcard/train-math-window.xml')
+              (out / f'{label}.xml').write_text(xml, encoding='utf-8')
+              tree = ET.fromstring(xml)
+              nodes = list(tree.iter('node'))
+              visible = '\n'.join(node.get('text', '') + ' ' + node.get('content-desc', '') for node in nodes)
+              return nodes, visible
+
+          def wait_view(label, required):
+              last_error = None
+              for attempt in range(8):
+                  try:
+                      nodes, visible = dump(label)
+                      if all(word in visible for word in required):
+                          return nodes
+                      last_error = f'Missing visible text: {required}'
+                  except (subprocess.SubprocessError, ET.ParseError) as error:
+                      last_error = str(error)
+                  time.sleep(2)
+              raise RuntimeError(f'{label} did not become visible: {last_error}')
+
+          def tap_visible(label, exact_text, optional=False):
+              nodes, _ = dump(f'{label}-before-tap')
+              candidates = []
+              for node in nodes:
+                  values = [node.get('text', ''), node.get('content-desc', '')]
+                  if not any(exact_text == value or (optional and exact_text in value) for value in values):
+                      continue
+                  match = re.fullmatch(r'\[(\d+),(\d+)\]\[(\d+),(\d+)\]', node.get('bounds', ''))
+                  if not match:
+                      continue
+                  left, top, right, bottom = map(int, match.groups())
+                  if right > left and bottom > top and 0 <= left < right <= 1080 and 0 <= top < bottom <= 1920:
+                      candidates.append((top, left, right, bottom, node.get('clickable') == 'true'))
+              if not candidates:
+                  if optional:
+                      return False
+                  raise RuntimeError(f'No visible native accessibility node for {exact_text}')
+              top, left, right, bottom, _ = min(candidates, key=lambda item: (not item[4], item[0]))
+              x, y = (left + right) // 2, (top + bottom) // 2
+              run('shell', 'input', 'tap', str(x), str(y))
+              report['navigation'].append({'label': exact_text, 'bounds': [left, top, right, bottom],
+                                           'x': x, 'y': y, 'method': 'adb input tap on visible accessibility node'})
+              time.sleep(2)
+              return True
+
+          def capture(name):
+              time.sleep(2)  # Let offline photos render; no DOM/answers are read or injected.
+              activity = run('shell', 'dumpsys', 'activity', 'activities')
+              (out / f'{name}-activity.log').write_text(activity, encoding='utf-8')
+              if not any('tw.mars.trainmath/.MainActivity' in line for line in activity.splitlines()
+                         if 'ResumedActivity' in line or 'topResumedActivity' in line):
+                  raise RuntimeError('The actual app is not the resumed Android activity')
+              png = run('exec-out', 'screencap', '-p', binary=True)
+              if png[:8] != b'\x89PNG\r\n\x1a\n' or png[12:16] != b'IHDR':
+                  raise RuntimeError('adb did not return a PNG screen capture')
+              width, height = struct.unpack('>II', png[16:24])
+              if [width, height] != [1080, 1920]:
+                  raise RuntimeError(f'Unexpected real screenshot size: {width}x{height}')
+              digest = hashlib.sha256(png).hexdigest()
+              if any(item['sha256'] == digest for item in report['screenshots']):
+                  raise RuntimeError('Navigation returned an identical screen capture')
+              path = out / f'{name}.png'
+              path.write_bytes(png)
+              report['screenshots'].append({'file': path.name, 'width': width, 'height': height,
+                                            'bytes': len(png), 'sha256': digest, 'pngColorType': png[25]})
+
+          try:
+              package = (out / 'installed-package.log').read_text(encoding='utf-8')
+              if 'versionName=1.0.0' not in package or not re.search(r'\bversionCode=1\b', package):
+                  raise RuntimeError('Installed native app version does not match the published APK')
+              wait_view('01-home', ['想像故事', '星光高鐵'])
+              tap_visible('pause-story', '暫停故事', optional=True)
+              dump('01-home')
+              capture('01-home')
+              tap_visible('open-playroom', '遊戲室')
+              wait_view('02-playroom', ['觀察與記憶', '拼搭與方向'])
+              capture('02-playroom')
+              try:
+                  tap_visible('open-catalogue', '火車圖鑑')
+                  wait_view('03-catalogue', ['每一台列車', '自己的名字'])
+                  capture('03-catalogue')
+              except Exception as error:
+                  report['warnings'].append(f'Optional catalogue capture: {error}')
+              report['status'] = 'CAPTURED_NATIVE_EMULATOR'
+          except Exception as error:
+              report['status'] = 'FAILED'
+              report['error'] = str(error)
+              raise
+          finally:
+              try:
+                  pid = run('shell', 'pidof', os.environ['APP_ID']).strip()
+                  if pid.isdigit():
+                      app_log = run('logcat', '-d', '--pid=' + pid, '-v', 'threadtime', timeout=15)
+                      (out / 'app-logcat.log').write_text(app_log, encoding='utf-8')
+              except Exception as error:
+                  report['warnings'].append(f'App logcat capture: {error}')
+              (out / 'report.json').write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding='utf-8')
+              print(json.dumps(report, ensure_ascii=False, indent=2))
+          PY
+
+      - name: Retain diagnostics and stop only this CI-owned emulator
+        if: always()
+        shell: bash
+        run: |
+          if [ -n "${SDK_ROOT:-}" ] && [ -x "$SDK_ROOT/platform-tools/adb" ]; then
+            "$SDK_ROOT/platform-tools/adb" -s emulator-5554 logcat -d -t 400 '*:E' > "$EVIDENCE/android-errors.log" 2>&1 || true
+            OWNED_NAME=$("$SDK_ROOT/platform-tools/adb" -s emulator-5554 emu avd name 2>/dev/null | head -n 1 | tr -d '\r')
+            if [ -n "${AVD_NAME:-}" ] && [ "$OWNED_NAME" = "$AVD_NAME" ]; then
+              "$SDK_ROOT/platform-tools/adb" -s emulator-5554 emu kill > "$EVIDENCE/emulator-stop.log" 2>&1 || true
+            fi
+          fi
+          python3 - <<'PY'
+          import json, os, pathlib
+          out = pathlib.Path(os.environ['EVIDENCE'])
+          out.mkdir(parents=True, exist_ok=True)
+          report = out / 'report.json'
+          if not report.exists():
+              report.write_text(json.dumps({
+                  'status': 'FAILED_BEFORE_CAPTURE', 'screenshots': [],
+                  'environment': 'GitHub-hosted disposable Android Emulator workflow',
+                  'releaseTag': os.environ['RELEASE_TAG'], 'apkSha256': os.environ['APK_SHA256'],
+                  'physicalDeviceTested': False, 'hardwareTouchTested': False,
+                  'note': 'See SDK/APK/emulator step logs; no successful native screenshots are claimed.',
+              }, indent=2), encoding='utf-8')
+          PY
+
+      - name: Upload actual Android PNGs and evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: android-store-screenshots-${{ github.run_id }}
+          path: output/android-store-screenshots
+          if-no-files-found: error
+          retention-days: 30

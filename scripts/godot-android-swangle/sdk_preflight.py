@@ -4,12 +4,54 @@ import hashlib
 import json
 import os
 import re
+import stat
 import subprocess
 import urllib.request
 import zipfile
 from pathlib import Path
 
 PROJECT = 'crackveil-vanguard'
+
+def verified_frontend_text(record):
+    if record.get('exitCode')!=0 or record.get('timedOut') is not False or record.get('toolUnavailable'):
+        raise RuntimeError('Frontend command failed/unavailable/timed out; STOP before context')
+    values=[]
+    for key in ['stdout','stderr']:
+        stream=record.get(key)
+        if not isinstance(stream,dict) or stream.get('truncated') is not False or not isinstance(stream.get('text'),str) or not isinstance(stream.get('fullBytes'),int) or stream['fullBytes']<0:
+            raise RuntimeError('Frontend stream truncated/incomplete; STOP before context')
+        values.append(stream['text'])
+    return ''.join(values)
+
+def verified_bundle_inventory(sdk, package, missing_names):
+    rows=[]; library_dirs=set()
+    for name in missing_names:
+        members=[member for member in package.namelist() if member.startswith('emulator/lib64/') and Path(member).name==name]
+        if len(members)!=1:
+            rows.append({'name':name,'verified':False,'reason':'archive membership absent/nonunique','members':members}); continue
+        member=members[0]; installed=sdk/member
+        if not installed.resolve().is_relative_to(sdk/'emulator/lib64') or not installed.is_file():
+            raise RuntimeError('Bundled library escapes verified own SDK scope; STOP')
+        info=package.getinfo(member); raw=package.read(member)
+        symlink=(info.external_attr>>16)&0o170000==0o120000
+        if symlink:
+            link=raw.decode()
+            if not installed.is_symlink() or os.readlink(installed)!=link:
+                raise RuntimeError('Bundled library symlink does not match frozen archive; STOP')
+            # Match the resolved own-SDK file against its exact archive member.
+            resolved_member=installed.resolve().relative_to(sdk).as_posix()
+            target_info=package.getinfo(resolved_member)
+            if (target_info.external_attr>>16)&0o170000==0o120000 or not stat.S_ISREG(installed.resolve().lstat().st_mode):
+                raise RuntimeError('Resolved archive symlink target type mismatch; STOP')
+            reference=package.read(resolved_member)
+        else:
+            if installed.is_symlink() or not stat.S_ISREG(installed.lstat().st_mode):
+                raise RuntimeError('Archived regular library installed type mismatch; STOP')
+            resolved_member=member; reference=raw
+        actual=installed.read_bytes(); verified=hashlib.sha256(actual).digest()==hashlib.sha256(reference).digest()
+        rows.append({'name':name,'archiveMember':member,'resolvedArchiveMember':resolved_member,'installedPath':str(installed),'actualSha256':hashlib.sha256(actual).hexdigest(),'archiveFileSha256':hashlib.sha256(reference).hexdigest(),'verified':verified})
+        if verified:library_dirs.add(str(installed.parent.resolve()))
+    return rows,sorted(library_dirs)
 
 def own_qemu_evidence(sdk, reference_bytes):
     child=sdk/'emulator/qemu/linux-x86_64/qemu-system-x86_64'
@@ -30,10 +72,10 @@ def probe_text(raw, limit=8192):
     value=''.join('\\u%04x'%ord(c) if ord(c)<32 and c not in '\r\n\t' else c for c in value)
     return {'text':value,'fullBytes':len(raw),'truncated':len(raw)>limit,'sha256':hashlib.sha256(raw).hexdigest()}
 
-def diagnostic_probe(argv, record, persist, timeout=15):
+def diagnostic_probe(argv, record, persist, timeout=15, env=None):
     # The caller restricts these argv to the verified own-SDK binary only.
     try:
-        result=subprocess.run(argv,capture_output=True,timeout=timeout)
+        result=subprocess.run(argv,capture_output=True,timeout=timeout,env=env)
         record.update(argv=argv,exitCode=result.returncode,stdout=probe_text(result.stdout),stderr=probe_text(result.stderr),timedOut=False)
     except subprocess.TimeoutExpired as error:
         record.update(argv=argv,exitCode=None,stdout=probe_text(error.stdout or b''),stderr=probe_text(error.stderr or b''),timedOut=True)
@@ -110,19 +152,35 @@ def main():
         missing=missing_child_libraries(child_diagnostics['ldd'])
         report['qemuChildMissingDependencies']=missing
         save()
-        if missing or any(row.get('exitCode')!=0 or row.get('stdout',{}).get('truncated') or row.get('stderr',{}).get('truncated') for row in child_diagnostics.values()):
-            raise RuntimeError('Owned QEMU child dependency proof incomplete or missing; STOP before version/AVD/APK')
+        # Plain direct-child ldd lacks the launcher's library search setup.
+        # Retain it as a diagnostic, and measure genuine frontend execution first.
+        report['directChildLddIsDiagnosticNotLaunchVerdict']=True
+        save()
         probes=report.setdefault('binaryCommands',{})
         version_probe=diagnostic_probe([str(real),'-version'],probes.setdefault('version',{}),save)
-        if version_probe.get('exitCode')!=0:
-            raise RuntimeError('Owned -version failed; exit/stdout/stderr retained; STOP')
-        version=version_probe['stdout']['text']+version_probe['stderr']['text']
+        version=verified_frontend_text(version_probe)
         help_probe=diagnostic_probe([str(real),'-help-gpu'],probes.setdefault('gpuHelp',{}),save)
-        if help_probe.get('exitCode')!=0:
-            raise RuntimeError('Owned -help-gpu failed; exit/stdout/stderr retained; STOP')
-        help_text=help_probe['stdout']['text']+help_probe['stderr']['text']
+        help_text=verified_frontend_text(help_probe)
         report.update(versionText=version,gpuHelpText=help_text)
         save()
+        backend_guard(version,help_text,report['archiveActual']['sha1'],pin,True)
+        with zipfile.ZipFile(archive) as verified_package:
+            inventory,owned_dirs=verified_bundle_inventory(sdk,verified_package,missing)
+        report['directMissingBundleInventory']=inventory;save()
+        if any(not item['verified'] for item in inventory):
+            raise RuntimeError('Direct missing entry is not proven present in frozen SDK archive; STOP, do not guess packages')
+        # Diagnostic subprocess only. Never changes os.environ/GITHUB_ENV or
+        # app/AVD launch environment, and never appends a host search path.
+        child_env=os.environ.copy()
+        child_env['LD_LIBRARY_PATH']=':'.join(owned_dirs)
+        report['childDiagnosticLibraryDirs']=owned_dirs
+        report['actualLauncherChildEnvironmentCaptured']=False
+        contextual=report.setdefault('qemuVendorLayoutDiagnostics',{})
+        for key,argv in [('ldd',['ldd',child]),('readelfDynamic',['readelf','-d',child])]:
+            diagnostic_probe(argv,contextual.setdefault(key,{}),save,env=child_env)
+        report['contextualMissingDependencies']=missing_child_libraries(contextual['ldd']);save()
+        if report['contextualMissingDependencies'] or any(row.get('exitCode')!=0 or row.get('stdout',{}).get('truncated') or row.get('stderr',{}).get('truncated') for row in contextual.values()):
+            raise RuntimeError('Verified SDK-layout child context unresolved/incomplete; STOP')
         backend_guard(version, help_text, pin['archive']['checksum'], pin, True)
         # Retrieve only the pinned public package; never replace the installed SDK.
         archive = temp / 'official-emulator-16428233.zip'

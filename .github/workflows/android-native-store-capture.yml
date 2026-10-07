@@ -34,7 +34,7 @@ jobs:
           python3 - <<'PY'
           import json,os
           priority=['night-train-watch-protocol','tower-defense-skill','web-card-game-skill']
-          rest=['ashes-convoy','island-flight-school','taiwan-train-school','pixel-idle-farm-skill','storm-apocalypse','village-siege','taiwan-train-math','crackveil-vanguard','seven-district-reckoning']
+          rest=['ashes-convoy','island-flight-school','taiwan-train-school','pixel-idle-farm-skill','storm-apocalypse','village-siege','taiwan-train-math','taiwan-island-drive','crackveil-vanguard','seven-district-reckoning']
           value=os.environ['PROJECT']
           choices=priority if value=='priority' else rest if value=='remaining' else [value]
           if any(p not in priority+rest+['taiwan-island-drive'] for p in choices):raise SystemExit('Unapproved project selector')

@@ -11,6 +11,23 @@ from pathlib import Path
 
 PROJECT = 'crackveil-vanguard'
 
+def probe_text(raw, limit=8192):
+    value=raw[:limit].decode('utf-8','backslashreplace')
+    value=''.join('\\u%04x'%ord(c) if ord(c)<32 and c not in '\r\n\t' else c for c in value)
+    return {'text':value,'fullBytes':len(raw),'truncated':len(raw)>limit,'sha256':hashlib.sha256(raw).hexdigest()}
+
+def diagnostic_probe(argv, record, persist, timeout=15):
+    # The caller restricts these argv to the verified own-SDK binary only.
+    try:
+        result=subprocess.run(argv,capture_output=True,timeout=timeout)
+        record.update(argv=argv,exitCode=result.returncode,stdout=probe_text(result.stdout),stderr=probe_text(result.stderr),timedOut=False)
+    except subprocess.TimeoutExpired as error:
+        record.update(argv=argv,exitCode=None,stdout=probe_text(error.stdout or b''),stderr=probe_text(error.stderr or b''),timedOut=True)
+    except FileNotFoundError:
+        record.update(argv=argv,exitCode=None,toolUnavailable=True,stdout=probe_text(b''),stderr=probe_text(b''),timedOut=False)
+    persist()
+    return record
+
 def scope_guard(env, avd):
     run_id = env.get('GITHUB_RUN_ID', '')
     if env.get('GITHUB_ACTIONS') != 'true' or env.get('GITHUB_REPOSITORY') != 'mars-tw/taiwan-train-math' or not run_id.isdigit():
@@ -45,9 +62,40 @@ def main():
     def save():
         (output / 'sdk-preflight.json').write_text(json.dumps(report, indent=2) + '\n')
     try:
-        version = subprocess.check_output([str(exe), '-version'], stderr=subprocess.STDOUT).decode('utf-8', 'replace')
-        help_text = subprocess.check_output([str(exe), '-help-gpu'], stderr=subprocess.STDOUT).decode('utf-8', 'replace')
-        report.update(versionText=version, gpuHelpText=help_text, binarySha256=hashlib.sha256(exe.read_bytes()).hexdigest())
+        real=exe.resolve()
+        if not real.is_relative_to(sdk / 'emulator') or not exe.is_file():
+            raise RuntimeError('Owned isolated emulator binary scope mismatch; STOP')
+        report['binaryEvidence']={'path':str(exe),'realpath':str(real),'executable':os.access(exe,os.X_OK),'mode':oct(exe.stat().st_mode & 0o777),'bytes':exe.stat().st_size,'elfMagic':exe.open('rb').read(4).hex()}
+        report['binarySha256']=hashlib.sha256(exe.read_bytes()).hexdigest()
+        archive=temp/'official-emulator-16428233.zip'
+        if archive.is_file():
+            report['archiveActual']={'path':str(archive),'bytes':archive.stat().st_size,'sha1':hashlib.file_digest(archive.open('rb'),'sha1').hexdigest(),'sha256':hashlib.file_digest(archive.open('rb'),'sha256').hexdigest()}
+            report['archiveActualMatchesExpected']=report['archiveActual']['bytes']==pin['archive']['bytes'] and report['archiveActual']['sha1']==pin['archive']['checksum']
+        else:
+            report['archiveActual']=None
+            report['archiveActualMatchesExpected']=False
+        bootstrap=output/'bootstrap-archive-proof.json'
+        report['bootstrapProof']=json.loads(bootstrap.read_text()) if bootstrap.is_file() else None
+        save()
+        if report['archiveActualMatchesExpected'] is not True:
+            raise RuntimeError('Actual archive did not match frozen official pin; STOP')
+        with zipfile.ZipFile(archive) as owned_package:
+            if hashlib.sha256(owned_package.read('emulator/emulator')).hexdigest()!=report['binarySha256']:
+                raise RuntimeError('Owned binary does not match verified official archive; STOP')
+        report['loaderDiagnostics']={}
+        for key,argv in [('ldd',['ldd',str(real)]),('readelfDynamic',['readelf','-d',str(real)])]:
+            row=report['loaderDiagnostics'].setdefault(key,{})
+            diagnostic_probe(argv,row,save)
+        probes=report.setdefault('binaryCommands',{})
+        version_probe=diagnostic_probe([str(real),'-version'],probes.setdefault('version',{}),save)
+        if version_probe.get('exitCode')!=0:
+            raise RuntimeError('Owned -version failed; exit/stdout/stderr retained; STOP')
+        version=version_probe['stdout']['text']+version_probe['stderr']['text']
+        help_probe=diagnostic_probe([str(real),'-help-gpu'],probes.setdefault('gpuHelp',{}),save)
+        if help_probe.get('exitCode')!=0:
+            raise RuntimeError('Owned -help-gpu failed; exit/stdout/stderr retained; STOP')
+        help_text=help_probe['stdout']['text']+help_probe['stderr']['text']
+        report.update(versionText=version,gpuHelpText=help_text)
         save()
         backend_guard(version, help_text, pin['archive']['checksum'], pin, True)
         # Retrieve only the pinned public package; never replace the installed SDK.

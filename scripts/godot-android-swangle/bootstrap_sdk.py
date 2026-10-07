@@ -21,7 +21,12 @@ def main():
     with urllib.request.urlopen(pin['archive']['url'], timeout=30) as source, archive.open('wb') as output:
         while block := source.read(1024 * 1024):
             output.write(block)
-    if archive.stat().st_size != pin['archive']['bytes'] or hashlib.file_digest(archive.open('rb'), 'sha1').hexdigest() != pin['archive']['checksum']:
+    actual={'bytes':archive.stat().st_size,'sha1':hashlib.file_digest(archive.open('rb'),'sha1').hexdigest(),'sha256':hashlib.file_digest(archive.open('rb'),'sha256').hexdigest()}
+    verified=actual['bytes']==pin['archive']['bytes'] and actual['sha1']==pin['archive']['checksum']
+    output=Path(os.environ['GITHUB_WORKSPACE']).resolve()/'output/godot-swangle-preflight'
+    output.mkdir(parents=True,exist_ok=True)
+    (output/'bootstrap-archive-proof.json').write_text(json.dumps({'archivePath':str(archive),'expectedPin':pin['archive'],'actual':actual,'archiveVerifiedAgainstOfficialPin':verified},indent=2)+'\n')
+    if not verified:
         raise RuntimeError('Pinned public SDK package did not verify; STOP')
     with zipfile.ZipFile(archive) as package:
         for entry in package.infolist():

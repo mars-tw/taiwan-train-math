@@ -83,6 +83,13 @@ try {
   await fs.mkdir(path.join(output, 'raw-screenshots'), { recursive: true });
   for (const [kind, model] of [['iphone', phone[0]], ['ipad', tablet[0]]]) {
     if (!(model.minRuntimeVersion <= encoded && encoded <= model.maxRuntimeVersion)) throw new Error('Actual model/runtime mismatch');
+    const runner = path.join(scratch, kind + '-runner');
+    await command(kind + '-generate-runner', ['python3', path.join(scripts, 'create-godot-capture-project.py'), runner, project, kind]);
+    // The observed Xcode formatter error must fail before spending time booting
+    // a fresh device. This builds only the small independent UI-test runner.
+    await command(kind + '-runner-build', ['xcodebuild', '-project', path.join(runner, 'Capture.xcodeproj'), '-scheme', 'Capture',
+      '-sdk', 'iphonesimulator', '-destination', 'generic/platform=iOS Simulator', '-derivedDataPath', path.join(scratch, kind + '-derived-tests'),
+      'CODE_SIGNING_ALLOWED=NO', 'ARCHS=x86_64', 'ONLY_ACTIVE_ARCH=YES', 'build-for-testing'], { timeout: 600000 });
     const device = (await command(kind + '-create', ['xcrun', 'simctl', 'create', 'Mars-Godot-Capture-' + project + '-' + kind, model.identifier, runtime.identifier])).text.trim();
     if (!/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(device) || previous.has(device.toLowerCase())) throw new Error('Not a new owned Simulator');
     devices.push(device);
@@ -90,8 +97,6 @@ try {
     await command(kind + '-bootstatus', ['xcrun', 'simctl', 'bootstatus', device, '-b'], { timeout: 600000 });
     await command(kind + '-statusbar', ['xcrun', 'simctl', 'status_bar', device, 'override', '--time', '9:41', '--batteryState', 'charged', '--batteryLevel', '100']);
     await command(kind + '-install', ['xcrun', 'simctl', 'install', device, app], { timeout: 360000 });
-    const runner = path.join(scratch, kind + '-runner');
-    await command(kind + '-generate-runner', ['python3', path.join(scripts, 'create-godot-capture-project.py'), runner, project, kind]);
     // The console is attached only to this fresh own game. No system log stream.
     const consoleLog = createWriteStream(path.join(scratch, kind + '-own-game-console.log'), { flags: 'wx', mode: 0o600 });
     const consoleProcess = spawn('xcrun', ['simctl', 'launch', '--terminate-running-process', '--console-pty', device, appId], { stdio: ['ignore', 'pipe', 'pipe'] });

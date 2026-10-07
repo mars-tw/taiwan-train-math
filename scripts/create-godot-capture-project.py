@@ -119,7 +119,7 @@ final class CaptureUITests: XCTestCase {
                     let normalized = CGVector(dx:(point.x-frame.minX)/frame.width,dy:(point.y-frame.minY)/frame.height)
                     let coordinate = app.coordinate(withNormalizedOffset: normalized)
                     guard abs(coordinate.screenPoint.x-point.x) < 1, abs(coordinate.screenPoint.y-point.y) < 1 else { print("CAPTURE_OCR_SCREEN_POINT_MISMATCH"); return nil }
-                    print("CAPTURE_OCR_CONTRACT=scope:app;exif:" + String(orientation.rawValue) + ";confidence:" + String(text.confidence) + ";bbox:" + NSStringFromCGRect(bbox) + ";frame:" + NSStringFromCGRect(frame) + ";screenPoint:" + NSStringFromCGPoint(point))
+                    print("CAPTURE_OCR_CONTRACT=scope:app;exif:" + String(orientation.rawValue) + ";confidence:" + String(text.confidence) + ";bbox:" + String(describing:bbox) + ";frame:" + String(describing:frame) + ";screenPoint:" + String(describing:point))
                     return normalized
                 }
             }

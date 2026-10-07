@@ -79,7 +79,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "$ANDROID_AVD_HOME" "$ANDROID_USER_HOME"
-          echo no | "$BASE_AVDMANAGER" create avd --name "$NATIVE_AVD_NAME" --package 'system-images;android-36;google_apis;x86_64' --device pixel_2
+          echo no | "$ISOLATED_AVDMANAGER" create avd --name "$NATIVE_AVD_NAME" --package 'system-images;android-36;google_apis;x86_64' --device pixel_2
           python3 scripts/android-native-store-capture/device_config.py --name "$NATIVE_AVD_NAME" --family phone
       - name: Cold/warm framebuffer and actual GL observation; no game Start tap
         run: python3 scripts/godot-android-swangle/observe.py

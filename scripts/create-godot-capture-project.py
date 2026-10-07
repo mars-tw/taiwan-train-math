@@ -135,8 +135,11 @@ final class CaptureUITests: XCTestCase {
                     guard let point = screenPoint(CGPoint(x:bbox.midX,y:bbox.midY),frame:frame), frame.contains(point), app.frame == frame else { print("CAPTURE_OCR_FRAME_CHANGED_OR_POINT_OUTSIDE"); return nil }
                     let normalized = CGVector(dx:(point.x-frame.minX)/frame.width,dy:(point.y-frame.minY)/frame.height)
                     let coordinate = app.coordinate(withNormalizedOffset: normalized)
-                    guard abs(coordinate.screenPoint.x-point.x) < 1, abs(coordinate.screenPoint.y-point.y) < 1 else { print("CAPTURE_OCR_SCREEN_POINT_MISMATCH"); return nil }
-                    print("CAPTURE_OCR_CONTRACT=scope:full-screen-matching-app;exif:" + String(orientation.rawValue) + ";confidence:" + String(text.confidence) + ";bbox:" + String(describing:bbox) + ";frame:" + String(describing:frame) + ";screenPoint:" + String(describing:point))
+                    let actual = coordinate.screenPoint
+                    // Preserve failed coordinate evidence too. A recognized
+                    // visible label does not prove that the touch axes match.
+                    print("CAPTURE_OCR_POINT_CONTRACT=scope:full-screen-matching-app;exif:" + String(orientation.rawValue) + ";confidence:" + String(text.confidence) + ";bbox:" + String(describing:bbox) + ";frame:" + String(describing:frame) + ";normalized:" + String(describing:normalized) + ";expectedPoint:" + String(describing:point) + ";actualPoint:" + String(describing:actual))
+                    guard abs(actual.x-point.x) < 1, abs(actual.y-point.y) < 1 else { print("CAPTURE_OCR_SCREEN_POINT_MISMATCH"); return nil }
                     return normalized
                 }
             }
@@ -164,7 +167,7 @@ final class CaptureUITests: XCTestCase {
             print("CAPTURE_OCR_POINT=x:" + String(Double(point.dx)) + ";y:" + String(Double(point.dy)))
             app.coordinate(withNormalizedOffset: point).tap()
         } else {
-            XCTFail("OWN_GAME_START_LABEL_NOT_VISIBLE_AFTER_90_SECONDS")
+            XCTFail("OWN_GAME_START_INPUT_UNVERIFIED_AFTER_90_SECONDS")
             return
         }
         Thread.sleep(forTimeInterval: 20)

@@ -46,8 +46,14 @@ jobs:
           repo=os.environ['GITHUB_REPOSITORY']
           if repo!='mars-tw/taiwan-train-math':raise SystemExit('Source release must belong to the calling trusted repository')
           try:
-              result=subprocess.run(['gh','api','repos/'+repo+'/releases/tags/'+tag],capture_output=True,text=True,timeout=60,check=True)
-              release=json.loads(result.stdout)
+              # The tag lookup is for published releases and returns 404 for
+              # this real DRAFT even with push access. List drafts, then bind
+              # exactly one release to the approved tag before downloading.
+              result=subprocess.run(['gh','api','--paginate','--slurp','repos/'+repo+'/releases?per_page=100'],capture_output=True,text=True,timeout=60,check=True)
+              pages=json.loads(result.stdout)
+              matches=[item for page in pages for item in page if item.get('tag_name')==tag and item.get('draft') is True]
+              if len(matches)!=1:raise ValueError('Need exactly one approved DRAFT tag')
+              release=matches[0]
           except Exception:raise SystemExit('Cannot verify the same-repository draft release') from None
           if release.get('draft') is not True or release.get('tag_name')!=tag:raise SystemExit('Expected an actual DRAFT release')
           base=pathlib.Path(os.environ['RUNNER_TEMP'])/'godot-ios-input';base.mkdir(mode=0o700)

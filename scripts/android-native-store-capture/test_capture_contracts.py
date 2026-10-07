@@ -64,5 +64,7 @@ class Contracts(unittest.TestCase):
  def test_observed_current_start_labels_match_signed_apps(self):
   for project,label in [('ashes-convoy','開始出勤'),('storm-apocalypse','確認屠夫老闆娘'),('pixel-idle-farm-skill','把農場接回來')]:
    self.assertIsNotNone(driver.observed_target([self.node(text=label)],[driver.ACTIONS[project][0]],1080,1920,'tw.test.app'))
+  self.assertIsNotNone(driver.observed_target([self.node(text='準備起飛 ↗')],[driver.ACTIONS['island-flight-school'][0]],1080,1920,'tw.test.app'))
+  self.assertTrue(driver.observed_loading([self.node(text='把車準備好，把心留給風景。')],'tw.test.app'))
 
 if __name__=='__main__':unittest.main()

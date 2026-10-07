@@ -12,6 +12,7 @@ import path from 'node:path';
 
 const APP_ID = 'tw.mars.sevendistrictreckoning';
 const HTTP_TIMEOUT = 180000;
+const SESSION_CREATE_OUTER_TIMEOUT = 1000000;
 const READY_TIMEOUT = 90000;
 const OBSERVATION_TIMEOUT = 600000;
 const RESPONSE_LIMIT = 64 * 1024 * 1024;
@@ -28,6 +29,7 @@ const ERRORS = Object.freeze({
   SIMULATOR_UI_RUNNING: 'A Simulator UI process already exists; headless startup was refused without terminating it.',
   SIMULATOR_UI_PROBE_FAILED: 'The absence of Simulator UI could not be confirmed; headless startup was refused.',
   HTTP_TIMEOUT: 'An Appium request exceeded its 180 second limit; it was not retried.',
+  SESSION_OUTER_DEADLINE: 'Session creation exceeded its outer1000 second diagnostic deadline; inner readiness remains unverified; no retry.',
   HTTP_ABORTED: 'An Appium request was cancelled during bounded cleanup; it was not retried.',
   HTTP_FAILED: 'An Appium request failed; it was not retried.',
   HTTP_REJECTED: 'Appium rejected a request; it was not retried.',
@@ -261,6 +263,9 @@ export async function runAppiumSession({ appiumBin, udid, bundleId, model, platf
   function noteAlive(phase) {observe(() => {if(!Number.isInteger(child?.pid)||child.pid<1)return;let alive='unknown';
     try{process.kill(child.pid,0);alive='present';}catch(error){if(error.code==='ESRCH')alive='absent';}
     report.bootstrapFacts.aliveBoundary={phase,pid:child.pid,alive,elapsedMs:Math.round(performance.now()-bootstrapStarted)};});}
+  report.requestBudgetFacts = { otherHttpMs:HTTP_TIMEOUT, sessionCreateOuterMs:SESSION_CREATE_OUTER_TIMEOUT,
+    wdaLaunchMs:HTTP_TIMEOUT, wdaConnectionMs:HTTP_TIMEOUT, pinnedNominalWdaPollMs:719000,
+    observedPrepMs:20721, postReadyWdaSessionMs:180000, finiteDiagnosticMarginMs:80279 };
   const controllers = new Set();
 
   async function request(method, suffix, payload, outerSignal) {
@@ -271,7 +276,8 @@ export async function runAppiumSession({ appiumBin, udid, bundleId, model, platf
     const controller = new AbortController();
     controllers.add(controller);
     let timedOut = false;
-    const timer = setTimeout(() => { timedOut = true; controller.abort(); }, HTTP_TIMEOUT);
+    const outerTimeout = method === 'POST' && suffix === '/session' ? SESSION_CREATE_OUTER_TIMEOUT : HTTP_TIMEOUT;
+    const timer = setTimeout(() => { timedOut = true; controller.abort(); }, outerTimeout);
     try {
       const response = await fetch(url, { method, redirect: 'error',
         signal: outerSignal ? AbortSignal.any([controller.signal, outerSignal]) : controller.signal,
@@ -297,7 +303,7 @@ export async function runAppiumSession({ appiumBin, udid, bundleId, model, platf
       return data.value;
     } catch (error) {
       if (error instanceof SessionError) throw error;
-      if (timedOut) fail('HTTP_TIMEOUT');
+      if (timedOut) fail(outerTimeout === SESSION_CREATE_OUTER_TIMEOUT ? 'SESSION_OUTER_DEADLINE' : 'HTTP_TIMEOUT');
       if (controller.signal.aborted || outerSignal?.aborted) fail('HTTP_ABORTED');
       fail('HTTP_FAILED');
     } finally { clearTimeout(timer); controllers.delete(controller); }

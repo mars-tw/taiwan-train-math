@@ -14,6 +14,8 @@ const MODES = Object.freeze({
   'crack-store-phone': { project: 'crackveil-vanguard', name: 'CrackveilVanguard', appId: 'tw.mars.crackveilvanguard', kinds: ['iphone'] },
 });
 const PIXELS = { iphone: [1320, 2868], ipad: [2064, 2752] };
+// Observer child lifetime only; this is not an App startup/performance gate.
+const SEVEN_COLD_CONSOLE_WATCHDOG = 2200000;
 const UUID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
 const TYPE = /^com\.apple\.CoreSimulator\.SimDeviceType\.[A-Za-z0-9.-]+$/;
 const sha = bytes => createHash('sha256').update(bytes).digest('hex');
@@ -371,7 +373,12 @@ export async function captureNative({ mode, source, metadata, verifier, output }
       await command(model.kind + '-install', ['xcrun', 'simctl', 'install', udid, app], { timeout: 360000 });
       let coldConsole, warmConsole;
       try {
-        coldConsole = await startProcess(model.kind + '-cold-own-game-console', ['xcrun', 'simctl', 'launch', '--console-pty', udid, recipe.appId], 900000);
+        const coldConsoleWatchdog = mode === 'seven-appium' ? SEVEN_COLD_CONSOLE_WATCHDOG : 900000;
+        result.coldConsoleObserverBudget = { watchdogMs:coldConsoleWatchdog, performanceAcceptanceGate:false,
+          ...(mode === 'seven-appium' ? { sessionOuterMs:1000000, serverReadyMs:90000,
+            preDriverWaitMs:8000, preDriverRawCommandMs:180000, preDriverMetadataCommandMs:180000,
+            observationMs:600000, finiteMarginMs:142000 } : {}) };
+        coldConsole = await startProcess(model.kind + '-cold-own-game-console', ['xcrun', 'simctl', 'launch', '--console-pty', udid, recipe.appId], coldConsoleWatchdog);
         if(mode==='seven-appium'){
           result.preDriverNative8 = await capturePreDriverNative8({wait:pause,ownConsole:coldConsole,capture:(stage,vision)=>rawShot(device,stage,vision)});
           await publish();

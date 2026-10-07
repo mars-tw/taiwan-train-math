@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 
 const publicEntries = [
   "index.html", "privacy.html", "support.html", "manifest.webmanifest", "src", "data", "assets", "docs",
-  "LICENSE", "NOTICE", "ASSET-LICENSE.md", "PRIVACY.md",
+  "LICENSE", "NOTICE", "ASSET-LICENSE.md", "PRIVACY.md", "games",
 ];
 
 async function publicFiles(root) {

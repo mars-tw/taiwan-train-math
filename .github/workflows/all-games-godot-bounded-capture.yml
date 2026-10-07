@@ -7,7 +7,7 @@ on:
         type: choice
         required: true
         default: seven-only
-        options: [seven-only, both]
+        options: [seven-only, crack-store-phone, both]
 
 permissions:
   contents: read
@@ -80,6 +80,8 @@ jobs:
             scripts/godot-appium-runtime/package-lock.json
             scripts/godot-appium-session.mjs
             scripts/godot-bounded-native-capture.mjs
+            scripts/create-godot-capture-project.py
+            scripts/create-godot-store-screen-project.py
           sparse-checkout-cone-mode: false
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
@@ -122,13 +124,17 @@ jobs:
           test "$(npm --version | cut -d. -f1)" = 10
           npm ci --prefix scripts/godot-appium-runtime --ignore-scripts --no-audit --no-fund
       - name: Seven true visible Start and warm relaunch with official Appium
-        if: steps.source.outcome == 'success' && steps.appium.outcome == 'success'
+        if: steps.source.outcome == 'success' && steps.appium.outcome == 'success' && inputs.capture_mode != 'crack-store-phone'
         run: |
           node scripts/godot-bounded-native-capture.mjs seven-appium "$RUNNER_TEMP/godot-bounded-source-seven-district-reckoning" "$RUNNER_TEMP/godot-bounded-input/seven-district-reckoning-source-verification.json" "$RUNNER_TEMP/godot-bounded-input/ci_verify_godot_ios.py" "$GITHUB_WORKSPACE/output/godot-bounded/seven-district-reckoning"
       - name: Crack phone-only cold and warm capture without accessibility queries
         if: always() && steps.source.outcome == 'success' && inputs.capture_mode == 'both'
         run: |
           node scripts/godot-bounded-native-capture.mjs crack-phone "$RUNNER_TEMP/godot-bounded-source-crackveil-vanguard" "$RUNNER_TEMP/godot-bounded-input/crackveil-vanguard-source-verification.json" "$RUNNER_TEMP/godot-bounded-input/ci_verify_godot_ios.py" "$GITHUB_WORKSPACE/output/godot-bounded/crackveil-vanguard"
+      - name: Crack Phone native landscape screen-only XCTest captures
+        if: always() && steps.source.outcome == 'success' && inputs.capture_mode == 'crack-store-phone'
+        run: |
+          node scripts/godot-bounded-native-capture.mjs crack-store-phone "$RUNNER_TEMP/godot-bounded-source-crackveil-vanguard" "$RUNNER_TEMP/godot-bounded-input/crackveil-vanguard-source-verification.json" "$RUNNER_TEMP/godot-bounded-input/ci_verify_godot_ios.py" "$GITHUB_WORKSPACE/output/godot-bounded/crackveil-vanguard"
       - name: Remove only owned input and extracted source directories
         if: always()
         run: |

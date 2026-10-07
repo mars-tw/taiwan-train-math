@@ -11,6 +11,7 @@ const scripts = path.dirname(fileURLToPath(import.meta.url));
 const MODES = Object.freeze({
   'seven-appium': { project: 'seven-district-reckoning', name: 'SevenDistrict', appId: 'tw.mars.sevendistrictreckoning', kinds: ['iphone', 'ipad'] },
   'crack-phone': { project: 'crackveil-vanguard', name: 'CrackveilVanguard', appId: 'tw.mars.crackveilvanguard', kinds: ['iphone'] },
+  'crack-store-phone': { project: 'crackveil-vanguard', name: 'CrackveilVanguard', appId: 'tw.mars.crackveilvanguard', kinds: ['iphone'] },
 });
 const PIXELS = { iphone: [1320, 2868], ipad: [2064, 2752] };
 const UUID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
@@ -316,7 +317,62 @@ export async function captureNative({ mode, source, metadata, verifier, output }
       let coldConsole, warmConsole;
       try {
         coldConsole = await startProcess(model.kind + '-cold-own-game-console', ['xcrun', 'simctl', 'launch', '--console-pty', udid, recipe.appId], 900000);
-        if (mode === 'crack-phone') {
+        if (mode === 'crack-store-phone') {
+          const runner = path.join(scratch, 'store-phone-runner'), derived = path.join(scratch, 'derived-store-tests');
+          await command('generate-screen-only-runner', ['python3', path.join(scripts, 'create-godot-store-screen-project.py'), runner]);
+          await command('build-screen-only-runner', ['xcodebuild', '-project', path.join(runner, 'Capture.xcodeproj'), '-scheme', 'Capture',
+            '-sdk', 'iphonesimulator', '-destination', 'generic/platform=iOS Simulator', '-derivedDataPath', derived,
+            'CODE_SIGNING_ALLOWED=NO', 'ARCHS=x86_64', 'EXCLUDED_ARCHS=arm64', 'ONLY_ACTIVE_ARCH=YES', 'build-for-testing'], { timeout: 600000 });
+          const resultPath = path.join(scratch, 'screen-only.xcresult');
+          const test = await command('screen-only-xctest', ['xcodebuild', '-project', path.join(runner, 'Capture.xcodeproj'), '-scheme', 'Capture',
+            '-destination', 'platform=iOS Simulator,id=' + udid, '-derivedDataPath', derived, '-resultBundlePath', resultPath,
+            '-parallel-testing-enabled', 'NO', 'CODE_SIGNING_ALLOWED=NO', 'ARCHS=x86_64', 'EXCLUDED_ARCHS=arm64',
+            'ONLY_ACTIVE_ARCH=YES', 'test-without-building'], { timeout: 900000, allowFailure: true });
+          result.actualXCTestExit = test.code; result.actualXCTest = true; result.frameAccessibilityQueryUsed = false;
+          const phases = test.text.split(/\r?\n/).filter(line => /^STORE_SCREEN_(?:PRE_CAPTURE|PHASE|RAW_SHA256)=/.test(line));
+          result.screenOnlyPhases = phases.slice(-15);
+          const geometry = test.text.split(/\r?\n/).filter(line => line.startsWith('STORE_SCREEN_GEOMETRY=')).map(line => {
+            const data = JSON.parse(line.slice('STORE_SCREEN_GEOMETRY='.length));
+            if (!['cold90', 'warm90'].includes(data.stage) || !['deviceOrientation', 'imageOrientation', 'imageWidth', 'imageHeight',
+              'imageScale', 'cgWidth', 'cgHeight', 'pngOrientation'].every(key => Number.isFinite(data[key]))) fail('SCREEN_ONLY_GEOMETRY_INVALID');
+            return data;
+          });
+          result.screenOnlyGeometry = geometry;
+          const exported = path.join(scratch, 'screen-only-attachments'); await fs.mkdir(exported);
+          const exportedResult = await command('export-screen-only-attachments', ['xcrun', 'xcresulttool', 'export', 'attachments',
+            '--path', resultPath, '--output-path', exported], { allowFailure: true });
+          if (exportedResult.code === 0) {
+            const manifest = JSON.parse(await fs.readFile(path.join(exported, 'manifest.json'), 'utf8'));
+            const walk = node => Array.isArray(node) ? node.flatMap(walk) : !node || typeof node !== 'object' ? []
+              : (typeof node.exportedFileName === 'string' ? [node] : []).concat(Object.values(node).flatMap(walk));
+            const selected = walk(manifest).filter(item => /^iphone-(cold90|warm90)-raw(?:[^A-Za-z0-9]|$)/.test(String(item.suggestedHumanReadableName || '')));
+            for (const item of selected) {
+              const stage = String(item.suggestedHumanReadableName).match(/^iphone-(cold90|warm90)-raw/)[1];
+              if (!/^[A-Za-z0-9_.-]+\.png$/i.test(item.exportedFileName) || result.screenshots.some(shot => shot.stage === stage)) fail('ORIGINAL_SCREEN_ATTACHMENT_REQUIRED');
+              const rawFile = `raw-screenshots/iphone-${stage}-raw.png`, rgbFile = `screenshots/iphone-${stage}.png`;
+              const raw = await fs.readFile(path.join(exported, item.exportedFileName));
+              await fs.writeFile(path.join(output, rawFile), raw, { flag: 'wx' });
+              if (raw.subarray(0, 8).toString('hex') !== '89504e470d0a1a0a') fail('ORIGINAL_SCREEN_ATTACHMENT_REQUIRED');
+              const shot = { stage, rawFile, rawSha256: sha(raw), rawBytes: raw.length, originalXCUIScreenPng: true, screenshotResized: false };
+              result.screenshots.push(shot); await publish();
+              const image = await command('screen-only-' + stage + '-image-info', ['xcrun', 'swift', path.join(scratch, 'native-image.swift'),
+                path.join(output, rawFile), path.join(output, rgbFile), 'metadata']);
+              const metadata = JSON.parse(image.stdout), g = geometry.find(item => item.stage === stage), exifs = [1, 3, 8, 6, 2, 4, 5, 7];
+              const rgb = await fs.readFile(path.join(output, rgbFile));
+              if (!g || g.deviceOrientation !== 4 || g.imageWidth <= g.imageHeight || g.imageWidth * g.imageScale !== 2868
+                || g.imageHeight * g.imageScale !== 1320 || exifs[g.imageOrientation] !== metadata.geometry.exifOrientation
+                || metadata.geometry.semanticWidth !== 2868 || metadata.geometry.semanticHeight !== 1320
+                || raw.readUInt32BE(16) !== g.cgWidth || raw.readUInt32BE(20) !== g.cgHeight || rgb[25] !== 2
+                || rgb.readUInt32BE(16) !== g.cgWidth || rgb.readUInt32BE(20) !== g.cgHeight) fail('NATIVE_LANDSCAPE_SCREEN_CONTRACT_FAILED');
+              Object.assign(shot, { width:g.cgWidth, height:g.cgHeight, rgbFile, rgbSha256:sha(rgb), rgbBytes:rgb.length, rgbNoAlpha:true,
+                exifOrientation:metadata.geometry.exifOrientation, semanticWidth:2868, semanticHeight:1320,
+                nativeDeviceLandscapeOrientationVerified:true, storePixelsRequireVisualReview:true });
+              await publish();
+            }
+          }
+          if (test.code !== 0 || test.timedOut || result.screenshots.length !== 2) fail('SCREEN_ONLY_XCTEST_FAILED');
+          result.status = 'completed';
+        } else if (mode === 'crack-phone') {
           await pause(90000);
           result.consoleSurvivedColdWait = !coldConsole.closed;
           await rawShot(device, 'cold90');

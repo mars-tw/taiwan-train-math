@@ -2,6 +2,7 @@
 import ast
 import importlib.util
 import sys
+import tempfile
 import unittest
 from unittest.mock import patch
 from pathlib import Path
@@ -9,6 +10,7 @@ import yaml
 sys.dont_write_bytecode=True
 folder=Path(__file__).resolve().parent
 spec=importlib.util.spec_from_file_location('capture_driver',folder/'capture.py');driver=importlib.util.module_from_spec(spec);spec.loader.exec_module(driver)
+spec2=importlib.util.spec_from_file_location('device_configuration',folder/'device_config.py');device=importlib.util.module_from_spec(spec2);spec2.loader.exec_module(device)
 
 class Contracts(unittest.TestCase):
  def node(self,**change):
@@ -44,5 +46,15 @@ class Contracts(unittest.TestCase):
  def test_runner_context_not_used_in_job_env_before_runner_is_assigned(self):
   data=yaml.safe_load((folder.parents[1]/'.github/workflows/android-native-store-capture.yml').read_text())
   for job in data['jobs'].values():self.assertNotIn('runner.',str(job.get('env',{})))
+ def test_actual_runner_standard_avd_root_sets_tablet_dimensions_without_touching_other_avds(self):
+  with tempfile.TemporaryDirectory() as temp:
+   root=Path(temp);home=root/'fresh-ci-home';avds=home/'.android/avd';name='NativeCaptureTablet_123_tower';target=avds/(name+'.avd')/'config.ini';target.parent.mkdir(parents=True);target.write_text('hw.lcd.width=2560\nhw.lcd.height=1800\n')
+   other=avds/'UntouchedUserDevice.avd/config.ini';other.parent.mkdir();other.write_text('untouched')
+   device.configure(name,'tablet',avds,root/'runner-temp',home)
+   self.assertIn('hw.lcd.width=1200',target.read_text());self.assertIn('hw.lcd.height=1920',target.read_text());self.assertEqual(other.read_text(),'untouched')
+   with self.assertRaises(ValueError):device.configure('ShopeeDevice','tablet',avds,root/'runner-temp',home)
+ def test_actual_card_android_accessibility_label_is_supported(self):
+  node=self.node(text='略過教學')
+  self.assertIsNotNone(driver.observed_target([node],[driver.ACTIONS['web-card-game-skill'][0]],1080,1920,'tw.test.app'))
 
 if __name__=='__main__':unittest.main()

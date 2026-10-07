@@ -18,7 +18,7 @@ from PIL import Image,ImageChops
 ACTIONS={
  'night-train-watch-protocol':[r'R01.*灰霧',r'^(開始旅程|繼續|開始這段)'],
  'tower-defense-skill':[r'^快速開始',r'^建議位',r'^確認建(塔|造)'],
- 'web-card-game-skill':[r'^略過$',r'^結束回合'],
+ 'web-card-game-skill':[r'^略過(?:教學)?$',r'^結束回合'],
  'ashes-convoy':[r'^出勤',r'^(開始護送|開始出勤|出發)'],
  'island-flight-school':[r'^(開始飛行|跟我飛|開始課程|開始練習|起飛)',r'^繼續'],
  'taiwan-train-school':[r'準備出發',r'開始前進'],

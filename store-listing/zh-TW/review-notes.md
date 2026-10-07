@@ -11,7 +11,7 @@
 | App 名稱 | 小小列車長 |
 | Bundle ID／package | tw.mars.trainmath；Apple App ID 6819930616 |
 | Version／Build | 原生 1.0.0／1；Web 1.11.0 不當作原生商店版本 |
-| final IPA／AAB SHA-256 | IPA：220196e11802c3b16882ce990d7d06f509eaead0a1a5dafabcd6fe7686a5baa4；AAB：57f2a8b7d0f9f88cad3740a18c763fd6fca38c068496b362853c1434ada8983e |
+| 已上傳 IPA／AAB SHA-256 | IPA：6345cb09d36918b21b745c62399e18944d0b66c06db1351b44dac9754863ee8a；AAB：57f2a8b7d0f9f88cad3740a18c763fd6fca38c068496b362853c1434ada8983e |
 | 客服與回報 email | a820628a@gmail.com |
 | Review 聯絡姓名／電話 | 未設定 |
 | 示範帳號 | 不需要，App 無登入 |

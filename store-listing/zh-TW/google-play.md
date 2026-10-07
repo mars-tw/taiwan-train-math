@@ -10,7 +10,7 @@
 | --- | --- |
 | App 名稱 | 小小列車長 |
 | 公開開發者名稱 | MARS_TW，已由使用者確認 |
-| Package name | tw.mars.trainmath，平台建立待確認 |
+| Package name | tw.mars.trainmath；Console App ID 4972173962708950327 |
 | 客服 email | a820628a@gmail.com |
 | App 或遊戲／類別 | 遊戲；教育類，最終 Console 設定待確認 |
 | 目標年齡 | 建議 5 歲以下、6–8 歲，按最終包填寫；不因家長陪玩勾選成人群組 |

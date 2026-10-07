@@ -1,0 +1,19 @@
+{
+  "updatedAt": "2026-10-07",
+  "appId": "6819930616",
+  "bundleId": "tw.mars.trainmath",
+  "version": "1.0.0",
+  "buildNumber": "1",
+  "buildId": "543cd25a-2aa9-421f-b67d-264369895a4c",
+  "processingState": "VALID",
+  "signingRun": "37565567993",
+  "uploadRun": "37566827042",
+  "uploadTool": "altool",
+  "uploadAccepted": true,
+  "uploadedIpaSha256": "6345cb09d36918b21b745c62399e18944d0b66c06db1351b44dac9754863ee8a",
+  "sourceSha": "b0e0429a6d8bde9ba0b9ddaf2ebb840cfa3efca6",
+  "bundledResourceCount": 165,
+  "storeTextSavedAndReadBack": true,
+  "reviewSubmitted": false,
+  "appStoreApproved": false
+}

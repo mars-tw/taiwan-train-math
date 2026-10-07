@@ -4,6 +4,8 @@
 
 原生 **1.0.0／build 1**；Web **1.11.0**。Android release APK／AAB 已簽署並核驗；iOS 使用 Xcode 26.3／SDK 26.2 編譯，iPhone／iPad 模擬器首頁啟動補驗完成。正式 IPA 已在 workflow 37565567993 匯出，簽章、profile、entitlements 與 165 份內建檔案核對通過。
 
+已由 workflow 37566827042 使用官方 `altool` 驗證並上傳；Apple API 已確認 build 1 的 `processingState: VALID`。版本、繁體中文描述、關鍵字與網址已透過 API 儲存並讀回核對；正式送審尚未完成。公開進度詳見 `store-listing/apple-release-status.json`。
+
 Android 使用本遊戲的獨立上傳金鑰，`scripts/sign-android.ps1` 為 Windows 重跑路徑（JDK 21／Build Tools 36，密碼僅在 process environment）。Apple 使用已授權的同團隊共用 API／Distribution 憑證，搭配本遊戲獨立 profile；私密資料全放在程式庫外。
 
 ## 欄位

@@ -1,0 +1,295 @@
+name: Capture actual iPhone 17 Pro store screenshots
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_run:
+        description: Verified native run (this capture is pinned to 37458546306)
+        required: true
+        type: string
+        default: '37458546306'
+
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: train-math-ios-store-screenshots
+  cancel-in-progress: false
+
+jobs:
+  capture:
+    if: github.ref == 'refs/heads/main' && github.repository == 'mars-tw/taiwan-train-math'
+    runs-on: macos-15
+    timeout-minutes: 35
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
+    steps:
+      - name: Verify the existing native artifact provenance
+        env:
+          GH_API_TOKEN: ${{ github.token }}
+          SOURCE_RUN: ${{ inputs.source_run }}
+        run: |
+          python3 - <<'PY'
+          import json, os, pathlib, urllib.request
+          TRUSTED_RUN = '37458546306'
+          TRUSTED_SHA = 'b0e0429a6d8bde9ba0b9ddaf2ebb840cfa3efca6'
+          REPOSITORY = 'mars-tw/taiwan-train-math'
+          def verify_source(source, artifacts, requested_run, repository):
+              if requested_run != TRUSTED_RUN or repository != REPOSITORY:
+                  raise ValueError('Capture is restricted to the previously verified native run')
+              if (str(source.get('id')) != TRUSTED_RUN or source.get('status') != 'completed'
+                  or source.get('head_branch') != 'main' or source.get('head_sha') != TRUSTED_SHA
+                  or source.get('event') not in ('push', 'workflow_dispatch')
+                  or source.get('head_repository', {}).get('full_name') != REPOSITORY
+                  or source.get('path', '').split('@')[0] != '.github/workflows/native.yml'):
+                  raise ValueError('Untrusted native source')
+              # This known run compiled both packages; its later iPad smoke failed.
+              # Conclusion alone must not discard the independently verified ZIP.
+              matches = [a for a in artifacts if a.get('name') == 'apple-app-packages' and a.get('expired') is False]
+              if len(matches) != 1 or type(matches[0].get('id')) is not int:
+                  raise ValueError('Need one unexpired apple-app-packages artifact')
+              return {'sourceRun': TRUSTED_RUN, 'sourceSha': TRUSTED_SHA,
+                      'sourceWorkflow': '.github/workflows/native.yml', 'sourceBranch': 'main',
+                      'sourceConclusion': source.get('conclusion'), 'artifactId': matches[0]['id'],
+                      'artifactName': 'apple-app-packages', 'repository': REPOSITORY}
+          def get(path):
+              request = urllib.request.Request('https://api.github.com/repos/' + REPOSITORY + path,
+                  headers={'Authorization': 'Bearer ' + os.environ['GH_API_TOKEN'],
+                           'Accept': 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28'})
+              try:
+                  with urllib.request.urlopen(request, timeout=30) as response:
+                      return json.load(response)
+              except Exception:
+                  raise SystemExit('Cannot verify the native run or artifact') from None
+          if os.environ['SOURCE_RUN'] != TRUSTED_RUN:
+              raise SystemExit('Use the pinned, previously verified source run')
+          try:
+              report = verify_source(get('/actions/runs/' + TRUSTED_RUN),
+                  get('/actions/runs/' + TRUSTED_RUN + '/artifacts?per_page=100')['artifacts'],
+                  os.environ['SOURCE_RUN'], os.environ['GITHUB_REPOSITORY'])
+          except (ValueError, KeyError, TypeError):
+              raise SystemExit('Rejected native source provenance') from None
+          pathlib.Path(os.environ['RUNNER_TEMP'], 'trainmath-capture-provenance.json').write_text(json.dumps(report))
+          print('Verified the known main-branch native artifact; no signing credentials used.')
+          PY
+      - name: Download the already compiled universal Simulator App
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: apple-app-packages
+          path: ${{ runner.temp }}/trainmath-capture-source
+          run-id: ${{ inputs.source_run }}
+          github-token: ${{ github.token }}
+      - name: Install and capture a fresh actual iPhone 17 Pro Simulator
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, os, pathlib, plistlib, re, stat, struct, subprocess, tempfile, time, zipfile
+
+          APP_ID = 'tw.mars.trainmath'
+          MODEL = 'iPhone 17 Pro'
+          WIDTH, HEIGHT = 1206, 2622
+          ZIP_SHA = 'af68d534c038d28e3a4a4c70b3083f2f09693d2411dfd6e9b4919169a986e85b'
+          MANIFEST_SHA = 'bf095e5d865549d10e12bad6d8f24d8de9181b86dd61f06c3e247f4f858514f4'
+
+          def verify_payload(zip_path, manifest_path):
+              if hashlib.sha256(zip_path.read_bytes()).hexdigest() != ZIP_SHA:
+                  raise ValueError('Simulator ZIP differs from the previously verified artifact')
+              raw_manifest = manifest_path.read_bytes()
+              if hashlib.sha256(raw_manifest).hexdigest() != MANIFEST_SHA:
+                  raise ValueError('Native manifest differs from the verified device payload')
+              manifest = json.loads(raw_manifest)
+              if (manifest.get('appId') != APP_ID or manifest.get('remoteServer') is not False
+                  or manifest.get('webSourceVersion') != '1.11.0' or manifest.get('webDir') != 'dist-native'
+                  or not isinstance(manifest.get('files'), list) or len(manifest['files']) != 165):
+                  raise ValueError('Unexpected native payload manifest')
+              seen, total = set(), 0
+              with zipfile.ZipFile(zip_path) as archive:
+                  for entry in archive.infolist():
+                      path = pathlib.PurePosixPath(entry.filename)
+                      if path.is_absolute() or '..' in path.parts or '\\' in entry.filename:
+                          raise ValueError('Unsafe Simulator ZIP path')
+                      if stat.S_ISLNK(entry.external_attr >> 16):
+                          raise ValueError('Unexpected linked Simulator archive entry')
+                  info = plistlib.loads(archive.read('App.app/Info.plist'))
+                  if (info.get('CFBundleIdentifier') != APP_ID or info.get('CFBundleShortVersionString') != '1.0.0'
+                      or str(info.get('CFBundleVersion')) != '1' or info.get('CFBundleSupportedPlatforms') != ['iPhoneSimulator']
+                      or info.get('DTXcodeBuild') != '17C529' or info.get('DTSDKName') != 'iphonesimulator26.2'):
+                      raise ValueError('Unexpected Simulator App identity or compiler')
+                  for item in manifest['files']:
+                      name = item.get('path')
+                      path = pathlib.PurePosixPath(name or '')
+                      if (not name or path.is_absolute() or '..' in path.parts or '\\' in name or name in seen
+                          or type(item.get('bytes')) is not int or item['bytes'] < 0
+                          or not re.fullmatch(r'[0-9a-f]{64}', str(item.get('sha256', '')))):
+                          raise ValueError('Invalid native file manifest')
+                      data = archive.read('App.app/public/' + name)
+                      if len(data) != item['bytes'] or hashlib.sha256(data).hexdigest() != item['sha256']:
+                          raise ValueError('Simulator asset differs from the verified device payload')
+                      seen.add(name)
+                      total += len(data)
+              if total != manifest.get('bytes'):
+                  raise ValueError('Native payload byte total mismatch')
+              return {'appId': APP_ID, 'version': '1.0.0', 'build': '1', 'webVersion': '1.11.0',
+                      'simulatorZipSha256': ZIP_SHA, 'payloadManifestSha256': MANIFEST_SHA,
+                      'verifiedPayloadFiles': len(seen), 'verifiedPayloadBytes': total}
+
+          def select_model(inventory):
+              models = [t for t in inventory.get('devicetypes', []) if t.get('name') == MODEL
+                        and re.fullmatch(r'com\.apple\.CoreSimulator\.SimDeviceType\.[A-Za-z0-9.-]+', str(t.get('identifier', '')))]
+              runtimes = [r for r in inventory.get('runtimes', []) if r.get('isAvailable') is True
+                          and not r.get('availabilityError') and r.get('version') == '26.2'
+                          and r.get('identifier') == 'com.apple.CoreSimulator.SimRuntime.iOS-26-2']
+              if len(models) != 1 or len(runtimes) != 1:
+                  raise ValueError('The actual iPhone 17 Pro and available iOS 26.2 runtime are required; no model substitute')
+              model, runtime = models[0], runtimes[0]
+              runtime_number = 26 * 65536 + 2 * 256
+              if not model.get('minRuntimeVersion', 0) <= runtime_number <= model.get('maxRuntimeVersion', 0xffffffff):
+                  raise ValueError('iPhone 17 Pro is incompatible with the selected available runtime')
+              return model, runtime
+
+          def verify_png(path):
+              raw = path.read_bytes()
+              if (raw[:8] != b'\x89PNG\r\n\x1a\n' or raw[12:16] != b'IHDR'
+                  or struct.unpack('>II', raw[16:24]) != (WIDTH, HEIGHT) or raw[24] != 8 or raw[25] != 2):
+                  raise ValueError('Screenshot must be actual 1206x2622 RGB PNG with no alpha; never resized')
+              return {'file': path.name, 'width': WIDTH, 'height': HEIGHT, 'format': 'PNG_RGB',
+                      'bytes': len(raw), 'sha256': hashlib.sha256(raw).hexdigest()}
+
+          # ImageIO only converts the original pixels to RGB at identical dimensions.
+          # It cannot resize a Pro Max capture or manufacture another device image.
+          RGB_SWIFT = r'''
+          import Foundation
+          import CoreGraphics
+          import ImageIO
+          import UniformTypeIdentifiers
+          func stop(_ message: String) -> Never { fputs(message + "\n", stderr); exit(1) }
+          guard CommandLine.arguments.count == 3 else { stop("Expected source and destination") }
+          let input = URL(fileURLWithPath: CommandLine.arguments[1])
+          let output = URL(fileURLWithPath: CommandLine.arguments[2])
+          guard let source = CGImageSourceCreateWithURL(input as CFURL, nil),
+                let image = CGImageSourceCreateImageAtIndex(source, 0, nil),
+                image.width == 1206, image.height == 2622 else { stop("Actual Simulator dimensions do not match") }
+          guard let canvas = CGContext(data: nil, width: image.width, height: image.height,
+                bitsPerComponent: 8, bytesPerRow: image.width * 4, space: CGColorSpaceCreateDeviceRGB(),
+                bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue) else { stop("Cannot create RGB canvas") }
+          canvas.interpolationQuality = .none
+          let frame = CGRect(x: 0, y: 0, width: CGFloat(image.width), height: CGFloat(image.height))
+          canvas.setFillColor(CGColor(gray: 1, alpha: 1))
+          canvas.fill(frame)
+          canvas.draw(image, in: frame)
+          guard let rgb = canvas.makeImage(),
+                let destination = CGImageDestinationCreateWithURL(output as CFURL, UTType.png.identifier as CFString, 1, nil)
+                else { stop("Cannot encode RGB PNG") }
+          CGImageDestinationAddImage(destination, rgb, nil)
+          guard CGImageDestinationFinalize(destination) else { stop("PNG encoding failed") }
+          '''
+
+          root = pathlib.Path.cwd()
+          out = root / 'output/ios-store-screenshots'
+          out.mkdir(parents=True, exist_ok=True)
+          source = pathlib.Path(os.environ['RUNNER_TEMP'], 'trainmath-capture-source')
+          phase, owned_udid = 'payload-verification', None
+          report = {'status': 'failed', 'actualSimulator': False, 'modelRequested': MODEL,
+                    'expectedWidth': WIDTH, 'expectedHeight': HEIGHT, 'signingPerformed': False,
+                    'gameRebuilt': False, 'uploadedToApple': False, 'imagesResized': False, 'screenshots': [],
+                    'notTested': ['physical iPhone', 'interactive gameplay', 'speaker output', 'store approval']}
+          def command(arguments, timeout=180):
+              # Capture OS/tool diagnostics privately; never place raw logs in artifact.
+              result = subprocess.run(arguments, capture_output=True, text=True, timeout=timeout)
+              if result.returncode:
+                  raise RuntimeError('Capture command failed')
+              return result.stdout.strip()
+          def sim(arguments, timeout=180):
+              return command(['xcrun', 'simctl', *arguments], timeout)
+          try:
+              provenance = json.loads(pathlib.Path(os.environ['RUNNER_TEMP'], 'trainmath-capture-provenance.json').read_text())
+              if provenance.get('sourceRun') != '37458546306' or provenance.get('sourceSha') != 'b0e0429a6d8bde9ba0b9ddaf2ebb840cfa3efca6':
+                  raise ValueError('Missing verified source provenance')
+              report.update(provenance)
+              report.update(verify_payload(source / 'TrainMath-simulator.app.zip', source / 'bundle-manifest.json'))
+              phase = 'compiler-check'
+              compiler = command(['xcodebuild', '-version'], 60)
+              if compiler != 'Xcode 26.3\nBuild version 17C529':
+                  raise ValueError('Exact verified Xcode compiler is required')
+              report['xcode'] = '26.3'
+              report['xcodeBuild'] = '17C529'
+              phase = 'simulator-inventory'
+              inventory = json.loads(sim(['list', '--json']))
+              model, runtime = select_model(inventory)
+              print('Actual available capture model:', model['name'], model['identifier'], runtime['name'])
+              report.update(device=model['name'], deviceTypeIdentifier=model['identifier'], runtime=runtime['version'])
+              previous_ids = {str(d.get('udid', '')).lower() for devices in inventory.get('devices', {}).values() for d in devices}
+              run_tag = os.environ.get('GITHUB_RUN_ID', '') + '-' + os.environ.get('GITHUB_RUN_ATTEMPT', '')
+              if not re.fullmatch(r'[0-9]+-[0-9]+', run_tag):
+                  raise ValueError('Missing CI Simulator ownership tag')
+              with tempfile.TemporaryDirectory(prefix='trainmath-store-capture-', dir=os.environ['RUNNER_TEMP']) as work_name:
+                  work = pathlib.Path(work_name)
+                  phase = 'app-extraction'
+                  command(['ditto', '-x', '-k', str(source / 'TrainMath-simulator.app.zip'), str(work / 'app')])
+                  app = work / 'app/App.app'
+                  if not app.is_dir():
+                      raise ValueError('Verified Simulator App is missing')
+                  swift = work / 'rgb.swift'
+                  swift.write_text(RGB_SWIFT)
+                  phase = 'simulator-create'
+                  fresh = sim(['create', 'TrainMath-Store-' + run_tag, model['identifier'], runtime['identifier']])
+                  if not re.fullmatch(r'[A-Fa-f0-9]{8}(?:-[A-Fa-f0-9]{4}){3}-[A-Fa-f0-9]{12}', fresh) or fresh.lower() in previous_ids:
+                      raise ValueError('simctl did not create a distinct new Simulator')
+                  owned_udid = fresh
+                  report['actualSimulator'] = True
+                  phase = 'simulator-boot'
+                  sim(['boot', owned_udid])
+                  sim(['bootstatus', owned_udid, '-b'], 600)
+                  sim(['ui', owned_udid, 'appearance', 'light'])
+                  sim(['status_bar', owned_udid, 'override', '--time', '9:41', '--batteryState', 'charged', '--batteryLevel', '100'])
+                  phase = 'app-install'
+                  sim(['install', owned_udid, str(app)], 360)
+                  phase = 'cold-launch'
+                  sim(['launch', owned_udid, APP_ID], 360)
+                  time.sleep(30)
+                  def capture(name):
+                      raw = work / ('raw-' + name)
+                      destination = out / name
+                      sim(['io', owned_udid, 'screenshot', str(raw)])
+                      command(['xcrun', 'swift', str(swift), str(raw), str(destination)], 180)
+                      try:
+                          checked = verify_png(destination)
+                      except Exception:
+                          destination.unlink(missing_ok=True)
+                          raise
+                      report['screenshots'].append(checked)
+                  phase = 'cold-screenshot'
+                  capture('01-home.png')
+                  phase = 'app-relaunch'
+                  sim(['terminate', owned_udid, APP_ID])
+                  sim(['launch', owned_udid, APP_ID], 360)
+                  time.sleep(12)
+                  phase = 'relaunch-screenshot'
+                  capture('02-relaunch.png')
+                  report.update(status='completed', tested=['fresh Simulator', 'install', 'launch', 'relaunch', 'actual screenshots'],
+                                imageProcessing='RGB conversion at original dimensions; no resizing')
+          except Exception:
+              report['failedPhase'] = phase
+              print('Actual Simulator capture failed at:', phase)
+          finally:
+              # Only this invocation's newly created UUID may be shut down.
+              if owned_udid:
+                  try:
+                      sim(['shutdown', owned_udid], 60)
+                  except Exception:
+                      report['ownedSimulatorShutdownFailed'] = True
+              (out / 'capture.json').write_text(json.dumps(report, ensure_ascii=False, indent=2))
+          if report['status'] != 'completed':
+              raise SystemExit(1)
+          print('Captured two actual iPhone 17 Pro RGB screenshots at 1206x2622.')
+          PY
+      - name: Preserve only actual screenshots and the public capture record
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: iphone-17-pro-store-screenshots-${{ github.run_id }}
+          path: |
+            output/ios-store-screenshots/01-home.png
+            output/ios-store-screenshots/02-relaunch.png
+            output/ios-store-screenshots/capture.json
+          if-no-files-found: error
+          retention-days: 14

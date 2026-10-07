@@ -1,0 +1,146 @@
+name: Verify Godot native runtime with independent XCTest captures
+
+on:
+  workflow_dispatch:
+    inputs:
+      project_id:
+        required: true
+        type: choice
+        options: [crackveil-vanguard, seven-district-reckoning]
+      release_tag:
+        required: true
+        type: string
+        default: all-games-godot-ci-20261007-r3
+      sums_sha256:
+        required: true
+        type: string
+        default: d5eb56f07dbc88b98c1b126173e53922fbbd4840ad3b4741b3d0321cfaa784a1
+
+permissions:
+  contents: read
+concurrency:
+  group: godot-runtime-${{ inputs.project_id }}
+  cancel-in-progress: false
+
+jobs:
+  fetch:
+    if: github.ref == 'refs/heads/main' && github.repository == 'mars-tw/taiwan-train-math'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    steps:
+      - name: Fetch and hash immutable approved draft inputs only
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PROJECT: ${{ inputs.project_id }}
+          TAG: ${{ inputs.release_tag }}
+          PIN: ${{ inputs.sums_sha256 }}
+        run: |
+          python3 - <<'PY'
+          import hashlib,json,os,pathlib,re,subprocess
+          names={'crackveil-vanguard':'CrackveilVanguard','seven-district-reckoning':'SevenDistrict'}
+          project=os.environ['PROJECT'];tag=os.environ['TAG'];pin=os.environ['PIN'].lower();repo=os.environ['GITHUB_REPOSITORY']
+          if project not in names or repo!='mars-tw/taiwan-train-math' or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]{0,119}',tag) or not re.fullmatch('[0-9a-f]{64}',pin):raise SystemExit('Invalid approved source inputs')
+          pages=json.loads(subprocess.check_output(['gh','api','--paginate','--slurp','repos/'+repo+'/releases?per_page=100']))
+          matches=[r for page in pages for r in page if r.get('draft') is True and r.get('tag_name')==tag]
+          if len(matches)!=1:raise SystemExit('Exactly one actual approved draft required')
+          release=matches[0];base=pathlib.Path(os.environ['RUNNER_TEMP'])/'godot-capture-input';base.mkdir(mode=0o700)
+          files=['SHA256SUMS',names[project]+'-1.0.0-unsigned-source.zip',project+'-source-verification.json','ci_verify_godot_ios.py']
+          if not set(files).issubset({a['name'] for a in release['assets']}):raise SystemExit('Missing approved source assets')
+          for file in files:
+              result=subprocess.run(['gh','release','download',tag,'--repo',repo,'--pattern',file,'--dir',str(base)],capture_output=True,timeout=300)
+              if result.returncode:raise SystemExit('Approved draft download failed; no raw output published')
+          if hashlib.sha256((base/'SHA256SUMS').read_bytes()).hexdigest()!=pin:raise SystemExit('Approved manifest pin mismatch')
+          entries={}
+          for line in (base/'SHA256SUMS').read_text().splitlines():
+              match=re.fullmatch(r'([0-9a-f]{64})\s+\*?([A-Za-z0-9._-]+)',line)
+              if not match or match[2] in entries:raise SystemExit('Invalid checksum entry')
+              entries[match[2]]=match[1]
+          for file in files[1:]:
+              if hashlib.sha256((base/file).read_bytes()).hexdigest()!=entries.get(file):raise SystemExit('Immutable source/helper hash mismatch')
+          (base/'capture-provenance.json').write_text(json.dumps({'repository':repo,'projectId':project,'releaseTag':tag,'releaseId':release['id'],'manifestSha256':pin,'sourceZipSha256':entries[files[1]],'sourceMetadataSha256':entries[files[2]],'verifierSha256':entries[files[3]],'signedIpaRebuilt':False,'signerSecretsUsed':False},indent=2))
+          PY
+      - name: Relay verified inputs to read-only Intel Mac
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: godot-capture-input-${{ inputs.project_id }}-${{ github.run_id }}
+          path: ${{ runner.temp }}/godot-capture-input
+          retention-days: 1
+          if-no-files-found: error
+  capture:
+    needs: fetch
+    runs-on: macos-15-intel
+    timeout-minutes: 90
+    permissions:
+      contents: read
+      actions: read
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
+    steps:
+      - name: Read only this trusted main commit's independent capture tools
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          sparse-checkout: |
+            scripts/create-godot-capture-project.py
+            scripts/godot-runtime-capture.mjs
+          sparse-checkout-cone-mode: false
+      - name: Read verified input relay
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: godot-capture-input-${{ inputs.project_id }}-${{ github.run_id }}
+          path: ${{ runner.temp }}/godot-capture-input
+      - name: Recheck source pin and all 47 immutable files
+        env:
+          PROJECT: ${{ inputs.project_id }}
+          PIN: ${{ inputs.sums_sha256 }}
+        run: |
+          python3 - <<'PY'
+          import hashlib,json,os,pathlib,re,subprocess
+          names={'crackveil-vanguard':'CrackveilVanguard','seven-district-reckoning':'SevenDistrict'}
+          project=os.environ['PROJECT'];pin=os.environ['PIN'].lower();base=pathlib.Path(os.environ['RUNNER_TEMP'])/'godot-capture-input'
+          if project not in names or hashlib.sha256((base/'SHA256SUMS').read_bytes()).hexdigest()!=pin:raise SystemExit('Relay manifest mismatch')
+          entries={}
+          for line in (base/'SHA256SUMS').read_text().splitlines():
+              match=re.fullmatch(r'([0-9a-f]{64})\s+\*?([A-Za-z0-9._-]+)',line)
+              if not match or match[2] in entries:raise SystemExit('Invalid relay checksum')
+              entries[match[2]]=match[1]
+          zip_name=names[project]+'-1.0.0-unsigned-source.zip';meta=project+'-source-verification.json'
+          for file in [zip_name,meta,'ci_verify_godot_ios.py']:
+              if entries.get(file)!=hashlib.sha256((base/file).read_bytes()).hexdigest():raise SystemExit('Relay source/helper digest mismatch')
+          provenance=json.loads((base/'capture-provenance.json').read_text())
+          if provenance.get('repository')!='mars-tw/taiwan-train-math' or provenance.get('projectId')!=project or provenance.get('manifestSha256')!=pin or provenance.get('sourceZipSha256')!=entries[zip_name]:raise SystemExit('Source provenance mismatch')
+          source=pathlib.Path(os.environ['RUNNER_TEMP'])/'godot-capture-source';out=pathlib.Path(os.environ['GITHUB_WORKSPACE'])/'output/godot-runtime';out.mkdir(parents=True)
+          subprocess.run(['python3',str(base/'ci_verify_godot_ios.py'),'source','--zip',str(base/zip_name),'--metadata',str(base/meta),'--project',project,'--root',str(source),'--output',str(out/'source-verification.json')],check=True,timeout=300)
+          (out/'capture-provenance.json').write_text(json.dumps({**provenance,'captureToolsCommit':os.environ['GITHUB_SHA']},indent=2))
+          with open(os.environ['GITHUB_ENV'],'a') as env:
+              for k,v in {'CAPTURE_PROJECT':project,'CAPTURE_SOURCE':str(source),'CAPTURE_METADATA':str(base/meta),'CAPTURE_VERIFIER':str(base/'ci_verify_godot_ios.py'),'CAPTURE_OUTPUT':str(out)}.items():env.write(k+'='+v+'\n')
+          PY
+      - name: Unsigned Simulator link and true XCTest rotation/start/relaunch captures
+        run: node scripts/godot-runtime-capture.mjs "$CAPTURE_PROJECT" "$CAPTURE_SOURCE" "$CAPTURE_METADATA" "$CAPTURE_VERIFIER" "$CAPTURE_OUTPUT"
+      - name: Remove only this job's relay and extracted immutable source
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import os,pathlib,shutil
+          parent=pathlib.Path(os.environ['RUNNER_TEMP']).resolve()
+          for name in ['godot-capture-input','godot-capture-source']:
+              target=(parent/name).resolve()
+              if target!=parent and target.is_relative_to(parent):shutil.rmtree(target,ignore_errors=True)
+          PY
+      - name: Preserve only real PNG and public own-game verification
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: godot-runtime-${{ inputs.project_id }}-${{ github.run_id }}
+          path: |
+            output/godot-runtime/capture-provenance.json
+            output/godot-runtime/source-verification.json
+            output/godot-runtime/simulator-verification.json
+            output/godot-runtime/runtime-capture.json
+            output/godot-runtime/capture-command-failure.json
+            output/godot-runtime/screenshots/*.png
+          if-no-files-found: error
+          retention-days: 14

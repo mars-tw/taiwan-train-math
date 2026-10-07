@@ -1,0 +1,151 @@
+name: Bounded Godot Seven Appium and Crack phone runtime proof
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+concurrency:
+  group: godot-bounded-native-capture
+  cancel-in-progress: false
+
+jobs:
+  fetch:
+    if: github.ref == 'refs/heads/main' && github.repository == 'mars-tw/taiwan-train-math'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    steps:
+      - name: Fetch only the fixed approved immutable draft inputs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import hashlib,json,os,pathlib,re,subprocess
+          repo='mars-tw/taiwan-train-math';tag='all-games-godot-ci-20261007-r3';release_id=405527888
+          pin='d5eb56f07dbc88b98c1b126173e53922fbbd4840ad3b4741b3d0321cfaa784a1'
+          if os.environ['GITHUB_REPOSITORY']!=repo:raise SystemExit('Unexpected source repository')
+          response=subprocess.run(['gh','api','repos/'+repo+'/releases/'+str(release_id)],capture_output=True,timeout=60)
+          if response.returncode:raise SystemExit('Cannot read the fixed approved draft; raw output withheld')
+          release=json.loads(response.stdout)
+          if release.get('id')!=release_id or release.get('draft') is not True or release.get('tag_name')!=tag:raise SystemExit('Approved draft identity mismatch')
+          names={'crackveil-vanguard':'CrackveilVanguard','seven-district-reckoning':'SevenDistrict'}
+          files=['SHA256SUMS','ci_verify_godot_ios.py']+[file for project,name in names.items() for file in [name+'-1.0.0-unsigned-source.zip',project+'-source-verification.json']]
+          if not set(files).issubset({a.get('name') for a in release.get('assets',[])}):raise SystemExit('Missing approved inputs')
+          base=pathlib.Path(os.environ['RUNNER_TEMP'])/'godot-bounded-input';base.mkdir(mode=0o700)
+          for file in files:
+              result=subprocess.run(['gh','release','download',tag,'--repo',repo,'--pattern',file,'--dir',str(base)],capture_output=True,timeout=300)
+              if result.returncode:raise SystemExit('Approved draft download failed; raw output withheld')
+          if hashlib.sha256((base/'SHA256SUMS').read_bytes()).hexdigest()!=pin:raise SystemExit('Manifest pin mismatch')
+          entries={}
+          for line in (base/'SHA256SUMS').read_text().splitlines():
+              match=re.fullmatch(r'([0-9a-f]{64})\s+\*?([A-Za-z0-9._-]+)',line)
+              if not match or match[2] in entries:raise SystemExit('Invalid checksum manifest')
+              entries[match[2]]=match[1]
+          for file in files[1:]:
+              if hashlib.sha256((base/file).read_bytes()).hexdigest()!=entries.get(file):raise SystemExit('Immutable input digest mismatch')
+          provenance={'repository':repo,'releaseTag':tag,'releaseId':release_id,'manifestSha256':pin,'inputSha256':{file:entries[file] for file in files[1:]},'signedIpaRebuilt':False,'signerSecretsUsed':False}
+          (base/'capture-provenance.json').write_text(json.dumps(provenance,indent=2))
+          print('Fixed draft sources hashed; no game or signing code executed in fetch job.')
+          PY
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: godot-bounded-input-${{ github.run_id }}
+          path: ${{ runner.temp }}/godot-bounded-input
+          retention-days: 1
+          if-no-files-found: error
+  capture:
+    needs: fetch
+    runs-on: macos-15-intel
+    timeout-minutes: 75
+    permissions:
+      contents: read
+      actions: read
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          sparse-checkout: |
+            scripts/godot-appium-runtime/package.json
+            scripts/godot-appium-runtime/package-lock.json
+            scripts/godot-appium-session.mjs
+            scripts/godot-bounded-native-capture.mjs
+          sparse-checkout-cone-mode: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: godot-bounded-input-${{ github.run_id }}
+          path: ${{ runner.temp }}/godot-bounded-input
+      - name: Recheck pin and extract each immutable 47-file source
+        id: source
+        run: |
+          python3 - <<'PY'
+          import hashlib,json,os,pathlib,re,subprocess
+          pin='d5eb56f07dbc88b98c1b126173e53922fbbd4840ad3b4741b3d0321cfaa784a1'
+          base=pathlib.Path(os.environ['RUNNER_TEMP'])/'godot-bounded-input';out=pathlib.Path(os.environ['GITHUB_WORKSPACE'])/'output/godot-bounded'
+          names={'crackveil-vanguard':'CrackveilVanguard','seven-district-reckoning':'SevenDistrict'}
+          if hashlib.sha256((base/'SHA256SUMS').read_bytes()).hexdigest()!=pin:raise SystemExit('Relay pin mismatch')
+          entries={}
+          for line in (base/'SHA256SUMS').read_text().splitlines():
+              match=re.fullmatch(r'([0-9a-f]{64})\s+\*?([A-Za-z0-9._-]+)',line)
+              if not match or match[2] in entries:raise SystemExit('Invalid relay manifest')
+              entries[match[2]]=match[1]
+          provenance=json.loads((base/'capture-provenance.json').read_text())
+          files=['ci_verify_godot_ios.py']+[file for project,name in names.items() for file in [name+'-1.0.0-unsigned-source.zip',project+'-source-verification.json']]
+          expected={'repository':'mars-tw/taiwan-train-math','releaseTag':'all-games-godot-ci-20261007-r3','releaseId':405527888,'manifestSha256':pin,'inputSha256':{file:entries[file] for file in files},'signedIpaRebuilt':False,'signerSecretsUsed':False}
+          if provenance!=expected or {p.name for p in base.iterdir()}!=set(files+['SHA256SUMS','capture-provenance.json']):raise SystemExit('Relay provenance mismatch')
+          for file in files:
+              if hashlib.sha256((base/file).read_bytes()).hexdigest()!=entries[file]:raise SystemExit('Relay input digest mismatch')
+          (out/'input-verification').mkdir(parents=True)
+          for project,name in names.items():
+              source=pathlib.Path(os.environ['RUNNER_TEMP'])/('godot-bounded-source-'+project)
+              subprocess.run(['python3',str(base/'ci_verify_godot_ios.py'),'source','--zip',str(base/(name+'-1.0.0-unsigned-source.zip')),'--metadata',str(base/(project+'-source-verification.json')),'--project',project,'--root',str(source),'--output',str(out/'input-verification'/(project+'.json'))],check=True,timeout=300)
+          (out/'capture-provenance.json').write_text(json.dumps({**provenance,'captureToolsCommit':os.environ['GITHUB_SHA'],'runId':os.environ['GITHUB_RUN_ID']},indent=2))
+          PY
+      - name: Pin Node 22 for official Appium 3 project runtime
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 22.14.0
+      - name: Install the exact locked official testing driver only
+        id: appium
+        run: |
+          test "$(node -p 'process.versions.node')" = 22.14.0
+          test "$(npm --version | cut -d. -f1)" = 10
+          npm ci --prefix scripts/godot-appium-runtime --ignore-scripts --no-audit --no-fund
+      - name: Seven true visible Start and warm relaunch with official Appium
+        if: steps.source.outcome == 'success' && steps.appium.outcome == 'success'
+        run: |
+          node scripts/godot-bounded-native-capture.mjs seven-appium "$RUNNER_TEMP/godot-bounded-source-seven-district-reckoning" "$RUNNER_TEMP/godot-bounded-input/seven-district-reckoning-source-verification.json" "$RUNNER_TEMP/godot-bounded-input/ci_verify_godot_ios.py" "$GITHUB_WORKSPACE/output/godot-bounded/seven-district-reckoning"
+      - name: Crack phone-only cold and warm capture without accessibility queries
+        if: always() && steps.source.outcome == 'success'
+        run: |
+          node scripts/godot-bounded-native-capture.mjs crack-phone "$RUNNER_TEMP/godot-bounded-source-crackveil-vanguard" "$RUNNER_TEMP/godot-bounded-input/crackveil-vanguard-source-verification.json" "$RUNNER_TEMP/godot-bounded-input/ci_verify_godot_ios.py" "$GITHUB_WORKSPACE/output/godot-bounded/crackveil-vanguard"
+      - name: Remove only owned input and extracted source directories
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import os,pathlib,shutil
+          parent=pathlib.Path(os.environ['RUNNER_TEMP']).resolve()
+          for name in ['godot-bounded-input','godot-bounded-source-crackveil-vanguard','godot-bounded-source-seven-district-reckoning']:
+              target=(parent/name).resolve()
+              if target!=parent and target.is_relative_to(parent):shutil.rmtree(target,ignore_errors=True)
+          PY
+      - name: Preserve original PNG and safe public capture reports only
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: godot-bounded-native-${{ github.run_id }}
+          path: |
+            output/godot-bounded/capture-provenance.json
+            output/godot-bounded/input-verification/*.json
+            output/godot-bounded/*/bounded-native-capture.json
+            output/godot-bounded/*/source-verification.json
+            output/godot-bounded/*/source-verification-after-link.json
+            output/godot-bounded/*/simulator-verification.json
+            output/godot-bounded/*/screenshots/*.png
+            output/godot-bounded/*/raw-screenshots/*.png
+          if-no-files-found: error
+          retention-days: 14

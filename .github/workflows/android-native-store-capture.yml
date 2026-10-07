@@ -18,6 +18,11 @@ on:
         required: true
         default: portrait
         options: [portrait, landscape]
+      device_family:
+        type: choice
+        required: true
+        default: both
+        options: [both, phone]
 
 permissions:
   contents: read
@@ -36,12 +41,14 @@ jobs:
         env:
           PROJECT: ${{ inputs.project }}
           ORIENTATION: ${{ inputs.orientation }}
+          DEVICE_FAMILY: ${{ inputs.device_family }}
         run: |
           python3 - <<'PY'
           import json,os
           priority=['night-train-watch-protocol','tower-defense-skill','web-card-game-skill']
           rest=['ashes-convoy','island-flight-school','taiwan-train-school','pixel-idle-farm-skill','storm-apocalypse','village-siege','taiwan-train-math','taiwan-island-drive','crackveil-vanguard','seven-district-reckoning']
           value=os.environ['PROJECT']
+          if os.environ['DEVICE_FAMILY']=='phone' and value!='storm-apocalypse':raise SystemExit('Phone-only correction is authorized for Storm only')
           if os.environ['ORIENTATION']=='landscape' and value!='village-siege':raise SystemExit('Landscape unit is authorized for Village only')
           choices=['village-siege','storm-apocalypse','crackveil-vanguard','seven-district-reckoning','island-flight-school','taiwan-island-drive'] if value=='resource-cases' else priority if value=='priority' else rest if value=='remaining' else [p for p in rest if p!='taiwan-train-math'] if value=='corrective' else [value]
           if any(p not in priority+rest+['taiwan-island-drive'] for p in choices):raise SystemExit('Unapproved project selector')
@@ -138,7 +145,7 @@ jobs:
           pre-emulator-launch-script: python3 scripts/android-native-store-capture/device_config.py --name "$NATIVE_AVD_NAME" --family phone
           script: python3 scripts/android-native-store-capture/capture.py --project "$PROJECT" --family phone --avd "$NATIVE_AVD_NAME" --orientation "$SCREEN_ORIENTATION" --input "$RUNNER_TEMP/native-capture-input" --output "$GITHUB_WORKSPACE/output/native-android-capture/phone"
       - name: Actual API36 tablet release install and observed UI navigation
-        if: always()
+        if: always() && inputs.device_family != 'phone'
         uses: reactivecircus/android-emulator-runner@4c44018e59b437e86cdfc41da381398f93ed8808
         env:
           PROJECT: ${{ matrix.project }}

@@ -50,7 +50,15 @@ def observed_target(nodes,patterns,width,height,package):
  return min(choices,key=lambda x:x[0]) if choices else None
 def observed_loading(nodes,package):
  text='\n'.join(n.get('text','')+' '+n.get('content-desc','') for n in nodes if n.get('package')==package)
- return bool(re.search(r'正在準備駕駛艙|載入 Blender 模型|準備戰場|正在下載角色與建築素材|把車準備好，把心留給風景',text))
+ return bool(re.search(r'正在準備駕駛艙|載入 Blender 模型|準備戰場|正在下載角色與建築素材|把車準備好，把心留給風景|載入北境資產|串流北境資產|校準暴風光影|北境資產載入中',text))
+
+def observed_storm_phase(nodes,package):
+ labels=[(n.get('text','')+' '+n.get('content-desc','')).strip() for n in nodes if n.get('package')==package]
+ if observed_loading(nodes,package):return 'loading'
+ if any(re.fullmatch(r'風雪已就緒\s*·\s*100%',label) for label in labels):return 'resources-ready-menu'
+ if all(label in labels for label in ['資金','移動搖桿','攻擊']) and any(re.fullmatch(r'黎明\s*·\s*\d+\s*/\s*30',label) for label in labels):return 'game-ui-ready'
+ return 'unconfirmed'
+
 
 def set_owned_orientation(ad,project,orientation):
  if orientation=='portrait':return {'requested':'portrait','deviceRotationChanged':False}
@@ -137,6 +145,7 @@ def main():
       ad('shell','input','tap',str(notice[3][0]),str(notice[3][1]));time.sleep(10);save();continue
     candidate=observed_target(nodes,[ACTIONS[a.project][0]],w,h,package)
     if observed_loading(nodes,package):candidate=None
+    if a.project=='storm-apocalypse' and observed_storm_phase(nodes,package)!='resources-ready-menu':candidate=None
     if candidate:break
    except Exception as error:report['warnings'].append('Readiness: '+str(error));save()
   # Refresh first frame once actual control exists; initial startup observation
@@ -149,7 +158,13 @@ def main():
    report['status']='HOLD_NO_OBSERVED_ACCESSIBLE_START_CONTROL';report['error']='First native image retained; no guessed touch or state injection';save();return 2
   for index,pattern in enumerate(ACTIONS[a.project]):
    try:
-    before=capture('pre-action-'+str(index+1));nodes=hierarchy('pre-action-'+str(index+1))
+    nodes=hierarchy('pre-action-'+str(index+1));before=capture('pre-action-'+str(index+1))
+    if a.project=='storm-apocalypse' and index==0:
+     confirmed_nodes=hierarchy('pre-action-'+str(index+1)+'-confirm')
+     expected='resources-ready-menu'
+     if observed_storm_phase(nodes,package)!=expected or observed_storm_phase(confirmed_nodes,package)!=expected:raise RuntimeError('Storm start phase changed across native frame and AX observations')
+     report.setdefault('nativePhaseObservations',[]).append({'phase':expected,'screenshot':before['file'],'capturedAtUtc':before['capturedAtUtc'],'secondAxObservedAtUtc':now(),'requiresVisualFrameQa':True});save()
+     nodes=confirmed_nodes
     target=observed_target(nodes,[pattern],before['width'],before['height'],package)
     if not target:
      if index==0:raise RuntimeError('Observed first control disappeared')
@@ -173,11 +188,15 @@ def main():
     load_deadline=time.monotonic()+120
     while True:
      loaded_nodes=hierarchy('loading-observation-'+str(index+1))
-     if not observed_loading(loaded_nodes,package):break
+     if not observed_loading(loaded_nodes,package) and (a.project!='storm-apocalypse' or observed_storm_phase(loaded_nodes,package)=='game-ui-ready'):break
      if time.monotonic()>load_deadline:raise RuntimeError('Actual loading UI did not finish; do not accept loading as gameplay')
      time.sleep(5)
     after=capture('03-after-action-'+str(index+1))
-    after_nodes=hierarchy('03-after-action-'+str(index+1));report['actions'][-1]['afterVisibleLabels']=[(n.get('text','')+' '+n.get('content-desc','')).strip() for n in after_nodes if n.get('package')==package and (n.get('text') or n.get('content-desc'))][:150]
+    after_nodes=hierarchy('03-after-action-'+str(index+1))
+    if a.project=='storm-apocalypse':
+     if observed_storm_phase(after_nodes,package)!='game-ui-ready':raise RuntimeError('Storm gameplay UI not stable across native frame and AX observations')
+     report.setdefault('nativePhaseObservations',[]).append({'phase':'game-ui-ready','screenshot':after['file'],'capturedAtUtc':after['capturedAtUtc'],'secondAxObservedAtUtc':now(),'requiresVisibleHudAndCharacterVisualQa':True});save()
+    report['actions'][-1]['afterVisibleLabels']=[(n.get('text','')+' '+n.get('content-desc','')).strip() for n in after_nodes if n.get('package')==package and (n.get('text') or n.get('content-desc'))][:150]
     with Image.open(out/before['file']) as ia,Image.open(out/after['file']) as ib:
      if ia.size==ib.size:
       hist=ImageChops.difference(ia,ib).convert('L').histogram();changed=100*(ia.width*ia.height-hist[0])/(ia.width*ia.height)

@@ -46,6 +46,15 @@ class Contracts(unittest.TestCase):
  def test_runner_context_not_used_in_job_env_before_runner_is_assigned(self):
   data=yaml.safe_load((folder.parents[1]/'.github/workflows/android-native-store-capture.yml').read_text())
   for job in data['jobs'].values():self.assertNotIn('runner.',str(job.get('env',{})))
+ def test_phone_only_unit_skips_tablet_and_is_restricted_to_storm(self):
+  data=yaml.safe_load((folder.parents[1]/'.github/workflows/android-native-store-capture.yml').read_text());jobs=data['jobs'];steps=jobs['capture']['steps']
+  tablet=next(step for step in steps if step.get('name','').startswith('Actual API36 tablet'))
+  self.assertEqual(tablet['if'],"always() && inputs.device_family != 'phone'")
+  selector=jobs['select']['steps'][0]['run']
+  self.assertIn("os.environ['DEVICE_FAMILY']=='phone' and value!='storm-apocalypse'",selector)
+  for phrase in ['載入北境資產','串流北境資產','校準暴風光影','北境資產載入中']:
+   self.assertTrue(driver.observed_loading([self.node(text=phrase)],'tw.test.app'))
+  self.assertEqual(driver.observed_storm_phase([self.node(text='風雪已就緒 · 100%')],'tw.test.app'),'resources-ready-menu')
  def test_actual_runner_standard_avd_root_sets_tablet_dimensions_without_touching_other_avds(self):
   with tempfile.TemporaryDirectory() as temp:
    root=Path(temp);home=root/'fresh-ci-home';avds=home/'.android/avd';name='NativeCaptureTablet_123_tower';target=avds/(name+'.avd')/'config.ini';target.parent.mkdir(parents=True);target.write_text('hw.lcd.width=2560\nhw.lcd.height=1800\n')

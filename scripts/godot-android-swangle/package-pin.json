@@ -1,0 +1,18 @@
+{
+  "status": "PREPARED_METADATA_ONLY",
+  "repositoryUrl": "https://dl.google.com/android/repository/repository2-1.xml",
+  "repositoryXmlSha256": "2fe5ec9185d840be617b2d336f12f6683c4c365e213599a8be28a2d7fb026afe",
+  "sdkPackagePath": "emulator",
+  "revision": "37.2.12",
+  "channel": "channel-0",
+  "selectionReason": "Exact original observed version, official stable metadata. Canary37.3.3 excluded; no version cycling.",
+  "archive": {
+    "revision": "37.2.12",
+    "channel": "channel-0",
+    "url": "https://dl.google.com/android/repository/emulator-linux_x64-16428233.zip",
+    "bytes": 349654171,
+    "checksumType": "sha1",
+    "checksum": "cd7362ea55dfb86a418958138dc396e74165dd01"
+  },
+  "binaryDownloadedOrInstalled": false
+}

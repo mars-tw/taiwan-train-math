@@ -1,0 +1,92 @@
+name: Observe Crack phone SWANGLE cold and warm
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_id:
+        type: string
+        required: true
+        default: '405931912'
+      manifest_sha:
+        type: string
+        required: true
+        default: df97cd9b9742228e5c55ebced2adedcc9b29dfa356eb28386487615f5c87d82c
+
+permissions:
+  contents: read
+concurrency:
+  group: crack-phone-swangle-proof
+  cancel-in-progress: false
+
+jobs:
+  fetch:
+    if: github.repository == 'mars-tw/taiwan-train-math' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - name: Relay only original immutable Crack input
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_ID: ${{ inputs.release_id }}
+          MANIFEST_SHA: ${{ inputs.manifest_sha }}
+        run: |
+          test "$RELEASE_ID" = '405931912'
+          test "$MANIFEST_SHA" = 'df97cd9b9742228e5c55ebced2adedcc9b29dfa356eb28386487615f5c87d82c'
+          python3 scripts/android-native-store-capture/fetch_inputs.py --release-id "$RELEASE_ID" --manifest-sha "$MANIFEST_SHA" --project crackveil-vanguard --directory "$RUNNER_TEMP/native-capture-input"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: crack-original-input-${{ github.run_id }}
+          path: ${{ runner.temp }}/native-capture-input
+          retention-days: 1
+          if-no-files-found: error
+
+  observe:
+    needs: fetch
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      actions: read
+    env:
+      NATIVE_AVD_NAME: NativeCapturePhone_${{ github.run_id }}_crackveil-vanguard
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: crack-original-input-${{ github.run_id }}
+          path: ${{ runner.temp }}/native-capture-input
+      - name: Install declared fresh-CI dependencies
+        run: |
+          set -euo pipefail
+          test -c /dev/kvm
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-crack-swangle-kvm.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          sudo apt-get update -qq
+          sudo apt-get install --yes --no-install-recommends python3-pil libvulkan1 libgl1 tesseract-ocr tesseract-ocr-chi-tra
+      - name: Prepare exact official SDK inside this run only
+        run: python3 scripts/godot-android-swangle/bootstrap_sdk.py
+      - name: Fail closed on binary, package, mode or dependency mismatch
+        run: python3 scripts/godot-android-swangle/sdk_preflight.py
+      - name: Create only the known owned phone after backend guard passes
+        run: |
+          set -euo pipefail
+          mkdir -p "$ANDROID_AVD_HOME" "$ANDROID_USER_HOME"
+          echo no | "$BASE_AVDMANAGER" create avd --name "$NATIVE_AVD_NAME" --package 'system-images;android-36;google_apis;x86_64' --device pixel_2
+          python3 scripts/android-native-store-capture/device_config.py --name "$NATIVE_AVD_NAME" --family phone
+      - name: Cold/warm framebuffer and actual GL observation; no game Start tap
+        run: python3 scripts/godot-android-swangle/observe.py
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: crack-swangle-preflight-${{ github.run_id }}
+          path: output/godot-swangle-preflight
+          retention-days: 30
+          if-no-files-found: warn

@@ -6,7 +6,7 @@ on:
       project:
         type: choice
         required: true
-        options: [priority, remaining, night-train-watch-protocol, tower-defense-skill, web-card-game-skill, ashes-convoy, island-flight-school, taiwan-train-school, pixel-idle-farm-skill, storm-apocalypse, village-siege, taiwan-train-math, taiwan-island-drive, crackveil-vanguard, seven-district-reckoning]
+        options: [priority, remaining, corrective, night-train-watch-protocol, tower-defense-skill, web-card-game-skill, ashes-convoy, island-flight-school, taiwan-train-school, pixel-idle-farm-skill, storm-apocalypse, village-siege, taiwan-train-math, taiwan-island-drive, crackveil-vanguard, seven-district-reckoning]
       release_id:
         type: string
         required: true
@@ -36,7 +36,7 @@ jobs:
           priority=['night-train-watch-protocol','tower-defense-skill','web-card-game-skill']
           rest=['ashes-convoy','island-flight-school','taiwan-train-school','pixel-idle-farm-skill','storm-apocalypse','village-siege','taiwan-train-math','taiwan-island-drive','crackveil-vanguard','seven-district-reckoning']
           value=os.environ['PROJECT']
-          choices=priority if value=='priority' else rest if value=='remaining' else [value]
+          choices=priority if value=='priority' else rest if value=='remaining' else [p for p in rest if p!='taiwan-train-math'] if value=='corrective' else [value]
           if any(p not in priority+rest+['taiwan-island-drive'] for p in choices):raise SystemExit('Unapproved project selector')
           with open(os.environ['GITHUB_OUTPUT'],'a') as f:f.write('matrix='+json.dumps(choices)+'\n')
           PY

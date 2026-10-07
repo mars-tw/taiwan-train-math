@@ -26,7 +26,7 @@ ACTIONS={
  'village-siege':[r'^(開始遊戲|開始戰役|開始守城|開始|遊玩)',r'^繼續'],
  'storm-apocalypse':[r'^(確認屠夫老闆娘|開始遊戲|開始戰役|出擊|開始)',r'^繼續'],
  'taiwan-train-math':[r'^遊戲室$',r'^火車圖鑑$'],
- 'taiwan-island-drive':[r'^(開始駕駛|開始遊戲|出發|開始)',r'^繼續'],
+ 'taiwan-island-drive':[r'^開汽車$',r'^繼續'],
  'crackveil-vanguard':[r'^(PLAY|START|開始|出擊)'],
  'seven-district-reckoning':[r'^(PLAY|START|開始|出發)'],
 }
@@ -116,6 +116,13 @@ def main():
    try:
     screen=capture('01-launched') if not report['screenshots'] else None
     nodes=hierarchy('01-launched');w,h=report['screenshots'][0]['width'],report['screenshots'][0]['height']
+    # Observed real Android fullscreen-education overlay on both unchanged
+    # Godot APKs. Dismiss only that exact system control, measured from AX.
+    if a.project in ['crackveil-vanguard','seven-district-reckoning']:
+     notice=observed_target(nodes,[r'^Got it$'],w,h,'com.android.systemui')
+     if notice:
+      report.setdefault('systemFullscreenNoticeActions',[]).append({'label':notice[1],'bounds':notice[2],'nativePixelPoint':notice[3],'basis':'observed Android fullscreen notice XML and original screenshot'})
+      ad('shell','input','tap',str(notice[3][0]),str(notice[3][1]));time.sleep(10);save();continue
     candidate=observed_target(nodes,[ACTIONS[a.project][0]],w,h,package)
     if observed_loading(nodes,package):candidate=None
     if candidate:break
@@ -125,6 +132,8 @@ def main():
   if candidate:
    capture('02-ready-menu')
   else:
+   try:capture('02-warm-unresolved-control');hierarchy('02-warm-unresolved-control')
+   except Exception as error:report['warnings'].append('Warm unresolved frame: '+str(error))
    report['status']='HOLD_NO_OBSERVED_ACCESSIBLE_START_CONTROL';report['error']='First native image retained; no guessed touch or state injection';save();return 2
   for index,pattern in enumerate(ACTIONS[a.project]):
    try:

@@ -13,6 +13,11 @@ on:
       manifest_sha:
         type: string
         required: true
+      orientation:
+        type: choice
+        required: true
+        default: portrait
+        options: [portrait, landscape]
 
 permissions:
   contents: read
@@ -30,12 +35,14 @@ jobs:
       - id: projects
         env:
           PROJECT: ${{ inputs.project }}
+          ORIENTATION: ${{ inputs.orientation }}
         run: |
           python3 - <<'PY'
           import json,os
           priority=['night-train-watch-protocol','tower-defense-skill','web-card-game-skill']
           rest=['ashes-convoy','island-flight-school','taiwan-train-school','pixel-idle-farm-skill','storm-apocalypse','village-siege','taiwan-train-math','taiwan-island-drive','crackveil-vanguard','seven-district-reckoning']
           value=os.environ['PROJECT']
+          if os.environ['ORIENTATION']=='landscape' and value!='village-siege':raise SystemExit('Landscape unit is authorized for Village only')
           choices=['village-siege','storm-apocalypse','crackveil-vanguard','seven-district-reckoning','island-flight-school','taiwan-island-drive'] if value=='resource-cases' else priority if value=='priority' else rest if value=='remaining' else [p for p in rest if p!='taiwan-train-math'] if value=='corrective' else [value]
           if any(p not in priority+rest+['taiwan-island-drive'] for p in choices):raise SystemExit('Unapproved project selector')
           with open(os.environ['GITHUB_OUTPUT'],'a') as f:f.write('matrix='+json.dumps(choices)+'\n')
@@ -116,6 +123,7 @@ jobs:
         env:
           PROJECT: ${{ matrix.project }}
           NATIVE_AVD_NAME: NativeCapturePhone_${{ github.run_id }}_${{ matrix.project }}
+          SCREEN_ORIENTATION: ${{ inputs.orientation }}
         with:
           api-level: 36
           target: google_apis
@@ -128,13 +136,14 @@ jobs:
           disable-animations: false
           disable-linux-hw-accel: false
           pre-emulator-launch-script: python3 scripts/android-native-store-capture/device_config.py --name "$NATIVE_AVD_NAME" --family phone
-          script: python3 scripts/android-native-store-capture/capture.py --project "$PROJECT" --family phone --avd "$NATIVE_AVD_NAME" --input "$RUNNER_TEMP/native-capture-input" --output "$GITHUB_WORKSPACE/output/native-android-capture/phone"
+          script: python3 scripts/android-native-store-capture/capture.py --project "$PROJECT" --family phone --avd "$NATIVE_AVD_NAME" --orientation "$SCREEN_ORIENTATION" --input "$RUNNER_TEMP/native-capture-input" --output "$GITHUB_WORKSPACE/output/native-android-capture/phone"
       - name: Actual API36 tablet release install and observed UI navigation
         if: always()
         uses: reactivecircus/android-emulator-runner@4c44018e59b437e86cdfc41da381398f93ed8808
         env:
           PROJECT: ${{ matrix.project }}
           NATIVE_AVD_NAME: NativeCaptureTablet_${{ github.run_id }}_${{ matrix.project }}
+          SCREEN_ORIENTATION: ${{ inputs.orientation }}
         with:
           api-level: 36
           target: google_apis
@@ -147,7 +156,7 @@ jobs:
           disable-animations: false
           disable-linux-hw-accel: false
           pre-emulator-launch-script: python3 scripts/android-native-store-capture/device_config.py --name "$NATIVE_AVD_NAME" --family tablet
-          script: python3 scripts/android-native-store-capture/capture.py --project "$PROJECT" --family tablet --avd "$NATIVE_AVD_NAME" --input "$RUNNER_TEMP/native-capture-input" --output "$GITHUB_WORKSPACE/output/native-android-capture/tablet"
+          script: python3 scripts/android-native-store-capture/capture.py --project "$PROJECT" --family tablet --avd "$NATIVE_AVD_NAME" --orientation "$SCREEN_ORIENTATION" --input "$RUNNER_TEMP/native-capture-input" --output "$GITHUB_WORKSPACE/output/native-android-capture/tablet"
       - name: Preserve actual PNGs, UI hierarchy and own-app evidence even on failure
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02

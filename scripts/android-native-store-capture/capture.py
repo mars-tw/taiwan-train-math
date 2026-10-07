@@ -52,8 +52,18 @@ def observed_loading(nodes,package):
  text='\n'.join(n.get('text','')+' '+n.get('content-desc','') for n in nodes if n.get('package')==package)
  return bool(re.search(r'正在準備駕駛艙|載入 Blender 模型|準備戰場|正在下載角色與建築素材|把車準備好，把心留給風景',text))
 
+def set_owned_orientation(ad,project,orientation):
+ if orientation=='portrait':return {'requested':'portrait','deviceRotationChanged':False}
+ if project!='village-siege':raise RuntimeError('Landscape unit is authorized for Village only')
+ # AOSP Android 16 WindowManagerShellCommand documents this actual display
+ # rotation. The caller has already checked the exact owned CI AVD identity.
+ ad('shell','wm','user-rotation','lock','1')
+ readback=ad('shell','wm','user-rotation').decode().strip()
+ if readback!='lock 1':raise RuntimeError('Native landscape rotation not confirmed')
+ return {'requested':'landscape','deviceRotationChanged':True,'command':['wm','user-rotation','lock','1'],'readback':readback,'imageRotationPerformed':False}
+
 def main():
- p=argparse.ArgumentParser();p.add_argument('--project',required=True);p.add_argument('--family',choices=['phone','tablet'],required=True);p.add_argument('--input',required=True);p.add_argument('--output',required=True);p.add_argument('--avd',required=True);a=p.parse_args()
+ p=argparse.ArgumentParser();p.add_argument('--project',required=True);p.add_argument('--family',choices=['phone','tablet'],required=True);p.add_argument('--input',required=True);p.add_argument('--output',required=True);p.add_argument('--avd',required=True);p.add_argument('--orientation',choices=['portrait','landscape'],default='portrait');a=p.parse_args()
  if os.environ.get('GITHUB_ACTIONS')!='true' or os.environ.get('GITHUB_REPOSITORY')!='mars-tw/taiwan-train-math':raise RuntimeError('This driver runs only in the owned GitHub CI VM')
  source=Path(a.input).resolve();out=Path(a.output).resolve();temp=Path(os.environ['RUNNER_TEMP']).resolve();workspace=Path(os.environ['GITHUB_WORKSPACE']).resolve()
  if not source.is_relative_to(temp) or not out.is_relative_to(workspace):raise RuntimeError('Input/output scope mismatch')
@@ -80,6 +90,7 @@ def main():
    if min(im.size)<320 or max(im.size)>3840 or max(im.size)>2*min(im.size):raise RuntimeError('Actual framebuffer dimensions not Google eligible')
    expected=(1080,1920) if a.family=='phone' else (1200,1920)
    if im.size not in {expected,expected[::-1]}:raise RuntimeError('Unexpected native framebuffer size')
+   if a.orientation=='landscape' and im.size!=expected[::-1]:raise RuntimeError('Actual device framebuffer is not landscape')
    if im.mode=='RGBA' and im.getchannel('A').getextrema()!=(255,255):raise RuntimeError('Nonopaque native framebuffer cannot be losslessly RGB encoded')
    rgb=im.convert('RGB');path=out/(label+'.png');rgb.save(path,format='PNG')
    if Image.open(path).convert('RGB').tobytes()!=rgb.tobytes():raise RuntimeError('RGB encoding changed framebuffer colors')
@@ -104,6 +115,7 @@ def main():
   ad('shell','input','keyevent','82');install=ad('install','--no-streaming',str(apk),timeout=120).decode()
   if 'Success' not in install:raise RuntimeError('APK install did not report Success')
   report['installVerified']=True
+  report['displayOrientation']=set_owned_orientation(ad,a.project,a.orientation)
   installed=ad('shell','dumpsys','package',package).decode('utf-8','replace')
   if 'versionName='+item['version'] not in installed or not re.search(r'\bversionCode='+str(item['build'])+r'\b',installed):raise RuntimeError('Installed package does not match signed input')
   component=ad('shell','cmd','package','resolve-activity','--brief',package).decode().strip().splitlines()[-1]

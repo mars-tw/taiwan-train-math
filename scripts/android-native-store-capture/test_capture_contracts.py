@@ -56,6 +56,16 @@ class Contracts(unittest.TestCase):
  def test_actual_card_android_accessibility_label_is_supported(self):
   node=self.node(text='略過教學')
   self.assertIsNotNone(driver.observed_target([node],[driver.ACTIONS['web-card-game-skill'][0]],1080,1920,'tw.test.app'))
+ def test_landscape_rotates_only_authorized_own_device_with_readback(self):
+  calls=[]
+  def ad(*args):
+   calls.append(args);return b'lock 1\n'
+  proof=driver.set_owned_orientation(ad,'village-siege','landscape')
+  self.assertEqual(calls,[('shell','wm','user-rotation','lock','1'),('shell','wm','user-rotation')])
+  self.assertFalse(proof['imageRotationPerformed'])
+  with self.assertRaisesRegex(RuntimeError,'Village only'):driver.set_owned_orientation(ad,'storm-apocalypse','landscape')
+  self.assertEqual(len(calls),2)
+  with self.assertRaisesRegex(RuntimeError,'not confirmed'):driver.set_owned_orientation(lambda *args:b'free\n','village-siege','landscape')
  def test_controls_present_while_real_models_loading_are_not_ready_gameplay(self):
   nodes=[self.node(text='準備出發'),self.node(text='正在準備駕駛艙　載入 Blender 模型與貼圖')]
   self.assertTrue(driver.observed_loading(nodes,'tw.test.app'))

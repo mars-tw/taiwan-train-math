@@ -39,41 +39,46 @@ jobs:
           if selected!='all' and selected not in known:raise SystemExit('Unknown explicit Web adapter')
           with open(os.environ['GITHUB_OUTPUT'],'a') as out:out.write('matrix='+json.dumps({'project':known if selected=='all' else [selected]})+'\n')
           PY
-  export:
+  fetch:
     needs: select
     if: github.event_name == 'workflow_dispatch' && github.ref_name == 'main' && github.repository == 'mars-tw/taiwan-train-math'
-    runs-on: macos-15
-    timeout-minutes: 70
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: write
     strategy:
       fail-fast: false
-      max-parallel: 2
+      max-parallel: 3
       matrix: ${{ fromJson(needs.select.outputs.matrix) }}
-    environment: game-store-${{ matrix.project }}
     env:
-      DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
       SOURCE_TAG: ${{ inputs.release_tag }}
       EXPECTED_CHECKSUMS_SHA256: ${{ inputs.sha256sums_sha256 }}
       PROJECT_ID: ${{ matrix.project }}
-      SELECTED_PROJECT: ${{ inputs.project }}
-      PUBLIC_OUTPUT: ${{ github.workspace }}/output/native-fleet-ios/${{ matrix.project }}
     steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
-        if: inputs.project == 'all' || inputs.project == matrix.project
-        with: {persist-credentials: false}
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
-        if: inputs.project == 'all' || inputs.project == matrix.project
-        with: {node-version: '24'}
-      - name: Verify fixed release checksum pin, source archive and trusted CI helpers
-        if: inputs.project == 'all' || inputs.project == matrix.project
+      - name: Download and hash only the fixed draft inputs without game or Apple code
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           python3 - <<'PY'
-          import hashlib,os,pathlib,re,time,subprocess
+          import hashlib,json,os,pathlib,re,time,subprocess
           tag=os.environ['SOURCE_TAG'];expected=os.environ['EXPECTED_CHECKSUMS_SHA256'].lower();project=os.environ['PROJECT_ID']
-          if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]{0,99}',tag) or not re.fullmatch(r'[0-9a-f]{64}',expected):raise SystemExit('A fixed release tag and approved checksum manifest SHA are required')
+          approved_tag='all-games-mobile-ci-20261007'
+          approved_pin='90743278d23d4a12753e81cee078157f691302c9ae79c716804552a4c23b35bd'
+          approved_release_id=405458880
+          known=['ashes-convoy','island-flight-school','night-train-watch-protocol','pixel-idle-farm-skill','storm-apocalypse','taiwan-train-school','tower-defense-skill','village-siege','web-card-game-skill']
+          if tag!=approved_tag or expected!=approved_pin or project not in known:raise SystemExit('Only the fixed approved source tag/checksum and explicit Web adapter are allowed')
           repository='mars-tw/taiwan-train-math'
-          staging=pathlib.Path(os.environ['RUNNER_TEMP'],'native-release');staging.mkdir(exist_ok=True)
+          if os.environ['GITHUB_REPOSITORY']!=repository:raise SystemExit('Source release must belong to the calling trusted repository')
+          metadata=subprocess.run(['gh','api','--method','GET','repos/'+repository+'/releases/'+str(approved_release_id)],capture_output=True,timeout=60)
+          if metadata.returncode:
+              detail=metadata.stderr.decode('utf-8','replace').replace(os.environ.get('GH_TOKEN',''),'[REDACTED]')
+              detail=re.sub(r'https?://[^\s]+','[URL REDACTED]',detail)
+              raise SystemExit('Cannot read the fixed draft release with the isolated fetch job token: '+detail[:400])
+          release=json.loads(metadata.stdout)
+          if release.get('id')!=approved_release_id or release.get('tag_name')!=tag or release.get('draft') is not True:raise SystemExit('Fixed release id/tag must still identify an actual DRAFT release')
+          required=['SHA256SUMS','ci_verify_ios.py','ci_ios_export.sh',project+'-ios-source.zip']
+          if not set(required).issubset({asset.get('name') for asset in release.get('assets',[])}):raise SystemExit('The fixed draft release is missing approved inputs')
+          staging=pathlib.Path(os.environ['RUNNER_TEMP'],'native-release');staging.mkdir(mode=0o700)
           def download(name,destination,maximum):
               for attempt in range(3):
                   try:
@@ -101,6 +106,84 @@ jobs:
           for name,maximum in [('ci_verify_ios.py',1024*1024),('ci_ios_export.sh',1024*1024),(project+'-ios-source.zip',1024**3)]:
               if name not in sums:raise SystemExit('Approved release has no matching project/helper checksum')
               target=staging/name;download(name,target,maximum)
+              h=hashlib.sha256()
+              with target.open('rb') as stream:
+                  for block in iter(lambda:stream.read(1024*1024),b''):h.update(block)
+              if h.hexdigest()!=sums[name]:raise SystemExit('Release asset bytes differ from public checksum')
+          provenance={'repository':repository,'releaseTag':tag,'releaseId':approved_release_id,'releaseDraft':True,'projectId':project,'checksumManifestSha256':expected,'helpersExecuted':False,'gameExecuted':False,'appleSecretsUsed':False}
+          (staging/'input-provenance.json').write_text(json.dumps(provenance,indent=2)+'\n',encoding='utf-8')
+          print('Fixed draft inputs downloaded and hashed only; no game/helper/Apple code executed.')
+          PY
+      - name: Relay approved inputs to this run's read-only Mac job
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: approved-ios-source-${{ matrix.project }}-${{ github.run_id }}
+          path: ${{ runner.temp }}/native-release
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 1
+  export:
+    needs: [select, fetch]
+    if: github.event_name == 'workflow_dispatch' && github.ref_name == 'main' && github.repository == 'mars-tw/taiwan-train-math'
+    runs-on: macos-15
+    timeout-minutes: 70
+    permissions:
+      contents: read
+      actions: read
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix: ${{ fromJson(needs.select.outputs.matrix) }}
+    environment: game-store-${{ matrix.project }}
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
+      SOURCE_TAG: ${{ inputs.release_tag }}
+      EXPECTED_CHECKSUMS_SHA256: ${{ inputs.sha256sums_sha256 }}
+      PROJECT_ID: ${{ matrix.project }}
+      SELECTED_PROJECT: ${{ inputs.project }}
+      PUBLIC_OUTPUT: ${{ github.workspace }}/output/native-fleet-ios/${{ matrix.project }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        if: inputs.project == 'all' || inputs.project == matrix.project
+        with: {persist-credentials: false}
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        if: inputs.project == 'all' || inputs.project == matrix.project
+        with: {node-version: '24'}
+      - name: Read this run's approved inputs without repository write access
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        if: inputs.project == 'all' || inputs.project == matrix.project
+        with:
+          name: approved-ios-source-${{ matrix.project }}-${{ github.run_id }}
+          path: ${{ runner.temp }}/native-release
+      - name: Reverify the relay pin and run the source/path verifier before npm or Xcode
+        if: inputs.project == 'all' || inputs.project == matrix.project
+        run: |
+          python3 - <<'PY'
+          import hashlib,json,os,pathlib,re
+          tag=os.environ['SOURCE_TAG'];expected=os.environ['EXPECTED_CHECKSUMS_SHA256'].lower();project=os.environ['PROJECT_ID']
+          if tag!='all-games-mobile-ci-20261007' or expected!='90743278d23d4a12753e81cee078157f691302c9ae79c716804552a4c23b35bd':raise SystemExit('Relay requires the fixed approved release/checksum pin')
+          repository='mars-tw/taiwan-train-math'
+          if os.environ['GITHUB_REPOSITORY']!=repository:raise SystemExit('Unexpected caller repository')
+          staging=pathlib.Path(os.environ['RUNNER_TEMP'],'native-release')
+          names={'SHA256SUMS','ci_verify_ios.py','ci_ios_export.sh',project+'-ios-source.zip','input-provenance.json'}
+          if not staging.is_dir() or {p.name for p in staging.iterdir()}!=names:raise SystemExit('Same-run relay has missing/unexpected input files')
+          for name in names:
+              file=staging/name;maximum=1024**3 if name.endswith('.zip') else 1024*1024
+              if not file.is_file() or file.is_symlink() or not 0<file.stat().st_size<=maximum:raise SystemExit('Invalid or oversized relayed input')
+          provenance=json.loads((staging/'input-provenance.json').read_text(encoding='utf-8'))
+          approved={'repository':repository,'releaseTag':tag,'releaseId':405458880,'releaseDraft':True,'projectId':project,'checksumManifestSha256':expected,'helpersExecuted':False,'gameExecuted':False,'appleSecretsUsed':False}
+          if provenance!=approved:raise SystemExit('Same-run source provenance does not match the approved inputs')
+          checksum_file=staging/'SHA256SUMS'
+          if hashlib.sha256(checksum_file.read_bytes()).hexdigest()!=expected:raise SystemExit('Public checksum manifest differs from the approved pin')
+          sums={}
+          for line in checksum_file.read_text(encoding='utf-8').splitlines():
+              if not line.strip():continue
+              match=re.fullmatch(r'([0-9a-fA-F]{64})\s+\*?([A-Za-z0-9][A-Za-z0-9._-]{0,150})',line)
+              if not match or match[2] in sums:raise SystemExit('Invalid/duplicate public checksum record')
+              sums[match[2]]=match[1].lower()
+          for name,maximum in [('ci_verify_ios.py',1024*1024),('ci_ios_export.sh',1024*1024),(project+'-ios-source.zip',1024**3)]:
+              if name not in sums:raise SystemExit('Approved release has no matching project/helper checksum')
+              target=staging/name
               h=hashlib.sha256()
               with target.open('rb') as stream:
                   for block in iter(lambda:stream.read(1024*1024),b''):h.update(block)

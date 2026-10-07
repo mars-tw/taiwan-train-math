@@ -120,7 +120,7 @@ function checkCommand(script, args) {
  * artifacts and returns exactly the four observation booleans. No result implies
  * a content-quality pass. Callers retain ownership of Simulator lifecycle cleanup.
  */
-export async function runAppiumSession({ appiumBin, udid, bundleId, model, platformVersion, output, scratch, observeStart } = {}) {
+export async function runAppiumSession({ appiumBin, udid, bundleId, model, platformVersion, output, scratch, observeStart, wdaDerivedData } = {}) {
   const report = { status: 'failed', stage: 'prepare', sessionCreated: false,
     observation: Object.fromEntries(OBSERVATIONS.map(key => [key, false])),
     cleanup: { session: 'not-created', server: 'not-started' }, rawLogsUploaded: false,
@@ -196,6 +196,15 @@ export async function runAppiumSession({ appiumBin, udid, bundleId, model, platf
     await fs.mkdir(scratch, { recursive: true, mode: 0o700 });
     const [outputRoot, scratchRoot] = await Promise.all([fs.realpath(output), fs.realpath(scratch)]);
     if (inside(outputRoot, scratchRoot) || inside(scratchRoot, outputRoot)) fail('INVALID_ARGUMENT');
+    let prebuiltPath = null;
+    if (wdaDerivedData !== undefined) {
+      if (typeof wdaDerivedData !== 'string' || !path.isAbsolute(wdaDerivedData)) fail('INVALID_ARGUMENT');
+      prebuiltPath = await fs.realpath(wdaDerivedData);
+      if (!inside(scratchRoot, prebuiltPath) || prebuiltPath === scratchRoot || inside(outputRoot, prebuiltPath)) fail('INVALID_ARGUMENT');
+      const products = await fs.readdir(path.join(prebuiltPath, 'Build', 'Products'));
+      if (!products.some(name => /^WebDriverAgentRunner_iphonesimulator.*\.xctestrun$/.test(name))) fail('RUNTIME_MISMATCH');
+    }
+    report.usePrebuiltWDA = prebuiltPath !== null;
     const privateDirectory = await fs.mkdtemp(path.join(scratchRoot, 'appium-session-'));
     await fs.chmod(privateDirectory, 0o700);
     const config = path.join(privateDirectory, 'server-config.json');
@@ -279,7 +288,8 @@ export async function runAppiumSession({ appiumBin, udid, bundleId, model, platf
       'appium:wdaLaunchTimeout': HTTP_TIMEOUT, 'appium:wdaConnectionTimeout': HTTP_TIMEOUT,
       'appium:screenshotQuality': 0, 'appium:printPageSourceOnFindFailure': false,
       'appium:skipLogCapture': true, 'appium:showXcodeLog': true,
-      'appium:derivedDataPath': path.join(privateDirectory, 'wda-derived'),
+      'appium:derivedDataPath': prebuiltPath || path.join(privateDirectory, 'wda-derived'),
+      ...(prebuiltPath ? { 'appium:usePrebuiltWDA': true } : {}),
       'appium:wdaBaseUrl': 'http://127.0.0.1', 'appium:wdaBindingIP': '127.0.0.1',
       'appium:wdaLocalPort': wdaPort, 'appium:wdaRemotePort': wdaPort,
       'appium:mjpegServerPort': mjpegPort, 'appium:shutdownOtherSimulators': false,

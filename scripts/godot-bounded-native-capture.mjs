@@ -296,6 +296,37 @@ export async function captureNative({ mode, source, metadata, verifier, output }
     report.unsignedSimulatorLinkOnly = true;
     await fs.writeFile(path.join(scratch, 'native-image.swift'), imageHelper, { flag: 'wx', mode: 0o600 });
     await fs.mkdir(path.join(output, 'raw-screenshots')); await fs.mkdir(path.join(output, 'screenshots'));
+    let wdaDerivedData;
+    if (mode === 'seven-appium') {
+      report.stage = 'official-wda-prebuild';
+      const runtime = path.join(scripts, 'godot-appium-runtime'), agent = path.join(runtime, 'node_modules/appium-webdriveragent');
+      const lock = JSON.parse(await fs.readFile(path.join(runtime, 'package-lock.json'), 'utf8'));
+      const pinned = lock.packages?.['node_modules/appium-webdriveragent'];
+      const integrity = 'sha512-Pm8niJTyim/9hQxNcIsMNFTLF/hIHhhFtNje6kBKwonLR4F+P00cq/jNeTj/piywPtZYTdxlMpUErEre6vj2DA==';
+      if (pinned?.version !== '11.4.0' || pinned.integrity !== integrity
+        || pinned.resolved !== 'https://registry.npmjs.org/appium-webdriveragent/-/appium-webdriveragent-11.4.0.tgz') fail('PINNED_OFFICIAL_WDA_REQUIRED');
+      const bytePins = { 'package.json':'dd525301e121bbdc52dd5c43859c8d5fdae2bb9f09e2fabfbc3c2cfd0fe12d01',
+        'WebDriverAgent.xcodeproj/project.pbxproj':'82763331be565f09f997d0398f41a00cff19c9d40bd447ab86d61e0cc9eba7b6',
+        'build/lib/xcodebuild.js':'12a4a67d67848c2667999e313c3d83f0c30930ca75814ed4d56aaf2f8a3adf17' };
+      for (const [file, digest] of Object.entries(bytePins)) if (sha(await fs.readFile(path.join(agent, file))) !== digest) fail('OFFICIAL_WDA_SOURCE_BYTE_MISMATCH');
+      report.wdaPrebuild = { version:'11.4.0', npmIntegrity:integrity, sourceSha256:bytePins, unsigned:true, status:'prepared', simulatorOnly:true };
+      await publish();
+      wdaDerivedData = path.join(scratch, 'prebuilt-wda');
+      const compiled = await command('prebuild-official-wda', ['xcodebuild', '-project', path.join(agent, 'WebDriverAgent.xcodeproj'),
+        '-scheme', 'WebDriverAgentRunner', '-sdk', 'iphonesimulator', '-destination', 'generic/platform=iOS Simulator',
+        '-derivedDataPath', wdaDerivedData, 'CODE_SIGNING_ALLOWED=NO', 'ARCHS=x86_64', 'EXCLUDED_ARCHS=arm64',
+        'ONLY_ACTIVE_ARCH=YES', 'build-for-testing'], { timeout: 600000, allowFailure:true });
+      report.wdaPrebuild.exitCode = compiled.code; report.wdaPrebuild.timedOut = compiled.timedOut;
+      report.wdaPrebuild.safeCompilerSummary = compiled.text.split(/\r?\n/).filter(line => /error:|BUILD FAILED|TEST BUILD SUCCEEDED|Testing failed/.test(line)).slice(-12)
+        .map(line => line.replace(/https?:\/\/[^\s"'<>]+/g, '<url>').replace(/\/(?:Users|private|var|Volumes|tmp)\/[^\s"'<>]+/g, '<path>').slice(0,500));
+      await publish();
+      if (compiled.code !== 0 || compiled.timedOut) fail('OFFICIAL_WDA_PREBUILD_FAILED');
+      const executable = path.join(wdaDerivedData, 'Build/Products/Debug-iphonesimulator/WebDriverAgentRunner-Runner.app/WebDriverAgentRunner-Runner');
+      const architecture = await command('actual-prebuilt-wda-architecture', ['xcrun','lipo','-archs',executable]);
+      if (architecture.stdout.trim() !== 'x86_64') fail('ACTUAL_PREBUILT_WDA_ARCHITECTURE_MISMATCH');
+      report.wdaPrebuild.status = 'built'; report.wdaPrebuild.architectures = ['x86_64']; report.wdaPrebuild.gameRunningDuringBuild = false;
+      await publish();
+    }
     const initial = await inventory(), plan = selectCapturePlan(initial, mode);
     report.runtime = plan.runtime;
     const previous = new Set(Object.values(initial.devices || {}).flat().map(device => String(device.udid).toLowerCase()));
@@ -387,7 +418,7 @@ export async function captureNative({ mode, source, metadata, verifier, output }
           result.status = 'completed';
         } else {
           const appium = await runAppiumSession({ appiumBin: path.join(scripts, 'godot-appium-runtime/node_modules/appium/index.js'),
-            udid, bundleId: recipe.appId, model: model.name, platformVersion: plan.runtime.version, output, scratch,
+            udid, bundleId: recipe.appId, model: model.name, platformVersion: plan.runtime.version, output, scratch, wdaDerivedData,
             observeStart: async ({ execute, getWindowRect }) => {
               const observation = { coldCaptured: false, startTapped: false, afterStartCaptured: false, warmCaptured: false };
               try {

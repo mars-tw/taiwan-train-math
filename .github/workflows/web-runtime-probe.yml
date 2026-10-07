@@ -1,0 +1,65 @@
+name: Frozen Web unsigned runtime probe (no signing/store)
+'on':
+  workflow_dispatch: {}
+permissions:
+  contents: read
+jobs:
+  fetch:
+    if: github.ref == 'refs/heads/main' && github.repository == 'mars-tw/taiwan-train-math'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    env:
+      SOURCE_TAG: all-games-mobile-ci-20261007-r3
+      EXPECTED_CHECKSUMS_SHA256: fd6a4d3c96ce458b0ea08c913fd85abe5adac0df82d86fedc7895772de79b068
+      PROJECT_ID: ashes-convoy
+    steps:
+    - name: Download and hash only approved frozen r3 draft inputs
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: "python3 - <<'PY'\nimport hashlib,json,os,pathlib,re,time,subprocess\ntag=os.environ['SOURCE_TAG'];expected=os.environ['EXPECTED_CHECKSUMS_SHA256'].lower();project=os.environ['PROJECT_ID']\napproved_tag='all-games-mobile-ci-20261007-r3'\napproved_pin='fd6a4d3c96ce458b0ea08c913fd85abe5adac0df82d86fedc7895772de79b068'\napproved_release_id=405552157\nknown=['ashes-convoy','island-flight-school','night-train-watch-protocol','pixel-idle-farm-skill','storm-apocalypse','taiwan-train-school','tower-defense-skill','village-siege','web-card-game-skill']\nif tag!=approved_tag or expected!=approved_pin or project not in known:raise SystemExit('Only the fixed approved source tag/checksum and explicit Web adapter are allowed')\nrepository='mars-tw/taiwan-train-math'\nif os.environ['GITHUB_REPOSITORY']!=repository:raise SystemExit('Source release must belong to the calling trusted repository')\nmetadata=subprocess.run(['gh','api','--method','GET','repos/'+repository+'/releases/'+str(approved_release_id)],capture_output=True,timeout=60)\nif metadata.returncode:\n    detail=metadata.stderr.decode('utf-8','replace').replace(os.environ.get('GH_TOKEN',''),'[REDACTED]')\n    detail=re.sub(r'https?://[^\\s]+','[URL REDACTED]',detail)\n    raise SystemExit('Cannot read the fixed draft release with the isolated fetch job token: '+detail[:400])\nrelease=json.loads(metadata.stdout)\nif release.get('id')!=approved_release_id or release.get('tag_name')!=tag or release.get('draft') is not True:raise SystemExit('Fixed release id/tag must still identify an actual DRAFT release')\nrequired=['SHA256SUMS','ci_verify_ios.py','ci_ios_export.sh',project+'-ios-source.zip']\nif not set(required).issubset({asset.get('name') for asset in release.get('assets',[])}):raise SystemExit('The fixed draft release is missing approved inputs')\nstaging=pathlib.Path(os.environ['RUNNER_TEMP'],'native-release');staging.mkdir(mode=0o700)\ndef download(name,destination,maximum):\n    for attempt in range(3):\n        try:\n            before={p.name for p in staging.iterdir()}\n            result=subprocess.run(['gh','release','download',tag,'--repo',repository,'--pattern',name,'--dir',str(staging),'--clobber'],capture_output=True,timeout=240)\n            if result.returncode:\n                detail=result.stderr.decode('utf-8','replace').replace(os.environ.get('GH_TOKEN',''),'[REDACTED]')\n                detail=re.sub(r'https?://[^\\s]+','[URL REDACTED]',detail)\n                raise ValueError('Official release asset download failed: '+detail[:400])\n            unexpected={p.name for p in staging.iterdir()}-before-{name}\n            if unexpected or not destination.is_file() or destination.is_symlink() or not 0<destination.stat().st_size<=maximum:raise ValueError('Unexpected/oversized release asset')\n            return\n        except (OSError,ValueError,subprocess.TimeoutExpired) as error:\n            destination.unlink(missing_ok=True)\n            if attempt==2:raise SystemExit('Unable to download '+name+': '+str(error))\n            time.sleep(2)\nchecksum_file=staging/'SHA256SUMS';download('SHA256SUMS',checksum_file,256*1024)\nif hashlib.sha256(checksum_file.read_bytes()).hexdigest()!=expected:raise SystemExit('Public checksum manifest differs from the approved pin')\nsums={}\nfor line in checksum_file.read_text(encoding='utf-8').splitlines():\n    if not line.strip():continue\n    match=re.fullmatch(r'([0-9a-fA-F]{64})\\s+\\*?([A-Za-z0-9][A-Za-z0-9._-]{0,150})',line)\n    if not match or match[2] in sums:raise SystemExit('Invalid/duplicate public checksum record')\n    sums[match[2]]=match[1].lower()\nfor name,maximum in [('ci_verify_ios.py',1024*1024),('ci_ios_export.sh',1024*1024),(project+'-ios-source.zip',1024**3)]:\n    if name not in sums:raise SystemExit('Approved release has no matching project/helper checksum')\n    target=staging/name;download(name,target,maximum)\n    h=hashlib.sha256()\n    with target.open('rb') as stream:\n        for block in iter(lambda:stream.read(1024*1024),b''):h.update(block)\n    if h.hexdigest()!=sums[name]:raise SystemExit('Release asset bytes differ from public checksum')\nprovenance={'repository':repository,'releaseTag':tag,'releaseId':approved_release_id,'releaseDraft':True,'projectId':project,'checksumManifestSha256':expected,'helpersExecuted':False,'gameExecuted':False,'appleSecretsUsed':False}\n(staging/'input-provenance.json').write_text(json.dumps(provenance,indent=2)+'\\n',encoding='utf-8')\nprint('Fixed draft inputs downloaded and hashed only; no game/helper/Apple code executed.')\nPY\n"
+    - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      with:
+        name: web-runtime-probe-source-${{ github.run_id }}
+        path: ${{ runner.temp }}/native-release
+        if-no-files-found: error
+        retention-days: 1
+        compression-level: 0
+  probe:
+    needs: fetch
+    runs-on: macos-15
+    timeout-minutes: 40
+    permissions:
+      contents: read
+      actions: read
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
+      SOURCE_TAG: all-games-mobile-ci-20261007-r3
+      EXPECTED_CHECKSUMS_SHA256: fd6a4d3c96ce458b0ea08c913fd85abe5adac0df82d86fedc7895772de79b068
+      PROJECT_ID: ashes-convoy
+      PUBLIC_OUTPUT: ${{ github.workspace }}/output/web-runtime-probe
+    steps:
+    - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      with:
+        persist-credentials: false
+    - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+      with:
+        node-version: '24'
+    - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+      with:
+        name: web-runtime-probe-source-${{ github.run_id }}
+        path: ${{ runner.temp }}/native-release
+    - name: Recheck fixed pin and frozen source before unsigned build
+      run: "python3 - <<'PY'\nimport hashlib,json,os,pathlib,re\ntag=os.environ['SOURCE_TAG'];expected=os.environ['EXPECTED_CHECKSUMS_SHA256'].lower();project=os.environ['PROJECT_ID']\nif tag!='all-games-mobile-ci-20261007-r3' or expected!='fd6a4d3c96ce458b0ea08c913fd85abe5adac0df82d86fedc7895772de79b068':raise SystemExit('Relay requires the fixed approved release/checksum pin')\nrepository='mars-tw/taiwan-train-math'\nif os.environ['GITHUB_REPOSITORY']!=repository:raise SystemExit('Unexpected caller repository')\nstaging=pathlib.Path(os.environ['RUNNER_TEMP'],'native-release')\nnames={'SHA256SUMS','ci_verify_ios.py','ci_ios_export.sh',project+'-ios-source.zip','input-provenance.json'}\nif not staging.is_dir() or {p.name for p in staging.iterdir()}!=names:raise SystemExit('Same-run relay has missing/unexpected input files')\nfor name in names:\n    file=staging/name;maximum=1024**3 if name.endswith('.zip') else 1024*1024\n    if not file.is_file() or file.is_symlink() or not 0<file.stat().st_size<=maximum:raise SystemExit('Invalid or oversized relayed input')\nprovenance=json.loads((staging/'input-provenance.json').read_text(encoding='utf-8'))\napproved={'repository':repository,'releaseTag':tag,'releaseId':405552157,'releaseDraft':True,'projectId':project,'checksumManifestSha256':expected,'helpersExecuted':False,'gameExecuted':False,'appleSecretsUsed':False}\nif provenance!=approved:raise SystemExit('Same-run source provenance does not match the approved inputs')\nchecksum_file=staging/'SHA256SUMS'\nif hashlib.sha256(checksum_file.read_bytes()).hexdigest()!=expected:raise SystemExit('Public checksum manifest differs from the approved pin')\nsums={}\nfor line in checksum_file.read_text(encoding='utf-8').splitlines():\n    if not line.strip():continue\n    match=re.fullmatch(r'([0-9a-fA-F]{64})\\s+\\*?([A-Za-z0-9][A-Za-z0-9._-]{0,150})',line)\n    if not match or match[2] in sums:raise SystemExit('Invalid/duplicate public checksum record')\n    sums[match[2]]=match[1].lower()\nfor name,maximum in [('ci_verify_ios.py',1024*1024),('ci_ios_export.sh',1024*1024),(project+'-ios-source.zip',1024**3)]:\n    if name not in sums:raise SystemExit('Approved release has no matching project/helper checksum')\n    target=staging/name\n    h=hashlib.sha256()\n    with target.open('rb') as stream:\n        for block in iter(lambda:stream.read(1024*1024),b''):h.update(block)\n    if h.hexdigest()!=sums[name]:raise SystemExit('Release asset bytes differ from public checksum')\nwith open(os.environ['GITHUB_ENV'],'a') as env:\n    env.write('CI_TOOLS='+str(staging)+'\\n')\n    env.write('APP_SOURCE='+str(pathlib.Path(os.environ['RUNNER_TEMP'],'native-app-source'))+'\\n')\nPY\npython3 \"$RUNNER_TEMP/native-release/ci_verify_ios.py\" extract --zip \"$RUNNER_TEMP/native-release/$PROJECT_ID-ios-source.zip\" --destination \"$RUNNER_TEMP/native-app-source\"\npython3 \"$RUNNER_TEMP/native-release/ci_verify_ios.py\" source --root \"$RUNNER_TEMP/native-app-source\" --project \"$PROJECT_ID\" --output \"$PUBLIC_OUTPUT/source-verification.json\"\n"
+    - name: Prepare frozen iOS source without signing credentials
+      run: bash "$CI_TOOLS/ci_ios_export.sh" prepare "$APP_SOURCE" "$PROJECT_ID" "$PUBLIC_OUTPUT"
+    - name: Unsigned own-App cold/warm 30 60 90 second Pro Max probe
+      run: bash scripts/ci-web-runtime-probe.sh "$APP_SOURCE" "$PUBLIC_OUTPUT"
+    - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      if: always()
+      with:
+        name: web-runtime-probe-${{ github.run_id }}
+        path: output/web-runtime-probe
+        if-no-files-found: warn
+        retention-days: 7

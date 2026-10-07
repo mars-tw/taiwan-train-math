@@ -45,6 +45,16 @@ export function selectCapturePlan(inventory, mode) {
     models: MODES[mode].kinds.map(kind => ({ kind, ...(kind === 'iphone' ? phones[0] : tablets[0]) })) };
 }
 
+// Official 10.43 mobileQueryAppState -> WDA /wda/apps/state ->
+// XCUIApplication(bundleIdentifier).state. State 4 alone proves this App's
+// foreground process state; actual PNG/OCR/window/Start/HUD checks remain separate.
+export async function requireSevenForeground(execute, appId) {
+  if (typeof execute !== 'function' || appId !== MODES['seven-appium'].appId) fail('APP_SCOPED_FOREGROUND_QUERY_REQUIRED');
+  const state = await execute('mobile: queryAppState', { bundleId: appId });
+  if (state !== 4) fail('OWN_GAME_FOREGROUND_UNCONFIRMED');
+  return { method: 'mobile: queryAppState', bundleId: appId, state, apiMeaning: 'XCUIApplicationStateRunningForeground' };
+}
+
 // Vision boxes refer to the orientation-corrected image. Keep the inverse EXIF
 // point as evidence, then use actual WDA window dimensions and scale for tap units.
 // WDA v11.4.0 FBElementCommands.m: gestureCoordinateWithOffset uses the active
@@ -428,29 +438,31 @@ export async function captureNative({ mode, source, metadata, verifier, output }
             observeStart: async ({ execute, getWindowRect }) => {
               const observation = { coldCaptured: false, startTapped: false, afterStartCaptured: false, warmCaptured: false };
               try {
-                const foreground = async () => {
-                  const active = await execute('mobile: activeAppInfo', {});
-                  const state = await execute('mobile: queryAppState', { bundleId: recipe.appId });
-                  if (active?.bundleId !== recipe.appId || state !== 4) fail('OWN_GAME_FOREGROUND_UNCONFIRMED');
+                const foreground = async stage => {
+                  const proof = await requireSevenForeground(execute, recipe.appId);
+                  (result.foregroundStateProofs ||= []).push({ stage, ...proof });
                 };
                 // WDA startup may foreground its own runner. Restore only this
                 // fresh owned Simulator's already-running game, without reset.
                 await command(model.kind + '-restore-own-game-foreground', ['xcrun', 'simctl', 'launch', udid, recipe.appId]);
-                await foreground(); report.accessibilityInteraction = true;
-                await pause(90000); await foreground(); result.coldForegroundConfirmed = true;
-                const cold = await rawShot(device, 'cold90', true); observation.coldCaptured = true;
+                // Keep the existing cold90 wait before state/AX observation.
+                // Save native pixels first, so a failed state proof remains diagnosable.
+                await pause(90000);
+                const cold = await rawShot(device, 'cold90', true);
+                await foreground('cold90'); result.coldForegroundConfirmed = true; report.accessibilityInteraction = true;
+                observation.coldCaptured = true;
                 if (typeof getWindowRect !== 'function') fail('ACTUAL_WDA_POINT_SPACE_INTERFACE_MISSING');
                 const screen = await execute('mobile: deviceScreenInfo', {}), windowRect = await getWindowRect();
                 result.startProof = deriveTapPoint(cold.vision, screen, windowRect);
-                await publish(); await foreground();
+                await publish(); await foreground('before-start');
                 await execute('mobile: tap', { ...result.startProof.screenPoint });
                 observation.startTapped = true; result.visibleStartLabelTapped = true;
-                await pause(20000); await foreground();
+                await pause(20000); await foreground('after-start');
                 await rawShot(device, 'after-start'); observation.afterStartCaptured = true;
                 await command(model.kind + '-terminate', ['xcrun', 'simctl', 'terminate', udid, recipe.appId]);
                 await stopConsole(coldConsole, result, 'cold'); coldConsole = null;
                 warmConsole = await startProcess(model.kind + '-warm-own-game-console', ['xcrun', 'simctl', 'launch', '--console-pty', udid, recipe.appId], 900000);
-                await pause(90000); await foreground(); result.warmForegroundConfirmed = true;
+                await pause(90000); await foreground('warm90'); result.warmForegroundConfirmed = true;
                 await rawShot(device, 'warm90'); observation.warmCaptured = true;
                 return observation;
               } catch (error) { result.observationError = { code: errorCode(error) }; await publish(); throw error; }

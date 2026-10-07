@@ -20,8 +20,8 @@
   "categoriesSavedAndReadBack": true,
   "appStoreAgeRating": "FOUR_PLUS",
   "kidsAgeBand": "FIVE_AND_UNDER",
-  "reviewContactPhoneMissing": true,
-  "reviewDetailsSaved": false,
+  "reviewContactPhoneMissing": false,
+  "reviewDetailsSaved": true,
   "appPrivacyQuestionnaireComplete": false,
   "freePriceSavedAndReadBack": true,
   "availabilitySavedAndReadBack": false,
@@ -32,5 +32,6 @@
     "sha256": "64cda64fda642ad54677750188147d6e18bbd685236469d4b2fdeb0b54ab4b20",
     "deliveryState": "COMPLETE",
     "captureRun": "37568775904"
-  }
+  },
+  "reviewDetailsSavedAndReadBack": true
 }

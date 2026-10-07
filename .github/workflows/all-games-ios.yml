@@ -1,0 +1,137 @@
+name: All games iOS signed artifacts (manual, no store upload)
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Fixed same-repository source release tag'
+        required: true
+        type: string
+      sha256sums_sha256:
+        description: 'Locally approved SHA-256 of that release SHA256SUMS'
+        required: true
+        type: string
+      project:
+        description: 'First validate one app, then choose all nine Web adapters'
+        required: true
+        default: ashes-convoy
+        type: choice
+        options: [all, ashes-convoy, island-flight-school, night-train-watch-protocol, pixel-idle-farm-skill, storm-apocalypse, taiwan-train-school, tower-defense-skill, village-siege, web-card-game-skill]
+permissions:
+  contents: read
+concurrency:
+  group: native-fleet-ios-${{ github.repository }}-${{ inputs.release_tag }}
+  cancel-in-progress: false
+jobs:
+  select:
+    if: github.event_name == 'workflow_dispatch' && github.ref_name == 'main' && github.repository == 'mars-tw/taiwan-train-math'
+    runs-on: ubuntu-24.04
+    outputs:
+      matrix: ${{ steps.choose.outputs.matrix }}
+    steps:
+      - id: choose
+        env:
+          SELECTED_PROJECT: ${{ inputs.project }}
+        run: |
+          python3 - <<'PY'
+          import json,os
+          known=['ashes-convoy','island-flight-school','night-train-watch-protocol','pixel-idle-farm-skill','storm-apocalypse','taiwan-train-school','tower-defense-skill','village-siege','web-card-game-skill']
+          selected=os.environ['SELECTED_PROJECT']
+          if selected!='all' and selected not in known:raise SystemExit('Unknown explicit Web adapter')
+          with open(os.environ['GITHUB_OUTPUT'],'a') as out:out.write('matrix='+json.dumps({'project':known if selected=='all' else [selected]})+'\n')
+          PY
+  export:
+    needs: select
+    if: github.event_name == 'workflow_dispatch' && github.ref_name == 'main' && github.repository == 'mars-tw/taiwan-train-math'
+    runs-on: macos-15
+    timeout-minutes: 70
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix: ${{ fromJson(needs.select.outputs.matrix) }}
+    environment: game-store-${{ matrix.project }}
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
+      SOURCE_TAG: ${{ inputs.release_tag }}
+      EXPECTED_CHECKSUMS_SHA256: ${{ inputs.sha256sums_sha256 }}
+      PROJECT_ID: ${{ matrix.project }}
+      SELECTED_PROJECT: ${{ inputs.project }}
+      PUBLIC_OUTPUT: ${{ github.workspace }}/output/native-fleet-ios/${{ matrix.project }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        if: inputs.project == 'all' || inputs.project == matrix.project
+        with: {persist-credentials: false}
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        if: inputs.project == 'all' || inputs.project == matrix.project
+        with: {node-version: '24'}
+      - name: Verify fixed release checksum pin, source archive and trusted CI helpers
+        if: inputs.project == 'all' || inputs.project == matrix.project
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import hashlib,os,pathlib,re,time,subprocess
+          tag=os.environ['SOURCE_TAG'];expected=os.environ['EXPECTED_CHECKSUMS_SHA256'].lower();project=os.environ['PROJECT_ID']
+          if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]{0,99}',tag) or not re.fullmatch(r'[0-9a-f]{64}',expected):raise SystemExit('A fixed release tag and approved checksum manifest SHA are required')
+          repository='mars-tw/taiwan-train-math'
+          staging=pathlib.Path(os.environ['RUNNER_TEMP'],'native-release');staging.mkdir(exist_ok=True)
+          def download(name,destination,maximum):
+              for attempt in range(3):
+                  try:
+                      before={p.name for p in staging.iterdir()}
+                      result=subprocess.run(['gh','release','download',tag,'--repo',repository,'--pattern',name,'--dir',str(staging),'--clobber'],capture_output=True,timeout=240)
+                      if result.returncode:raise ValueError('Official release asset download failed')
+                      unexpected={p.name for p in staging.iterdir()}-before-{name}
+                      if unexpected or not destination.is_file() or destination.is_symlink() or not 0<destination.stat().st_size<=maximum:raise ValueError('Unexpected/oversized release asset')
+                      return
+                  except (OSError,ValueError,subprocess.TimeoutExpired):
+                      destination.unlink(missing_ok=True)
+                      if attempt==2:raise SystemExit('Unable to download the approved source release asset')
+                      time.sleep(2)
+          checksum_file=staging/'SHA256SUMS';download('SHA256SUMS',checksum_file,256*1024)
+          if hashlib.sha256(checksum_file.read_bytes()).hexdigest()!=expected:raise SystemExit('Public checksum manifest differs from the approved pin')
+          sums={}
+          for line in checksum_file.read_text(encoding='utf-8').splitlines():
+              if not line.strip():continue
+              match=re.fullmatch(r'([0-9a-fA-F]{64})\s+\*?([A-Za-z0-9][A-Za-z0-9._-]{0,150})',line)
+              if not match or match[2] in sums:raise SystemExit('Invalid/duplicate public checksum record')
+              sums[match[2]]=match[1].lower()
+          for name,maximum in [('ci_verify_ios.py',1024*1024),('ci_ios_export.sh',1024*1024),(project+'-ios-source.zip',1024**3)]:
+              if name not in sums:raise SystemExit('Approved release has no matching project/helper checksum')
+              target=staging/name;download(name,target,maximum)
+              h=hashlib.sha256()
+              with target.open('rb') as stream:
+                  for block in iter(lambda:stream.read(1024*1024),b''):h.update(block)
+              if h.hexdigest()!=sums[name]:raise SystemExit('Release asset bytes differ from public checksum')
+          with open(os.environ['GITHUB_ENV'],'a') as env:
+              env.write('CI_TOOLS='+str(staging)+'\n')
+              env.write('APP_SOURCE='+str(pathlib.Path(os.environ['RUNNER_TEMP'],'native-app-source'))+'\n')
+          PY
+          python3 "$RUNNER_TEMP/native-release/ci_verify_ios.py" extract --zip "$RUNNER_TEMP/native-release/$PROJECT_ID-ios-source.zip" --destination "$RUNNER_TEMP/native-app-source"
+          python3 "$RUNNER_TEMP/native-release/ci_verify_ios.py" source --root "$RUNNER_TEMP/native-app-source" --project "$PROJECT_ID" --output "$PUBLIC_OUTPUT/source-verification.json"
+      - name: Install pinned dependencies and synchronize iOS without signing secrets
+        if: inputs.project == 'all' || inputs.project == matrix.project
+        run: bash "$CI_TOOLS/ci_ios_export.sh" prepare "$APP_SOURCE" "$PROJECT_ID" "$PUBLIC_OUTPUT"
+      - name: Compile and capture each app on its own fresh iPhone17Pro and iPadM4
+        if: inputs.project == 'all' || inputs.project == matrix.project
+        run: bash "$CI_TOOLS/ci_ios_export.sh" sim "$APP_SOURCE" "$PROJECT_ID" "$PUBLIC_OUTPUT"
+      - name: Manual per-app archive, signed IPA export and Apple signature/source verification
+        if: inputs.project == 'all' || inputs.project == matrix.project
+        env:
+          APPLE_DISTRIBUTION_P12_BASE64: ${{ secrets.APPLE_DISTRIBUTION_P12_BASE64 }}
+          APPLE_DISTRIBUTION_P12_PASSWORD: ${{ secrets.APPLE_DISTRIBUTION_P12_PASSWORD }}
+          APPLE_APPSTORE_PROFILE_BASE64: ${{ secrets.APPLE_APPSTORE_PROFILE_BASE64 }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: bash "$CI_TOOLS/ci_ios_export.sh" sign "$APP_SOURCE" "$PROJECT_ID" "$PUBLIC_OUTPUT"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always() && (inputs.project == 'all' || inputs.project == matrix.project)
+        with:
+          name: native-ios-${{ matrix.project }}-${{ github.run_id }}
+          path: |
+            output/native-fleet-ios/${{ matrix.project }}/signed.ipa
+            output/native-fleet-ios/${{ matrix.project }}/source-verification.json
+            output/native-fleet-ios/${{ matrix.project }}/simulator-verification.json
+            output/native-fleet-ios/${{ matrix.project }}/simulator-launch.json
+            output/native-fleet-ios/${{ matrix.project }}/verification.json
+            output/native-fleet-ios/${{ matrix.project }}/screenshots/*.png
+          if-no-files-found: warn
+          retention-days: 14

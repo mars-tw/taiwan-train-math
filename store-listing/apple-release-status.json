@@ -14,7 +14,7 @@
   "sourceSha": "b0e0429a6d8bde9ba0b9ddaf2ebb840cfa3efca6",
   "bundledResourceCount": 165,
   "storeTextSavedAndReadBack": true,
-  "reviewSubmitted": false,
+  "reviewSubmitted": true,
   "appStoreApproved": false,
   "selectedBuildSavedAndReadBack": true,
   "categoriesSavedAndReadBack": true,
@@ -22,9 +22,9 @@
   "kidsAgeBand": "FIVE_AND_UNDER",
   "reviewContactPhoneMissing": false,
   "reviewDetailsSaved": true,
-  "appPrivacyQuestionnaireComplete": false,
+  "appPrivacyQuestionnaireComplete": true,
   "freePriceSavedAndReadBack": true,
-  "availabilitySavedAndReadBack": false,
+  "availabilitySavedAndReadBack": true,
   "mediumIphoneScreenshot": {
     "displayType": "APP_IPHONE_61",
     "width": 1206,
@@ -33,5 +33,10 @@
     "deliveryState": "COMPLETE",
     "captureRun": "37568775904"
   },
-  "reviewDetailsSavedAndReadBack": true
+  "reviewDetailsSavedAndReadBack": true,
+  "reviewSubmissionId": "562ddbde-e569-4189-9835-c1b924a03d78",
+  "reviewSubmissionState": "WAITING_FOR_REVIEW",
+  "appPrivacyAnswersPublished": true,
+  "copyrightSavedAndReadBack": true,
+  "contentRightsDeclaration": "USES_THIRD_PARTY_CONTENT"
 }

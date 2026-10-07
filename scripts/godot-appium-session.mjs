@@ -356,17 +356,17 @@ export async function runAppiumSession({ appiumBin, udid, bundleId, model, platf
       logBytes += retained.length;
       log.write(retained);
     };
-    const summarize = (chunk, stream) => {
-      launcherTrace.push(stream,chunk);
+    const summarize = (chunk, summaryKey, traceStream) => {
+      launcherTrace.push(traceStream,chunk);
       const clean = chunk.toString('utf8').replace(/\x1b\[[0-9;]*m/g, '').split(/\r?\n/)
         .filter(line => /Appium|XCUITest|driver|[Ee]rror|[Ww]arn|listen|server/.test(line))
         .map(sanitizeLauncherText);
-      report.serverStartup[stream].push(...clean);
-      report.serverStartup[stream] = report.serverStartup[stream].slice(-20);
+      report.serverStartup[summaryKey].push(...clean);
+      report.serverStartup[summaryKey] = report.serverStartup[summaryKey].slice(-20);
       append(chunk);
     };
-    child.stdout.on('data', chunk => summarize(chunk, 'stdoutSummary'));
-    child.stderr.on('data', chunk => summarize(chunk, 'stderrSummary'));
+    child.stdout.on('data', chunk => summarize(chunk, 'stdoutSummary', 'stdout'));
+    child.stderr.on('data', chunk => summarize(chunk, 'stderrSummary', 'stderr'));
     child.once('error', () => { spawnedError = true; });
     pendingChildClose = new Promise(resolve => child.once('close', (code, signal) => { childClosed = true; serverExitCode = code; serverExitSignal = signal; resolve(); }));
 

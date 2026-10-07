@@ -81,6 +81,22 @@ final class CaptureUITests: XCTestCase {
         guard frame.width > 0, frame.height > 0, point.x >= 0, point.x <= 1, point.y >= 0, point.y <= 1 else { return nil }
         return CGPoint(x: frame.minX + point.x * frame.width, y: frame.minY + (1 - point.y) * frame.height)
     }
+    private func nativeScreenPoint(_ point: CGPoint, size: CGSize, orientation: CGImagePropertyOrientation) -> CGPoint? {
+        guard size.width > 0, size.height > 0, point.x >= 0, point.y >= 0, point.x <= size.width, point.y <= size.height else { return nil }
+        // Inverse EXIF transform: XCTest screenPoint uses natural screen axes.
+        // Run 37628497486 observed (y,W-x) on Phone and (H-y,x) on iPad.
+        switch orientation {
+        case .up: return point
+        case .upMirrored: return CGPoint(x:size.width-point.x,y:point.y)
+        case .down: return CGPoint(x:size.width-point.x,y:size.height-point.y)
+        case .downMirrored: return CGPoint(x:point.x,y:size.height-point.y)
+        case .leftMirrored: return CGPoint(x:point.y,y:point.x)
+        case .right: return CGPoint(x:point.y,y:size.width-point.x)
+        case .rightMirrored: return CGPoint(x:size.height-point.y,y:size.width-point.x)
+        case .left: return CGPoint(x:size.height-point.y,y:point.x)
+        @unknown default: return nil
+        }
+    }
     private func fullScreenGeometry(_ frame: CGRect, size: CGSize, pixels: CGSize, scale: CGFloat, orientation: CGImagePropertyOrientation) -> Bool {
         guard frame.minX == 0, frame.minY == 0, frame.width > 0, frame.height > 0, scale > 0,
             abs(size.width-frame.width) < 0.01, abs(size.height-frame.height) < 0.01 else { return false }
@@ -97,6 +113,9 @@ final class CaptureUITests: XCTestCase {
         XCTAssertEqual(offsetPoint?.y ?? -1,150,accuracy:0.0000001)
         XCTAssertNil(screenPoint(CGPoint(x:-0.1,y:0.8),frame:CGRect(x:20,y:30,width:1000,height:600)))
         XCTAssertNil(screenPoint(CGPoint(x:0.1,y:0.8),frame:.zero))
+        let nativeCases: [(CGImagePropertyOrientation,CGPoint)] = [(.up,CGPoint(x:200,y:100)),(.upMirrored,CGPoint(x:800,y:100)),(.down,CGPoint(x:800,y:500)),(.downMirrored,CGPoint(x:200,y:500)),(.leftMirrored,CGPoint(x:100,y:200)),(.right,CGPoint(x:100,y:800)),(.rightMirrored,CGPoint(x:500,y:800)),(.left,CGPoint(x:500,y:200))]
+        for (orientation,expected) in nativeCases { XCTAssertEqual(nativeScreenPoint(CGPoint(x:200,y:100),size:CGSize(width:1000,height:600),orientation:orientation),expected) }
+        XCTAssertNil(nativeScreenPoint(CGPoint(x:1001,y:100),size:CGSize(width:1000,height:600),orientation:.right))
         // Actual run 37616329788: screen backing pixels are portrait with
         // EXIF6, while UIImage and app frame are correctly landscape.
         let phoneFrame = CGRect(x:0,y:0,width:956,height:440)
@@ -136,10 +155,11 @@ final class CaptureUITests: XCTestCase {
                     let normalized = CGVector(dx:(point.x-frame.minX)/frame.width,dy:(point.y-frame.minY)/frame.height)
                     let coordinate = app.coordinate(withNormalizedOffset: normalized)
                     let actual = coordinate.screenPoint
-                    // Preserve failed coordinate evidence too. A recognized
-                    // visible label does not prove that the touch axes match.
-                    print("CAPTURE_OCR_POINT_CONTRACT=scope:full-screen-matching-app;exif:" + String(orientation.rawValue) + ";confidence:" + String(text.confidence) + ";bbox:" + String(describing:bbox) + ";frame:" + String(describing:frame) + ";normalized:" + String(describing:normalized) + ";expectedPoint:" + String(describing:point) + ";actualPoint:" + String(describing:actual))
-                    guard abs(actual.x-point.x) < 1, abs(actual.y-point.y) < 1 else { print("CAPTURE_OCR_SCREEN_POINT_MISMATCH"); return nil }
+                    guard let nativeExpected = nativeScreenPoint(point,size:frame.size,orientation:orientation) else { print("CAPTURE_OCR_UNKNOWN_NATIVE_AXES"); return nil }
+                    let nativeFrame = CGRect(x:0,y:0,width:CGFloat(image.width)/screen.image.scale,height:CGFloat(image.height)/screen.image.scale)
+                    print("CAPTURE_OCR_GEOMETRY=scope:full-screen-matching-app;exif:" + String(orientation.rawValue) + ";confidence:" + String(text.confidence) + ";bbox:" + String(describing:bbox) + ";frame:" + String(describing:frame) + ";normalized:" + String(describing:normalized))
+                    print("CAPTURE_OCR_POINT_CONTRACT=displayPoint:" + String(describing:point) + ";expectedNative:" + String(describing:nativeExpected) + ";actualNative:" + String(describing:actual) + ";nativeFrame:" + String(describing:nativeFrame))
+                    guard nativeFrame.contains(nativeExpected), nativeFrame.contains(actual), abs(actual.x-nativeExpected.x) < 1, abs(actual.y-nativeExpected.y) < 1 else { print("CAPTURE_OCR_SCREEN_POINT_MISMATCH"); return nil }
                     return normalized
                 }
             }

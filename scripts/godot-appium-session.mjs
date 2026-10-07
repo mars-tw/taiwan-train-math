@@ -1,6 +1,7 @@
 // Simulator QA transport only. The caller owns visible Start/HUD checks and artifacts.
 // npm discovery: https://appium.io/docs/en/3.1/guides/managing-exts/#do-it-yourself-with-npm
-import { spawn } from 'node:child_process';
+import { spawn, execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import { randomUUID } from 'node:crypto';
 import { createWriteStream } from 'node:fs';
 import fs from 'node:fs/promises';
@@ -22,6 +23,8 @@ const ERRORS = Object.freeze({
   SERVER_START_FAILED: 'The owned Appium server could not start.',
   SERVER_EXITED: 'The owned Appium server exited before the session finished.',
   SERVER_NOT_READY: 'The owned Appium server was not ready within 90 seconds.',
+  SIMULATOR_UI_RUNNING: 'A Simulator UI process already exists; headless startup was refused without terminating it.',
+  SIMULATOR_UI_PROBE_FAILED: 'The absence of Simulator UI could not be confirmed; headless startup was refused.',
   HTTP_TIMEOUT: 'An Appium request exceeded its 180 second limit; it was not retried.',
   HTTP_ABORTED: 'An Appium request was cancelled during bounded cleanup; it was not retried.',
   HTTP_FAILED: 'An Appium request failed; it was not retried.',
@@ -51,6 +54,26 @@ const inside = (parent, target) => {
   const relative = path.relative(parent, target);
   return relative === '' || (!relative.startsWith('..' + path.sep) && relative !== '..' && !path.isAbsolute(relative));
 };
+
+/** pgrep exit 1 and empty output alone prove absence; ambiguous probes fail closed. */
+export function simulatorUiIsAbsent(result) {
+  return result?.exitCode === 1 && result.signal === null && result.timedOut === false
+    && typeof result.stdout === 'string' && result.stdout.trim() === ''
+    && typeof result.stderr === 'string' && result.stderr.trim() === '';
+}
+
+async function probeSimulatorUi() {
+  try {
+    const { stdout, stderr } = await promisify(execFile)('/usr/bin/pgrep', ['-x', 'Simulator'],
+      { timeout: 3000, maxBuffer: 16384, windowsHide: true });
+    return { exitCode: 0, signal: null, timedOut: false, stdout, stderr };
+  } catch (error) {
+    return { exitCode: typeof error.code === 'number' ? error.code : null,
+      signal: error.signal || null, timedOut: error.killed === true,
+      stdout: typeof error.stdout === 'string' ? error.stdout : '',
+      stderr: typeof error.stderr === 'string' ? error.stderr : '' };
+  }
+}
 
 async function reservePorts(count) {
   const reservations = [];
@@ -124,7 +147,8 @@ export async function runAppiumSession({ appiumBin, udid, bundleId, model, platf
   const report = { status: 'failed', stage: 'prepare', sessionCreated: false,
     observation: Object.fromEntries(OBSERVATIONS.map(key => [key, false])),
     cleanup: { session: 'not-created', server: 'not-started' }, rawLogsUploaded: false,
-    serverStartup: { limitMs: READY_TIMEOUT, observations: [], stdoutSummary: [], stderrSummary: [], exitCode: null, exitSignal: null } };
+    serverStartup: { limitMs: READY_TIMEOUT, observations: [], stdoutSummary: [], stderrSummary: [], exitCode: null, exitSignal: null },
+    simulatorUiGuard: { required: process.platform === 'darwin', checks: [], explicitUiTerminationRequested: false } };
   let child, sessionId, endpoint, log, logFailed = false, logClosed = false;
   let spawnedError = false, childClosed = false, serverExitCode = null, serverExitSignal = null, commandOpen = false, commandBusy = false, commandsFailed = false;
   let sessionAttempted = false, pendingChildClose;
@@ -179,6 +203,16 @@ export async function runAppiumSession({ appiumBin, udid, bundleId, model, platf
     finally { commandBusy = false; }
   }
 
+  async function requireNoSimulatorUi(phase) {
+    // Non-Mac execution is transport-contract testing only. captureNative rejects
+    // every non-Darwin host before SDK or actual Simulator execution.
+    if (process.platform !== 'darwin') return;
+    const result = await probeSimulatorUi(), absent = simulatorUiIsAbsent(result);
+    report.simulatorUiGuard.checks.push({ phase, absent, exitCode: result.exitCode,
+      signal: result.signal, timedOut: result.timedOut });
+    if (!absent) fail(result.exitCode === 0 ? 'SIMULATOR_UI_RUNNING' : 'SIMULATOR_UI_PROBE_FAILED');
+  }
+
   async function waitForChildClose(milliseconds) {
     if (childClosed) return;
     let timer;
@@ -219,6 +253,8 @@ export async function runAppiumSession({ appiumBin, udid, bundleId, model, platf
     endpoint = `http://127.0.0.1:${serverPort}${basePath}`;
     const env = { ...process.env, APPIUM_TMP_DIR: privateDirectory, TMPDIR: privateDirectory };
     delete env.APPIUM_HOME; // An explicit APPIUM_HOME disables npm-project discovery.
+    report.stage = 'simulator-ui-guard';
+    await requireNoSimulatorUi('before-server');
     report.stage = 'server-start';
     child = spawn(process.execPath, [appiumBin, 'server', '--config', config, '--address', '127.0.0.1',
       '--port', String(serverPort), '--base-path', basePath, '--use-drivers', 'xcuitest',
@@ -276,6 +312,8 @@ export async function runAppiumSession({ appiumBin, udid, bundleId, model, platf
     if (!ready) fail('SERVER_NOT_READY');
     if (logFailed) fail('PRIVATE_LOG_FAILED');
 
+    report.stage = 'simulator-ui-guard';
+    await requireNoSimulatorUi('before-session');
     report.stage = 'session-create';
     sessionAttempted = true;
     // v10.43.0 driver.ts uses `wdaStartupRetries || 2` on Simulator: 1 means
@@ -284,6 +322,9 @@ export async function runAppiumSession({ appiumBin, udid, bundleId, model, platf
       'appium:udid': udid, 'appium:deviceName': model, 'appium:platformVersion': platformVersion,
       'appium:bundleId': APP_ID, 'appium:noReset': true, 'appium:fullReset': false,
       'appium:autoLaunch': false, 'appium:forceAppLaunch': false, 'appium:shouldTerminateApp': false,
+      // Official 10.43 Simulator option: avoid reopening/rebooting our already
+      // booted headless device. Both UI absence probes above precede this request.
+      'appium:isHeadless': true,
       'appium:waitForIdleTimeout': 0, 'appium:wdaStartupRetries': 1,
       'appium:wdaLaunchTimeout': HTTP_TIMEOUT, 'appium:wdaConnectionTimeout': HTTP_TIMEOUT,
       'appium:screenshotQuality': 0, 'appium:printPageSourceOnFindFailure': false,

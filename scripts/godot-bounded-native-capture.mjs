@@ -360,6 +360,11 @@ export async function captureNative({ mode, source, metadata, verifier, output }
             '-parallel-testing-enabled', 'NO', 'CODE_SIGNING_ALLOWED=NO', 'ARCHS=x86_64', 'EXCLUDED_ARCHS=arm64',
             'ONLY_ACTIVE_ARCH=YES', 'test-without-building'], { timeout: 900000, allowFailure: true });
           result.actualXCTestExit = test.code; result.actualXCTest = true; result.frameAccessibilityQueryUsed = false;
+          result.safeXCTestDiagnostics = test.text.split(/\r?\n/)
+            .filter(line => /error:|Error Domain|test runner|Test Runner|Failed|failed|Testing|Test Case|TEST FAILED|TEST SUCCEEDED/.test(line))
+            .slice(-25).map(line => line.replace(/https?:\/\/[^\s"'<>]+/g, '<url>')
+              .replace(/\/(?:Users|private|var|Volumes|tmp)\/[^\s"'<>]+/g, '<path>')
+              .replace(/\b(?:password|secret|token|authorization)\s*[:=]\s*[^\s,;]+/gi, '<redacted>').slice(0,500));
           const phases = test.text.split(/\r?\n/).filter(line => /^STORE_SCREEN_(?:PRE_CAPTURE|PHASE|RAW_SHA256)=/.test(line));
           result.screenOnlyPhases = phases.slice(-15);
           const geometry = test.text.split(/\r?\n/).filter(line => line.startsWith('STORE_SCREEN_GEOMETRY=')).map(line => {
@@ -417,6 +422,7 @@ export async function captureNative({ mode, source, metadata, verifier, output }
           if (!result.consoleSurvivedWarmWait) fail('OWN_GAME_EXITED_BEFORE_WARM_CAPTURE');
           result.status = 'completed';
         } else {
+          await confirmOwned(device); // Recheck fresh name/type/runtime/UDID immediately before the driver.
           const appium = await runAppiumSession({ appiumBin: path.join(scripts, 'godot-appium-runtime/node_modules/appium/index.js'),
             udid, bundleId: recipe.appId, model: model.name, platformVersion: plan.runtime.version, output, scratch, wdaDerivedData,
             observeStart: async ({ execute, getWindowRect }) => {

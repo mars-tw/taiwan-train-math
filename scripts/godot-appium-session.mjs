@@ -3,7 +3,8 @@
 import { spawn, execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { StringDecoder } from 'node:string_decoder';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, createHash } from 'node:crypto';
+import { fileURLToPath } from 'node:url';
 import { createWriteStream } from 'node:fs';
 import fs from 'node:fs/promises';
 import { createServer } from 'node:net';
@@ -239,6 +240,27 @@ export async function runAppiumSession({ appiumBin, udid, bundleId, model, platf
   let spawnedError = false, childClosed = false, serverExitCode = null, serverExitSignal = null, commandOpen = false, commandBusy = false, commandsFailed = false;
   let sessionAttempted = false, pendingChildClose, prebuiltPath = null, scratchRoot;
   const launcherTrace = createLauncherTrace();
+  const bootstrapStarted = performance.now();
+  report.bootstrapFacts = { parentSpawn:null, spawn:null, firstByte:{stdout:null,stderr:null}, close:null,
+    aliveBoundary:null, childImports:[], fileIdentity:[], instrumentationFailures:0 };
+  const observe = action => { try { action(); } catch { report.bootstrapFacts.instrumentationFailures++; } };
+  const childImportsSeen = new Set();
+  const importBuffers = {stdout:'',stderr:''};
+  const bootstrapRoles = new Set(['preload','entry','entry-asyncbox','appium-main','main-logsink','main-logger',
+    'main-base-driver','main-support','main-extension','main-config','main-config-file','main-parser']);
+  function notePipe(kind,chunk) {
+    observe(() => {
+      if(report.bootstrapFacts.firstByte[kind] === null)report.bootstrapFacts.firstByte[kind]={elapsedMs:Math.round(performance.now()-bootstrapStarted),bytes:chunk.length,includesObserverMarker:chunk.includes('OWN_NODE_BOOTSTRAP')};
+      const lines=(importBuffers[kind]+chunk.toString('utf8')).split(/\r?\n/);importBuffers[kind]=lines.pop().slice(-4096);
+      for(const line of lines){if(!line.startsWith('OWN_NODE_BOOTSTRAP '))continue;let row;try{row=JSON.parse(line.slice(19));}catch{continue;}
+        if(!['entered','import-begin','import-end','import-throw'].includes(row.stage)||!bootstrapRoles.has(row.role)||!Number.isFinite(row.elapsedMs)||row.elapsedMs<0)continue;
+        const key=row.stage+':'+row.role;if(childImportsSeen.has(key)||childImportsSeen.size>=56)continue;childImportsSeen.add(key);
+        report.bootstrapFacts.childImports.push({stage:row.stage,role:row.role,elapsedMs:row.elapsedMs});}
+    });
+  }
+  function noteAlive(phase) {observe(() => {if(!Number.isInteger(child?.pid)||child.pid<1)return;let alive='unknown';
+    try{process.kill(child.pid,0);alive='present';}catch(error){if(error.code==='ESRCH')alive='absent';}
+    report.bootstrapFacts.aliveBoundary={phase,pid:child.pid,alive,elapsedMs:Math.round(performance.now()-bootstrapStarted)};});}
   const controllers = new Set();
 
   async function request(method, suffix, payload, outerSignal) {
@@ -314,6 +336,16 @@ export async function runAppiumSession({ appiumBin, udid, bundleId, model, platf
       || typeof observeStart !== 'function' || typeof output !== 'string' || typeof scratch !== 'string'
       || !path.isAbsolute(output) || !path.isAbsolute(scratch)) fail('INVALID_ARGUMENT');
     const runtime = await pinnedRuntime(appiumBin);
+    for(const[role,file]of[['appium-entry','index.js'],['appium-main','build/lib/main.js'],['appium-config','build/lib/config.js']]){
+      try {
+        const bytes=await fs.readFile(path.join(runtime,'node_modules/appium',file));
+        report.bootstrapFacts.fileIdentity.push({role,bytes:bytes.length,sha256:createHash('sha256').update(bytes).digest('hex')});
+      } catch {
+        report.bootstrapFacts.instrumentationFailures++;
+        report.bootstrapFacts.fileIdentity.push({role,status:'diagnostic-read-failed'});
+      }
+    }
+    const preloadPath=fileURLToPath(new URL('./godot-appium-bootstrap.cjs',import.meta.url));
     await fs.mkdir(scratch, { recursive: true, mode: 0o700 });
     const outputRoot = await fs.realpath(output); scratchRoot = await fs.realpath(scratch);
     if (inside(outputRoot, scratchRoot) || inside(scratchRoot, outputRoot)) fail('INVALID_ARGUMENT');
@@ -342,12 +374,13 @@ export async function runAppiumSession({ appiumBin, udid, bundleId, model, platf
     report.stage = 'simulator-ui-guard';
     await requireNoSimulatorUi('before-server');
     report.stage = 'server-start';
-    child = spawn(process.execPath, [appiumBin, 'server', '--config', config, '--address', '127.0.0.1',
+    report.bootstrapFacts.parentSpawn={elapsedMs:Math.round(performance.now()-bootstrapStarted),nodeVersion:process.versions.node,originalEntryPreserved:true};
+    child = spawn(process.execPath, ['--require',preloadPath,appiumBin, 'server', '--config', config, '--address', '127.0.0.1',
       '--port', String(serverPort), '--base-path', basePath, '--use-drivers', 'xcuitest',
       '--tmp', privateDirectory, '--log-level', 'debug', '--log-no-colors'],
     { cwd: runtime, env, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
     report.ownServerCommand = { executable:'node', appiumVersion:EXPECTED_VERSIONS.appium,
-      arguments:['<pinned-appium-cli>','server','--config','<private-config>','--address','127.0.0.1','--port',String(serverPort),
+      arguments:['--require','<owned-static-preload>','<pinned-appium-cli>','server','--config','<private-config>','--address','127.0.0.1','--port',String(serverPort),
         '--base-path','<owned-base-path>','--use-drivers','xcuitest','--tmp','<private-scratch>','--log-level','debug','--log-no-colors'] };
     let logBytes = 0;
     const append = chunk => {
@@ -356,7 +389,9 @@ export async function runAppiumSession({ appiumBin, udid, bundleId, model, platf
       logBytes += retained.length;
       log.write(retained);
     };
+    child.once('spawn',()=>observe(()=>{report.bootstrapFacts.spawn={pid:child.pid,elapsedMs:Math.round(performance.now()-bootstrapStarted)};}));
     const summarize = (chunk, summaryKey, traceStream) => {
+      notePipe(traceStream,chunk);
       launcherTrace.push(traceStream,chunk);
       const clean = chunk.toString('utf8').replace(/\x1b\[[0-9;]*m/g, '').split(/\r?\n/)
         .filter(line => /Appium|XCUITest|driver|[Ee]rror|[Ww]arn|listen|server/.test(line))
@@ -368,7 +403,7 @@ export async function runAppiumSession({ appiumBin, udid, bundleId, model, platf
     child.stdout.on('data', chunk => summarize(chunk, 'stdoutSummary', 'stdout'));
     child.stderr.on('data', chunk => summarize(chunk, 'stderrSummary', 'stderr'));
     child.once('error', () => { spawnedError = true; });
-    pendingChildClose = new Promise(resolve => child.once('close', (code, signal) => { childClosed = true; serverExitCode = code; serverExitSignal = signal; resolve(); }));
+    pendingChildClose = new Promise(resolve => child.once('close', (code, signal) => { childClosed = true; serverExitCode = code; serverExitSignal = signal; observe(()=>{report.bootstrapFacts.close={code,signal,elapsedMs:Math.round(performance.now()-bootstrapStarted)};}); resolve(); }));
 
     report.stage = 'server-ready';
     const readyController = new AbortController();
@@ -394,6 +429,7 @@ export async function runAppiumSession({ appiumBin, udid, bundleId, model, platf
         await pause(Math.min(1000, Math.max(0, readyDeadline - performance.now())));
       }
     } finally { clearTimeout(readyTimer); }
+    noteAlive(ready?'ready':'ready-failed');
     if (!ready) fail('SERVER_NOT_READY');
     if (logFailed) fail('PRIVATE_LOG_FAILED');
 

@@ -157,6 +157,19 @@ const consoleDiagnostics = raw => raw.split(/\r?\n/).filter(line => /^(?:SCRIPT 
     .replace(/[\x00-\x1f\x7f]/g, ' ').slice(0, 400),
 }));
 
+export async function capturePreDriverNative8({ wait, capture, ownConsole }) {
+  await wait(8000);
+  const evidence = { waitedMs:8000, ownConsoleAlive:!ownConsole.closed,
+    ownLauncherPid:Number.isInteger(ownConsole.child?.pid)?ownConsole.child.pid:null,
+    diagnosticOnly:true, releaseReady:false, gameplayProved:false, visualVerdict:'UNKNOWN' };
+  try {
+    const frame = await capture('pre-driver-native8', false);
+    Object.assign(frame.shot, { diagnosticOnly:true, releaseReady:false });
+    evidence.frameCaptured = true;
+  } catch (error) { evidence.frameCaptured = false; evidence.error = { code:errorCode(error) }; }
+  return evidence;
+}
+
 export async function captureNative({ mode, source, metadata, verifier, output } = {}) {
   if (!Object.hasOwn(MODES, mode) || process.platform !== 'darwin' || process.arch !== 'x64' || !process.env.RUNNER_TEMP)
     fail('APPROVED_MODE_AND_INTEL_MAC_REQUIRED');
@@ -264,7 +277,8 @@ export async function captureNative({ mode, source, metadata, verifier, output }
     const width = raw.readUInt32BE(16), height = raw.readUInt32BE(20), expected = PIXELS[device.kind];
     if (![width, height].sort((a, b) => a - b).every((value, index) => value === expected[index])) fail('ACTUAL_NATIVE_PIXEL_SIZE_MISMATCH');
     const shot = { stage, rawFile, rawSha256: sha(raw), rawBytes: raw.length, width, height,
-      originalSimctlPng: true, screenshotResized: false, rgbFile: null };
+      originalSimctlPng: true, screenshotResized: false, rgbFile: null,
+      ...(stage==='pre-driver-native8'?{diagnosticOnly:true,releaseReady:false}:{}) };
     device.result.screenshots.push(shot);
     await publish(); // Preserve original pixels even if helper/OCR/point validation fails.
     const helper = await command(device.kind + '-' + stage + '-geometry', ['xcrun', 'swift', path.join(scratch, 'native-image.swift'), rawPath, rgbPath, recognize ? 'start' : 'metadata'], { timeout: 180000 });
@@ -358,6 +372,10 @@ export async function captureNative({ mode, source, metadata, verifier, output }
       let coldConsole, warmConsole;
       try {
         coldConsole = await startProcess(model.kind + '-cold-own-game-console', ['xcrun', 'simctl', 'launch', '--console-pty', udid, recipe.appId], 900000);
+        if(mode==='seven-appium'){
+          result.preDriverNative8 = await capturePreDriverNative8({wait:pause,ownConsole:coldConsole,capture:(stage,vision)=>rawShot(device,stage,vision)});
+          await publish();
+        }
         if (mode === 'crack-store-phone') {
           const runner = path.join(scratch, 'store-phone-runner'), derived = path.join(scratch, 'derived-store-tests');
           await command('generate-screen-only-runner', ['python3', path.join(scripts, 'create-godot-store-screen-project.py'), runner]);

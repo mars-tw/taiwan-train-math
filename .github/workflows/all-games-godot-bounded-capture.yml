@@ -79,6 +79,7 @@ jobs:
             scripts/godot-appium-runtime/package.json
             scripts/godot-appium-runtime/package-lock.json
             scripts/godot-appium-session.mjs
+            scripts/godot-appium-bootstrap.cjs
             scripts/godot-bounded-native-capture.mjs
             scripts/create-godot-capture-project.py
             scripts/create-godot-store-screen-project.py

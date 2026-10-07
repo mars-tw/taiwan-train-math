@@ -1,0 +1,158 @@
+name: Capture immutable signed Android games natively
+
+on:
+  workflow_dispatch:
+    inputs:
+      project:
+        type: choice
+        required: true
+        options: [priority, remaining, night-train-watch-protocol, tower-defense-skill, web-card-game-skill, ashes-convoy, island-flight-school, taiwan-train-school, pixel-idle-farm-skill, storm-apocalypse, village-siege, taiwan-train-math, taiwan-island-drive, crackveil-vanguard, seven-district-reckoning]
+      release_id:
+        type: string
+        required: true
+      manifest_sha:
+        type: string
+        required: true
+
+permissions:
+  contents: read
+concurrency:
+  group: native-android-store-${{ inputs.project }}-${{ inputs.manifest_sha }}
+  cancel-in-progress: false
+
+jobs:
+  select:
+    if: github.repository == 'mars-tw/taiwan-train-math' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    outputs:
+      matrix: ${{ steps.projects.outputs.matrix }}
+    steps:
+      - id: projects
+        env:
+          PROJECT: ${{ inputs.project }}
+        run: |
+          python3 - <<'PY'
+          import json,os
+          priority=['night-train-watch-protocol','tower-defense-skill','web-card-game-skill']
+          rest=['ashes-convoy','island-flight-school','taiwan-train-school','pixel-idle-farm-skill','storm-apocalypse','village-siege','taiwan-train-math','crackveil-vanguard','seven-district-reckoning']
+          value=os.environ['PROJECT']
+          choices=priority if value=='priority' else rest if value=='remaining' else [value]
+          if any(p not in priority+rest+['taiwan-island-drive'] for p in choices):raise SystemExit('Unapproved project selector')
+          with open(os.environ['GITHUB_OUTPUT'],'a') as f:f.write('matrix='+json.dumps(choices)+'\n')
+          PY
+
+  fetch:
+    needs: select
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        project: ${{ fromJSON(needs.select.outputs.matrix) }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    # GitHub draft release assets require the isolated fetch token's contents
+    # access. This job never executes game/APK/signer code or writes a release.
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          sparse-checkout: scripts/android-native-store-capture/fetch_inputs.py
+          sparse-checkout-cone-mode: false
+      - name: Read only exact approved DRAFT manifest and APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_ID: ${{ inputs.release_id }}
+          MANIFEST_SHA: ${{ inputs.manifest_sha }}
+          PROJECT: ${{ matrix.project }}
+        run: python3 scripts/android-native-store-capture/fetch_inputs.py --release-id "$RELEASE_ID" --manifest-sha "$MANIFEST_SHA" --project "$PROJECT" --directory "$RUNNER_TEMP/native-capture-input"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: native-android-input-${{ matrix.project }}-${{ github.run_id }}
+          path: ${{ runner.temp }}/native-capture-input
+          if-no-files-found: error
+          retention-days: 1
+
+  capture:
+    needs: [select, fetch]
+    if: always() && needs.select.result == 'success'
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        project: ${{ fromJSON(needs.select.outputs.matrix) }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    permissions:
+      contents: read
+      actions: read
+    env:
+      ANDROID_AVD_HOME: ${{ runner.temp }}/native-capture-avds
+      ANDROID_USER_HOME: ${{ runner.temp }}/native-capture-user
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          sparse-checkout: scripts/android-native-store-capture
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: native-android-input-${{ matrix.project }}-${{ github.run_id }}
+          path: ${{ runner.temp }}/native-capture-input
+      - name: Configure disposable Linux KVM and lossless PNG encoding
+        run: |
+          set -euo pipefail
+          test -c /dev/kvm
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-native-capture-kvm.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          sudo apt-get update -qq
+          sudo apt-get install --yes --no-install-recommends libpulse0 python3-pil
+          mkdir -p "$ANDROID_AVD_HOME" "$ANDROID_USER_HOME" output/native-android-capture
+      - name: Actual API36 phone release install and observed UI navigation
+        uses: reactivecircus/android-emulator-runner@4c44018e59b437e86cdfc41da381398f93ed8808
+        env:
+          PROJECT: ${{ matrix.project }}
+          NATIVE_AVD_NAME: NativeCapturePhone_${{ github.run_id }}_${{ matrix.project }}
+        with:
+          api-level: 36
+          target: google_apis
+          arch: x86_64
+          profile: pixel_2
+          avd-name: NativeCapturePhone_${{ github.run_id }}_${{ matrix.project }}
+          force-avd-creation: false
+          ram-size: 3072M
+          emulator-options: -no-window -gpu swiftshader -no-snapshot -no-audio -no-boot-anim -camera-back none -camera-front none
+          disable-animations: false
+          disable-linux-hw-accel: false
+          pre-emulator-launch-script: python3 scripts/android-native-store-capture/device_config.py --name "$NATIVE_AVD_NAME" --family phone
+          script: python3 scripts/android-native-store-capture/capture.py --project "$PROJECT" --family phone --avd "$NATIVE_AVD_NAME" --input "$RUNNER_TEMP/native-capture-input" --output "$GITHUB_WORKSPACE/output/native-android-capture/phone"
+      - name: Actual API36 tablet release install and observed UI navigation
+        if: always()
+        uses: reactivecircus/android-emulator-runner@4c44018e59b437e86cdfc41da381398f93ed8808
+        env:
+          PROJECT: ${{ matrix.project }}
+          NATIVE_AVD_NAME: NativeCaptureTablet_${{ github.run_id }}_${{ matrix.project }}
+        with:
+          api-level: 36
+          target: google_apis
+          arch: x86_64
+          profile: pixel_c
+          avd-name: NativeCaptureTablet_${{ github.run_id }}_${{ matrix.project }}
+          force-avd-creation: false
+          ram-size: 3072M
+          emulator-options: -no-window -gpu swiftshader -no-snapshot -no-audio -no-boot-anim -camera-back none -camera-front none
+          disable-animations: false
+          disable-linux-hw-accel: false
+          pre-emulator-launch-script: python3 scripts/android-native-store-capture/device_config.py --name "$NATIVE_AVD_NAME" --family tablet
+          script: python3 scripts/android-native-store-capture/capture.py --project "$PROJECT" --family tablet --avd "$NATIVE_AVD_NAME" --input "$RUNNER_TEMP/native-capture-input" --output "$GITHUB_WORKSPACE/output/native-android-capture/tablet"
+      - name: Preserve actual PNGs, UI hierarchy and own-app evidence even on failure
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: native-android-capture-${{ matrix.project }}-${{ github.run_id }}
+          path: output/native-android-capture
+          if-no-files-found: warn
+          retention-days: 30

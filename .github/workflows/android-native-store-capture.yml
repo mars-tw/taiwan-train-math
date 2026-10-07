@@ -124,7 +124,7 @@ jobs:
           avd-name: NativeCapturePhone_${{ github.run_id }}_${{ matrix.project }}
           force-avd-creation: false
           ram-size: 3072M
-          emulator-options: -no-window -gpu swiftshader -no-snapshot -no-audio -no-boot-anim -camera-back none -camera-front none
+          emulator-options: -no-window -gpu swiftshader -feature -Vulkan -no-snapshot -no-audio -no-boot-anim -camera-back none -camera-front none
           disable-animations: false
           disable-linux-hw-accel: false
           pre-emulator-launch-script: python3 scripts/android-native-store-capture/device_config.py --name "$NATIVE_AVD_NAME" --family phone
@@ -143,7 +143,7 @@ jobs:
           avd-name: NativeCaptureTablet_${{ github.run_id }}_${{ matrix.project }}
           force-avd-creation: false
           ram-size: 3072M
-          emulator-options: -no-window -gpu swiftshader -no-snapshot -no-audio -no-boot-anim -camera-back none -camera-front none
+          emulator-options: -no-window -gpu swiftshader -feature -Vulkan -no-snapshot -no-audio -no-boot-anim -camera-back none -camera-front none
           disable-animations: false
           disable-linux-hw-accel: false
           pre-emulator-launch-script: python3 scripts/android-native-store-capture/device_config.py --name "$NATIVE_AVD_NAME" --family tablet

@@ -19,12 +19,12 @@ ACTIONS={
  'night-train-watch-protocol':[r'R01.*灰霧',r'^(開始旅程|繼續|開始這段)'],
  'tower-defense-skill':[r'^快速開始',r'^建議位',r'^確認建(塔|造)'],
  'web-card-game-skill':[r'^略過(?:教學)?$',r'^結束回合'],
- 'ashes-convoy':[r'^出勤',r'^(開始護送|開始出勤|出發)'],
+ 'ashes-convoy':[r'^(出勤|開始出勤)',r'^(開始護送|出發)'],
  'island-flight-school':[r'^(開始飛行|跟我飛|開始課程|開始練習|起飛)',r'^繼續'],
  'taiwan-train-school':[r'準備出發',r'開始前進'],
- 'pixel-idle-farm-skill':[r'開始種田',r'^訂單$'],
+ 'pixel-idle-farm-skill':[r'^(把農場接回來|開始種田)',r'^訂單$'],
  'village-siege':[r'^(開始遊戲|開始戰役|開始守城|開始|遊玩)',r'^繼續'],
- 'storm-apocalypse':[r'^(開始遊戲|開始戰役|出擊|開始)',r'^繼續'],
+ 'storm-apocalypse':[r'^(確認屠夫老闆娘|開始遊戲|開始戰役|出擊|開始)',r'^繼續'],
  'taiwan-train-math':[r'^遊戲室$',r'^火車圖鑑$'],
  'taiwan-island-drive':[r'^(開始駕駛|開始遊戲|出發|開始)',r'^繼續'],
  'crackveil-vanguard':[r'^(PLAY|START|開始|出擊)'],
@@ -48,6 +48,9 @@ def observed_target(nodes,patterns,width,height,package):
   if not 0<=l<r<=width or not 0<=t<b<=height:continue
   choices.append(((r-l)*(b-t),label,[l,t,r,b],[(l+r)//2,(t+b)//2]))
  return min(choices,key=lambda x:x[0]) if choices else None
+def observed_loading(nodes,package):
+ text='\n'.join(n.get('text','')+' '+n.get('content-desc','') for n in nodes if n.get('package')==package)
+ return bool(re.search(r'正在準備駕駛艙|載入 Blender 模型|準備戰場|正在下載角色與建築素材',text))
 
 def main():
  p=argparse.ArgumentParser();p.add_argument('--project',required=True);p.add_argument('--family',choices=['phone','tablet'],required=True);p.add_argument('--input',required=True);p.add_argument('--output',required=True);p.add_argument('--avd',required=True);a=p.parse_args()
@@ -114,6 +117,7 @@ def main():
     screen=capture('01-launched') if not report['screenshots'] else None
     nodes=hierarchy('01-launched');w,h=report['screenshots'][0]['width'],report['screenshots'][0]['height']
     candidate=observed_target(nodes,[ACTIONS[a.project][0]],w,h,package)
+    if observed_loading(nodes,package):candidate=None
     if candidate:break
    except Exception as error:report['warnings'].append('Readiness: '+str(error));save()
   # Refresh first frame once actual control exists; initial startup observation
@@ -131,7 +135,25 @@ def main():
      report['warnings'].append('Optional next visible control not present: '+pattern);break
     area,label,bounds,point=target
     report['actions'].append({'label':label,'selector':pattern,'bounds':bounds,'nativePixelPoint':point,'basis':'current actual UI hierarchy + native framebuffer bounds','beforeScreenshot':before['file'],'startedAtUtc':now()});save()
-    ad('shell','input','tap',str(point[0]),str(point[1]));time.sleep(8)
+    ad('shell','input','tap',str(point[0]),str(point[1]));tapped_at=time.monotonic();time.sleep(8)
+    if a.project=='village-siege' and index==0:
+     report['villageFrozenReleaseLoadingProbes']=[]
+     for seconds in [30,60,90]:
+      time.sleep(max(0,tapped_at+seconds-time.monotonic()))
+      entry={'secondsAfterActualStartTouch':seconds}
+      try:
+       frame=capture('village-probe-'+str(seconds)+'s');probe_nodes=hierarchy('village-probe-'+str(seconds)+'s')
+       entry.update(screenshot=frame['file'],loadingVisible=observed_loading(probe_nodes,package),visibleLabels=[n.get('text','')+' '+n.get('content-desc','') for n in probe_nodes if n.get('package')==package and (n.get('text') or n.get('content-desc'))][:120])
+       pid=ad('shell','pidof',package).decode().strip()
+       if pid.isdigit():(out/('village-probe-'+str(seconds)+'s-own-app.log')).write_bytes(ad('logcat','-d','--pid='+pid,'-v','brief',timeout=15))
+      except Exception as error:entry['error']=str(error)
+      report['villageFrozenReleaseLoadingProbes'].append(entry);save()
+    load_deadline=time.monotonic()+120
+    while True:
+     loaded_nodes=hierarchy('loading-observation-'+str(index+1))
+     if not observed_loading(loaded_nodes,package):break
+     if time.monotonic()>load_deadline:raise RuntimeError('Actual loading UI did not finish; do not accept loading as gameplay')
+     time.sleep(5)
     after=capture('03-after-action-'+str(index+1))
     after_nodes=hierarchy('03-after-action-'+str(index+1));report['actions'][-1]['afterVisibleLabels']=[(n.get('text','')+' '+n.get('content-desc','')).strip() for n in after_nodes if n.get('package')==package and (n.get('text') or n.get('content-desc'))][:150]
     with Image.open(out/before['file']) as ia,Image.open(out/after['file']) as ib:

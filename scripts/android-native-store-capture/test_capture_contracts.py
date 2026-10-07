@@ -56,5 +56,13 @@ class Contracts(unittest.TestCase):
  def test_actual_card_android_accessibility_label_is_supported(self):
   node=self.node(text='略過教學')
   self.assertIsNotNone(driver.observed_target([node],[driver.ACTIONS['web-card-game-skill'][0]],1080,1920,'tw.test.app'))
+ def test_controls_present_while_real_models_loading_are_not_ready_gameplay(self):
+  nodes=[self.node(text='準備出發'),self.node(text='正在準備駕駛艙　載入 Blender 模型與貼圖')]
+  self.assertTrue(driver.observed_loading(nodes,'tw.test.app'))
+  self.assertFalse(driver.observed_loading([self.node(text='準備出發')],'tw.test.app'))
+  self.assertTrue(driver.observed_loading([self.node(text='準備戰場')],'tw.test.app'))
+ def test_observed_current_start_labels_match_signed_apps(self):
+  for project,label in [('ashes-convoy','開始出勤'),('storm-apocalypse','確認屠夫老闆娘'),('pixel-idle-farm-skill','把農場接回來')]:
+   self.assertIsNotNone(driver.observed_target([self.node(text=label)],[driver.ACTIONS[project][0]],1080,1920,'tw.test.app'))
 
 if __name__=='__main__':unittest.main()

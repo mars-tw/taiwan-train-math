@@ -79,13 +79,16 @@ jobs:
                   try:
                       before={p.name for p in staging.iterdir()}
                       result=subprocess.run(['gh','release','download',tag,'--repo',repository,'--pattern',name,'--dir',str(staging),'--clobber'],capture_output=True,timeout=240)
-                      if result.returncode:raise ValueError('Official release asset download failed')
+                      if result.returncode:
+                          detail=result.stderr.decode('utf-8','replace').replace(os.environ.get('GH_TOKEN',''),'[REDACTED]')
+                          detail=re.sub(r'https?://[^\s]+','[URL REDACTED]',detail)
+                          raise ValueError('Official release asset download failed: '+detail[:400])
                       unexpected={p.name for p in staging.iterdir()}-before-{name}
                       if unexpected or not destination.is_file() or destination.is_symlink() or not 0<destination.stat().st_size<=maximum:raise ValueError('Unexpected/oversized release asset')
                       return
-                  except (OSError,ValueError,subprocess.TimeoutExpired):
+                  except (OSError,ValueError,subprocess.TimeoutExpired) as error:
                       destination.unlink(missing_ok=True)
-                      if attempt==2:raise SystemExit('Unable to download the approved source release asset')
+                      if attempt==2:raise SystemExit('Unable to download '+name+': '+str(error))
                       time.sleep(2)
           checksum_file=staging/'SHA256SUMS';download('SHA256SUMS',checksum_file,256*1024)
           if hashlib.sha256(checksum_file.read_bytes()).hexdigest()!=expected:raise SystemExit('Public checksum manifest differs from the approved pin')

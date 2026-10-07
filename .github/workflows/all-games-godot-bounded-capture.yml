@@ -7,7 +7,7 @@ on:
         type: choice
         required: true
         default: seven-only
-        options: [seven-only, crack-store-phone, both]
+        options: [seven-only, crack-store-phone, seven-and-phone-evidence, both]
 
 permissions:
   contents: read
@@ -132,7 +132,7 @@ jobs:
         run: |
           node scripts/godot-bounded-native-capture.mjs crack-phone "$RUNNER_TEMP/godot-bounded-source-crackveil-vanguard" "$RUNNER_TEMP/godot-bounded-input/crackveil-vanguard-source-verification.json" "$RUNNER_TEMP/godot-bounded-input/ci_verify_godot_ios.py" "$GITHUB_WORKSPACE/output/godot-bounded/crackveil-vanguard"
       - name: Crack Phone native landscape screen-only XCTest captures
-        if: always() && steps.source.outcome == 'success' && inputs.capture_mode == 'crack-store-phone'
+        if: always() && steps.source.outcome == 'success' && (inputs.capture_mode == 'crack-store-phone' || inputs.capture_mode == 'seven-and-phone-evidence')
         run: |
           node scripts/godot-bounded-native-capture.mjs crack-store-phone "$RUNNER_TEMP/godot-bounded-source-crackveil-vanguard" "$RUNNER_TEMP/godot-bounded-input/crackveil-vanguard-source-verification.json" "$RUNNER_TEMP/godot-bounded-input/ci_verify_godot_ios.py" "$GITHUB_WORKSPACE/output/godot-bounded/crackveil-vanguard"
       - name: Remove only owned input and extracted source directories

@@ -2,6 +2,7 @@
 // npm discovery: https://appium.io/docs/en/3.1/guides/managing-exts/#do-it-yourself-with-npm
 import { spawn, execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import { StringDecoder } from 'node:string_decoder';
 import { randomUUID } from 'node:crypto';
 import { createWriteStream } from 'node:fs';
 import fs from 'node:fs/promises';
@@ -54,6 +55,91 @@ const inside = (parent, target) => {
   const relative = path.relative(parent, target);
   return relative === '' || (!relative.startsWith('..' + path.sep) && relative !== '..' && !path.isAbsolute(relative));
 };
+
+export function sanitizeLauncherText(value) {
+  return String(value).replace(/\x1b\[[0-9;]*m/g, '').replace(/[\x00-\x1f\x7f]/g, ' ')
+    .replace(/https?:\/\/[^\s"'<>]+/g, '<url>')
+    .replace(/[A-Z]:[\\/][^\s"'<>]+/gi, '<path>')
+    .replace(/\/(?:Users|private|var|Volumes|tmp|home)\/[^\s"'<>]+/g, '<path>')
+    .replace(/(["']?(?:password|secret|token|api[_-]?key|authorization)["']?\s*[:=]\s*).*/gi, '$1<redacted>')
+    .replace(/\bBearer\s+[^\s,;]+/gi, 'Bearer <redacted>')
+    .replace(/eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g, '<jwt>')
+    .replace(/[\x00-\x1f\x7f]/g, ' ').slice(0, 500);
+}
+
+/** First bounded unique milestones survive repeated connection-refused polling. */
+export function createLauncherTrace() {
+  const limits = { command:4, start:12, install:8, 'test-manager':8, ready:8, error:12, connection:4 };
+  const events = [], dropped = {}, seen = new Map(), started = performance.now();
+  const decoders = { stdout:new StringDecoder('utf8'), stderr:new StringDecoder('utf8') };
+  const buffers = { stdout:'', stderr:'' }, discarding = { stdout:false, stderr:false }; let truncatedLines = 0;
+  function line(raw, stream) {
+    const text = sanitizeLauncherText(raw).replace(/^(?:\[[^\]]+\]\s*)+/, '')
+      .replace(/^(?:info|debug|warn|error)\s+/i, '').replace(/^(?:XCUITestDriver|AppiumDriver|Appium|HTTP|Xcode)(?:@\w+)?\s+/, '');
+    const kind = /ECONNREFUSED|connection refused/i.test(text) ? 'connection'
+      : /Beginning (?:test|build) with command|xcodebuild.*(?:test-without-building|build-for-testing)|xcodebuild exited with code/i.test(text) ? 'command'
+      : /error|failed|failure|exception|Error Domain|TCC/i.test(text) ? 'error'
+      : /test.?manager|test runner|runner.*(?:launch|start)|Test (?:Suite|Case).*started/i.test(text) ? 'test-manager'
+      : /install/i.test(text) ? 'install'
+      : /successfully started|session startup took|session created successfully|listening|already booted in headless|ready to accept|WebDriverAgent version/i.test(text) ? 'ready'
+      : /Welcome to Appium|Attempting to load|Launching WebDriverAgent|Constructing.*simulator|Setting up simulator|Beginning test|Starting.*Simulator|Requesting connection|Using WDA|Skipped WDA.*cleanup/i.test(text) ? 'start' : null;
+    if (!kind) return;
+    const key = kind + '|' + text, elapsedMs = Math.round(performance.now()-started), previous = seen.get(key);
+    if (previous) { previous.count = Math.min(1000000,previous.count+1); previous.lastElapsedMs = elapsedMs; return; }
+    if (events.filter(event=>event.kind===kind).length >= limits[kind]) { dropped[kind]=(dropped[kind]||0)+1; return; }
+    const event = { kind, stream, text, count:1, firstElapsedMs:elapsedMs, lastElapsedMs:elapsedMs };
+    if(kind==='command' && /xcodebuild.*(?:test-without-building|build-for-testing)/.test(text))event.command={executable:'xcodebuild',operation:/test-without-building/.test(text)?'test-without-building':'build-for-testing',redactedText:text};
+    const exit=text.match(/xcodebuild exited with code '?(-?\d+|null)'? and signal '?([A-Z0-9]+|null)'?/i);
+    if(exit)event.commandExit={executable:'xcodebuild',exitCode:exit[1]==='null'?null:Number(exit[1]),signal:exit[2]==='null'?null:exit[2]};
+    events.push(event); seen.set(key,event);
+  }
+  return {
+    push(stream,chunk) {
+      if (!Object.hasOwn(buffers,stream)) throw new TypeError('Only own stdout/stderr accepted');
+      let incoming=decoders[stream].write(Buffer.isBuffer(chunk)?chunk:Buffer.from(chunk));
+      if(discarding[stream]){const end=incoming.indexOf('\n');if(end<0)return;incoming=incoming.slice(end+1);discarding[stream]=false;}
+      const value = buffers[stream] + incoming;
+      const lines = value.split(/\r?\n/); buffers[stream]=lines.pop();
+      for (const text of lines) { if(text.length>8192)truncatedLines++; line(text.slice(0,8192),stream); }
+      if(buffers[stream].length>8192){truncatedLines++;line(buffers[stream].slice(0,8192),stream);buffers[stream]='';discarding[stream]=true;}
+    },
+    finish() { for(const stream of Object.keys(buffers)){const rest=buffers[stream]+decoders[stream].end();if(rest)line(rest,stream);buffers[stream]='';} },
+    snapshot() { return { events:events.map(event=>({...event})), droppedByKind:{...dropped}, truncatedLines, maximumUniqueEvents:56 }; },
+  };
+}
+
+export function safeXcresultSummary(data) {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) throw new TypeError('Structured own xcresult required');
+  const summary = {};
+  for (const key of ['title','result','totalTestCount','passedTests','failedTests','skippedTests'])
+    if(typeof data[key]==='string')summary[key]=sanitizeLauncherText(data[key]);
+    else if(Number.isFinite(data[key]))summary[key]=data[key];
+  summary.failures = (Array.isArray(data.testFailures)?data.testFailures:[]).slice(0,12).map(failure=>{
+    const item={};for(const key of ['testName','testIdentifier','failureText','failureMessage','issueType'])
+      if(typeof failure?.[key]==='string')item[key]=sanitizeLauncherText(failure[key]);return item;
+  });
+  return summary;
+}
+
+async function ownWdaXcresults(derived,scratchRoot) {
+  const report = { status:'not-found', items:[], rawBundleUploaded:false };
+  if(!derived)return report;
+  try {
+    const folder=await fs.realpath(path.join(derived,'Logs','Test'));
+    if(!inside(scratchRoot,folder))throw new Error('Outside owned scratch');
+    for(const name of (await fs.readdir(folder)).filter(name=>name.endsWith('.xcresult')).sort().slice(0,2)){
+      const target=await fs.realpath(path.join(folder,name));if(!inside(folder,target))continue;
+      const item={label:'own-wda-result-'+(report.items.length+1),command:['xcrun','xcresulttool','get','test-results','summary','--path','<owned-xcresult>']};
+      try {
+        const{stdout}=await promisify(execFile)('xcrun',['xcresulttool','get','test-results','summary','--path',target],
+          {timeout:15000,maxBuffer:1024*1024,windowsHide:true});item.exitCode=0;item.signal=null;item.summary=safeXcresultSummary(JSON.parse(stdout));
+      }catch(error){item.exitCode=typeof error.code==='number'?error.code:null;item.signal=error.signal||null;item.status='unreadable-or-incomplete';}
+      report.items.push(item);
+    }
+    report.status=report.items.length?'inspected':'not-found';
+  }catch{report.status='unavailable';}
+  return report;
+}
 
 /** pgrep exit 1 and empty output alone prove absence; ambiguous probes fail closed. */
 export function simulatorUiIsAbsent(result) {
@@ -151,7 +237,8 @@ export async function runAppiumSession({ appiumBin, udid, bundleId, model, platf
     simulatorUiGuard: { required: process.platform === 'darwin', checks: [], explicitUiTerminationRequested: false } };
   let child, sessionId, endpoint, log, logFailed = false, logClosed = false;
   let spawnedError = false, childClosed = false, serverExitCode = null, serverExitSignal = null, commandOpen = false, commandBusy = false, commandsFailed = false;
-  let sessionAttempted = false, pendingChildClose;
+  let sessionAttempted = false, pendingChildClose, prebuiltPath = null, scratchRoot;
+  const launcherTrace = createLauncherTrace();
   const controllers = new Set();
 
   async function request(method, suffix, payload, outerSignal) {
@@ -228,9 +315,8 @@ export async function runAppiumSession({ appiumBin, udid, bundleId, model, platf
       || !path.isAbsolute(output) || !path.isAbsolute(scratch)) fail('INVALID_ARGUMENT');
     const runtime = await pinnedRuntime(appiumBin);
     await fs.mkdir(scratch, { recursive: true, mode: 0o700 });
-    const [outputRoot, scratchRoot] = await Promise.all([fs.realpath(output), fs.realpath(scratch)]);
+    const outputRoot = await fs.realpath(output); scratchRoot = await fs.realpath(scratch);
     if (inside(outputRoot, scratchRoot) || inside(scratchRoot, outputRoot)) fail('INVALID_ARGUMENT');
-    let prebuiltPath = null;
     if (wdaDerivedData !== undefined) {
       if (typeof wdaDerivedData !== 'string' || !path.isAbsolute(wdaDerivedData)) fail('INVALID_ARGUMENT');
       prebuiltPath = await fs.realpath(wdaDerivedData);
@@ -258,8 +344,11 @@ export async function runAppiumSession({ appiumBin, udid, bundleId, model, platf
     report.stage = 'server-start';
     child = spawn(process.execPath, [appiumBin, 'server', '--config', config, '--address', '127.0.0.1',
       '--port', String(serverPort), '--base-path', basePath, '--use-drivers', 'xcuitest',
-      '--tmp', privateDirectory, '--log-level', 'info', '--log-no-colors'],
+      '--tmp', privateDirectory, '--log-level', 'debug', '--log-no-colors'],
     { cwd: runtime, env, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
+    report.ownServerCommand = { executable:'node', appiumVersion:EXPECTED_VERSIONS.appium,
+      arguments:['<pinned-appium-cli>','server','--config','<private-config>','--address','127.0.0.1','--port',String(serverPort),
+        '--base-path','<owned-base-path>','--use-drivers','xcuitest','--tmp','<private-scratch>','--log-level','debug','--log-no-colors'] };
     let logBytes = 0;
     const append = chunk => {
       if (logFailed || logClosed || logBytes >= LOG_LIMIT) return;
@@ -268,14 +357,10 @@ export async function runAppiumSession({ appiumBin, udid, bundleId, model, platf
       log.write(retained);
     };
     const summarize = (chunk, stream) => {
+      launcherTrace.push(stream,chunk);
       const clean = chunk.toString('utf8').replace(/\x1b\[[0-9;]*m/g, '').split(/\r?\n/)
         .filter(line => /Appium|XCUITest|driver|[Ee]rror|[Ww]arn|listen|server/.test(line))
-        .map(line => line.replace(/https?:\/\/[^\s"'<>]+/g, '<url>')
-          .replace(/[A-Z]:[\\/][^\s"'<>]+/gi, '<path>')
-          .replace(/\/(?:Users|private|var|Volumes|tmp|home)\/[^\s"'<>]+/g, '<path>')
-          .replace(/\b(?:password|secret|token|api[_-]?key|authorization)\s*[:=]\s*[^\s,;]+/gi, '<redacted>')
-          .replace(/\bBearer\s+[^\s,;]+/gi, 'Bearer <redacted>')
-          .replace(/[\x00-\x1f\x7f]/g, ' ').slice(0, 500));
+        .map(sanitizeLauncherText);
       report.serverStartup[stream].push(...clean);
       report.serverStartup[stream] = report.serverStartup[stream].slice(-20);
       append(chunk);
@@ -397,6 +482,9 @@ export async function runAppiumSession({ appiumBin, udid, bundleId, model, platf
       report.stage = 'cleanup';
       report.error = safeError(new SessionError('CLEANUP_FAILED'));
     }
+    launcherTrace.finish(); report.launcherTrace = launcherTrace.snapshot();
+    if(report.ownServerCommand)Object.assign(report.ownServerCommand,{exitCode:serverExitCode,signal:serverExitSignal});
+    if(process.platform==='darwin' && scratchRoot)report.wdaXcresults=await ownWdaXcresults(prebuiltPath,scratchRoot);
     report.serverStartup.exitCode = serverExitCode;
     report.serverStartup.exitSignal = serverExitSignal;
     if (report.error) report.status = 'failed';

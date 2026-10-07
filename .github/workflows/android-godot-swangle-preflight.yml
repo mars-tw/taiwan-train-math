@@ -12,6 +12,16 @@ on:
         required: true
         default: df97cd9b9742228e5c55ebced2adedcc9b29dfa356eb28386487615f5c87d82c
 
+      proof_phase:
+        type: choice
+        required: true
+        default: cold_warm
+        options: [cold_warm, menu_start]
+      root_menu_sha:
+        type: string
+        required: true
+        default: f8d470c1f1342fccc34eb52fe3667ca99ca2c3bed16ef8ca292a4bd304ae64e4
+
 permissions:
   contents: read
 concurrency:
@@ -54,6 +64,8 @@ jobs:
       actions: read
     env:
       NATIVE_AVD_NAME: NativeCapturePhone_${{ github.run_id }}_crackveil-vanguard
+      PROOF_PHASE: ${{ inputs.proof_phase }}
+      ROOT_MENU_REVIEW_SHA: ${{ inputs.root_menu_sha }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:

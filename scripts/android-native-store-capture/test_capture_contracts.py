@@ -41,5 +41,8 @@ class Contracts(unittest.TestCase):
   for forbidden in ['GH_TOKEN','APPLE','GOOGLE','keystore','secrets.']:
    self.assertNotIn(forbidden,encoded)
   self.assertIn('disable-animations',encoded);self.assertIn('false',encoded.lower())
+ def test_runner_context_not_used_in_job_env_before_runner_is_assigned(self):
+  data=yaml.safe_load((folder.parents[1]/'.github/workflows/android-native-store-capture.yml').read_text())
+  for job in data['jobs'].values():self.assertNotIn('runner.',str(job.get('env',{})))
 
 if __name__=='__main__':unittest.main()

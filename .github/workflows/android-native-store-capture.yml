@@ -88,9 +88,6 @@ jobs:
     permissions:
       contents: read
       actions: read
-    env:
-      ANDROID_AVD_HOME: ${{ runner.temp }}/native-capture-avds
-      ANDROID_USER_HOME: ${{ runner.temp }}/native-capture-user
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
@@ -104,6 +101,9 @@ jobs:
       - name: Configure disposable Linux KVM and lossless PNG encoding
         run: |
           set -euo pipefail
+          ANDROID_AVD_HOME="$RUNNER_TEMP/native-capture-avds"
+          ANDROID_USER_HOME="$RUNNER_TEMP/native-capture-user"
+          printf 'ANDROID_AVD_HOME=%s\nANDROID_USER_HOME=%s\n' "$ANDROID_AVD_HOME" "$ANDROID_USER_HOME" >> "$GITHUB_ENV"
           test -c /dev/kvm
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-native-capture-kvm.rules
           sudo udevadm control --reload-rules

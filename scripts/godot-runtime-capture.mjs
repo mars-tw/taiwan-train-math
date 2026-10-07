@@ -52,7 +52,10 @@ let context = CGContext(data: nil, width: image.width, height: image.height, bit
 space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue) else { exit(2) }
 context.draw(image, in: CGRect(x: 0, y: 0, width: CGFloat(image.width), height: CGFloat(image.height)))
 guard let rgb = context.makeImage(), let destination = CGImageDestinationCreateWithURL(output as CFURL, UTType.png.identifier as CFString, 1, nil) else { exit(2) }
-CGImageDestinationAddImage(destination, rgb, nil)
+let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [String:Any]
+let orientation = properties?[kCGImagePropertyOrientation as String]
+let preserved: [String:Any] = orientation == nil ? [:] : [kCGImagePropertyOrientation as String: orientation!]
+CGImageDestinationAddImage(destination, rgb, preserved as CFDictionary)
 guard CGImageDestinationFinalize(destination) else { exit(2) }
 `;
 
@@ -77,6 +80,7 @@ try {
   const previous = new Set(Object.values(inventory.devices).flat().map(d => d.udid.toLowerCase()));
   await fs.writeFile(path.join(scratch, 'rgb.swift'), rgbSource);
   await fs.mkdir(path.join(output, 'screenshots'), { recursive: true });
+  await fs.mkdir(path.join(output, 'raw-screenshots'), { recursive: true });
   for (const [kind, model] of [['iphone', phone[0]], ['ipad', tablet[0]]]) {
     if (!(model.minRuntimeVersion <= encoded && encoded <= model.maxRuntimeVersion)) throw new Error('Actual model/runtime mismatch');
     const device = (await command(kind + '-create', ['xcrun', 'simctl', 'create', 'Mars-Godot-Capture-' + project + '-' + kind, model.identifier, runtime.identifier])).text.trim();
@@ -107,7 +111,7 @@ try {
     const exported = path.join(scratch, kind + '-attachments');
     await fs.mkdir(exported);
     const exportResult = await command(kind + '-export-attachments', ['xcrun', 'xcresulttool', 'export', 'attachments', '--path', resultPath, '--output-path', exported], { allowFailure: true });
-    const shots = [];
+    const shots = [], rawShots = [];
     if (exportResult.code === 0) {
       const manifest = JSON.parse(await fs.readFile(path.join(exported, 'manifest.json'), 'utf8'));
       const walk = node => {
@@ -118,6 +122,14 @@ try {
       };
       for (const attachment of walk(manifest)) {
         const human = String(attachment.suggestedHumanReadableName || '');
+        const rawMatch = human.match(new RegExp('^' + kind + '-(menu90|after-start|relaunch90)-raw(?:[^A-Za-z0-9]|$)'));
+        if (rawMatch && /^[A-Za-z0-9_.-]+\.png$/i.test(attachment.exportedFileName)) {
+          const bytes = await fs.readFile(path.join(exported, attachment.exportedFileName));
+          const file = kind + '-' + rawMatch[1] + '-raw.png';
+          await fs.writeFile(path.join(output, 'raw-screenshots', file), bytes);
+          rawShots.push({ file: 'raw-screenshots/' + file, sha256: sha(bytes), bytes: bytes.length, originalXCUIScreenshotPngRepresentation: true });
+          continue;
+        }
         const match = human.match(new RegExp('^' + kind + '-(menu90|after-start|relaunch90)(?:[^A-Za-z0-9]|$)'));
         if (!match || !/^[A-Za-z0-9_.-]+\.png$/i.test(attachment.exportedFileName)) continue;
         const file = kind + '-' + match[1] + '.png';
@@ -130,8 +142,16 @@ try {
         shots.push({ file: 'screenshots/' + file, width, height, landscapeFrame: width > height, sha256: sha(bytes), rgbNoAlpha: true });
       }
     }
-    results.push({ device: kind, model: model.name, actualXCTestExit: test.code, timedOut: test.timedOut, screenshots: shots,
-      actualXCTestExecuted: /CAPTURE_TEST_METHOD_ENTERED=/.test(test.text), ownGameForegroundAtMenu90: /CAPTURE_MENU90_FOREGROUND=true/.test(test.text),
+    const geometry = test.text.split(/\r?\n/).filter(line => line.startsWith('CAPTURE_GEOMETRY=')).map(line => {
+      try {
+        const data = JSON.parse(line.slice('CAPTURE_GEOMETRY='.length));
+        const fields = ['deviceOrientation', 'imageOrientation', 'imageWidth', 'imageHeight', 'imageScale', 'cgWidth', 'cgHeight', 'pngOrientation', 'appX', 'appY', 'appWidth', 'appHeight'];
+        if (!new RegExp('^' + kind + '-(menu90|after-start|relaunch90)$').test(data.stage) || fields.some(key => typeof data[key] !== 'number' || !Number.isFinite(data[key]))) return null;
+        return Object.fromEntries(['stage', ...fields].map(key => [key, data[key]]));
+      } catch { return null; }
+    }).filter(Boolean);
+    results.push({ device: kind, model: model.name, actualXCTestExit: test.code, timedOut: test.timedOut, screenshots: shots, rawScreenshots: rawShots, geometry,
+      actualXCTestExecuted: /CAPTURE_TEST_METHOD_ENTERED=/.test(test.text), ownGameForegroundAtMenu90: /CAPTURE_MENU90_FOREGROUND=true/.test(test.text) ? true : /CAPTURE_MENU90_FOREGROUND=false/.test(test.text) ? false : null,
       ownGameConsoleDiagnostics: safeLines(consoleText), uiTestDiagnostics: safeLines(test.text),
       visibleStartLabelTapped: /CAPTURE_START_INPUT_METHOD=/.test(test.text), gameplaySceneRequiresVisualReview: true });
     await fs.writeFile(path.join(output, 'runtime-capture.json'), JSON.stringify({ projectId: project, appId, nativeVersion: '1.0.0', nativeBuild: 1,

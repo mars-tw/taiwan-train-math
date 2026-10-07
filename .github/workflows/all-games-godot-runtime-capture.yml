@@ -142,5 +142,6 @@ jobs:
             output/godot-runtime/runtime-capture.json
             output/godot-runtime/capture-command-failure.json
             output/godot-runtime/screenshots/*.png
+            output/godot-runtime/raw-screenshots/*.png
           if-no-files-found: error
           retention-days: 14

@@ -30,29 +30,97 @@ def generate(root, project, kind):
     swift = '''import XCTest
 import Vision
 import UIKit
+import ImageIO
+import CryptoKit
 final class CaptureUITests: XCTestCase {
     private let bundle = "APP_ID"
     private let startLabel = "START_LABEL"
     private let kind = "DEVICE_KIND"
-    private func capture(_ name: String) {
-        let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+    private func capture(_ name: String, app: XCUIApplication) {
+        print("CAPTURE_PRE_QUERY=" + kind + "-" + name + ";query=app-state")
+        print("CAPTURE_BEFORE_SCREENSHOT=" + kind + "-" + name + ";foreground=" + String(app.state == .runningForeground))
+        print("CAPTURE_PRE_QUERY=" + kind + "-" + name + ";query=app-frame")
+        let frame = app.frame
+        print("CAPTURE_PRE_FRAME=" + kind + "-" + name + ";x:" + String(Double(frame.minX)) + ";y:" + String(Double(frame.minY)) + ";w:" + String(Double(frame.width)) + ";h:" + String(Double(frame.height)) + ";deviceOrientation:" + String(XCUIDevice.shared.orientation.rawValue))
+        print("CAPTURE_PRE_QUERY=" + kind + "-" + name + ";query=screen-screenshot")
+        let screen = XCUIScreen.main.screenshot()
+        let image = screen.image
+        let source = CGImageSourceCreateWithData(screen.pngRepresentation as CFData, nil)
+        let properties = source.flatMap { CGImageSourceCopyPropertiesAtIndex($0, 0, nil) as? [String:Any] }
+        let geometry: [String:Any] = ["stage":kind + "-" + name,"deviceOrientation":XCUIDevice.shared.orientation.rawValue,
+            "imageOrientation":image.imageOrientation.rawValue,"imageWidth":image.size.width,"imageHeight":image.size.height,"imageScale":image.scale,
+            "cgWidth":image.cgImage?.width ?? 0,"cgHeight":image.cgImage?.height ?? 0,
+            "pngOrientation":properties?[kCGImagePropertyOrientation as String] ?? 0,
+            "appX":app.frame.origin.x,"appY":app.frame.origin.y,"appWidth":app.frame.width,"appHeight":app.frame.height]
+        if let data = try? JSONSerialization.data(withJSONObject: geometry, options: [.sortedKeys]), let text = String(data:data,encoding:.utf8) { print("CAPTURE_GEOMETRY=" + text) }
+        let attachment = XCTAttachment(screenshot: screen)
         attachment.name = kind + "-" + name
         attachment.lifetime = .keepAlways
         add(attachment)
+        let raw = XCTAttachment(data: screen.pngRepresentation, uniformTypeIdentifier: "public.png")
+        raw.name = kind + "-" + name + "-raw"
+        raw.lifetime = .keepAlways
+        add(raw)
+        let digest = SHA256.hash(data: screen.pngRepresentation).map { String(format:"%02x",$0) }.joined()
+        print("CAPTURE_RAW_SHA256=" + kind + "-" + name + ";sha256:" + digest)
     }
-    private func startPoint(_ screen: XCUIScreenshot) -> CGVector? {
+    private func exif(_ orientation: UIImage.Orientation) -> CGImagePropertyOrientation? {
+        switch orientation {
+        case .up: return .up
+        case .upMirrored: return .upMirrored
+        case .down: return .down
+        case .downMirrored: return .downMirrored
+        case .left: return .left
+        case .leftMirrored: return .leftMirrored
+        case .right: return .right
+        case .rightMirrored: return .rightMirrored
+        @unknown default: return nil
+        }
+    }
+    private func screenPoint(_ point: CGPoint, frame: CGRect) -> CGPoint? {
+        guard frame.width > 0, frame.height > 0, point.x >= 0, point.x <= 1, point.y >= 0, point.y <= 1 else { return nil }
+        return CGPoint(x: frame.minX + point.x * frame.width, y: frame.minY + (1 - point.y) * frame.height)
+    }
+    func testCoordinateContract() {
+        let pairs: [(UIImage.Orientation,UInt32)] = [(.up,1),(.upMirrored,2),(.down,3),(.downMirrored,4),(.leftMirrored,5),(.right,6),(.rightMirrored,7),(.left,8)]
+        for (image,expected) in pairs { XCTAssertEqual(exif(image)?.rawValue, expected) }
+        let offsetPoint = screenPoint(CGPoint(x:0.25,y:0.8),frame:CGRect(x:20,y:30,width:1000,height:600))
+        XCTAssertEqual(offsetPoint?.x ?? -1,270,accuracy:0.0000001)
+        XCTAssertEqual(offsetPoint?.y ?? -1,150,accuracy:0.0000001)
+        XCTAssertNil(screenPoint(CGPoint(x:-0.1,y:0.8),frame:CGRect(x:20,y:30,width:1000,height:600)))
+        XCTAssertNil(screenPoint(CGPoint(x:0.1,y:0.8),frame:.zero))
+    }
+    private func startPoint(_ app: XCUIApplication) -> CGVector? {
+        print("CAPTURE_PRE_QUERY=" + kind + ";query=ocr-app-frame")
+        let frame = app.frame
+        print("CAPTURE_PRE_QUERY=" + kind + ";query=ocr-app-screenshot")
+        let screen = app.screenshot()
         guard let image = screen.image.cgImage else { return nil }
+        guard let orientation = exif(screen.image.imageOrientation) else { print("CAPTURE_OCR_UNKNOWN_ORIENTATION"); return nil }
+        let quarterTurn = [UIImage.Orientation.left,.leftMirrored,.right,.rightMirrored].contains(screen.image.imageOrientation)
+        let width = CGFloat(quarterTurn ? image.height : image.width)
+        let height = CGFloat(quarterTurn ? image.width : image.height)
+        guard frame.width > 0, frame.height > 0, abs(width / height - frame.width / frame.height) < 0.01 else {
+            print("CAPTURE_OCR_AXIS_SCOPE_UNKNOWN;cgW:" + String(image.width) + ";cgH:" + String(image.height) + ";exif:" + String(orientation.rawValue) + ";frameW:" + String(Double(frame.width)) + ";frameH:" + String(Double(frame.height)))
+            return nil
+        }
         let request = VNRecognizeTextRequest()
         request.recognitionLevel = .accurate
         request.recognitionLanguages = ["zh-Hant", "en-US"]
         request.usesLanguageCorrection = false
         do {
-            try VNImageRequestHandler(cgImage: image, options: [:]).perform([request])
+            try VNImageRequestHandler(cgImage: image, orientation: orientation, options: [:]).perform([request])
             for observation in request.results ?? [] {
                 guard let text = observation.topCandidates(1).first else { continue }
                 let value = text.string.filter { !$0.isWhitespace }
                 if value == startLabel && text.confidence >= 0.3 {
-                    return CGVector(dx: observation.boundingBox.midX, dy: 1 - observation.boundingBox.midY)
+                    let bbox = observation.boundingBox
+                    guard let point = screenPoint(CGPoint(x:bbox.midX,y:bbox.midY),frame:frame), frame.contains(point), app.frame == frame else { print("CAPTURE_OCR_FRAME_CHANGED_OR_POINT_OUTSIDE"); return nil }
+                    let normalized = CGVector(dx:(point.x-frame.minX)/frame.width,dy:(point.y-frame.minY)/frame.height)
+                    let coordinate = app.coordinate(withNormalizedOffset: normalized)
+                    guard abs(coordinate.screenPoint.x-point.x) < 1, abs(coordinate.screenPoint.y-point.y) < 1 else { print("CAPTURE_OCR_SCREEN_POINT_MISMATCH"); return nil }
+                    print("CAPTURE_OCR_CONTRACT=scope:app;exif:" + String(orientation.rawValue) + ";confidence:" + String(text.confidence) + ";bbox:" + NSStringFromCGRect(bbox) + ";frame:" + NSStringFromCGRect(frame) + ";screenPoint:" + NSStringFromCGPoint(point))
+                    return normalized
                 }
             }
         } catch { print("CAPTURE_OCR_UNAVAILABLE") }
@@ -67,28 +135,29 @@ final class CaptureUITests: XCTestCase {
         let app = XCUIApplication(bundleIdentifier: bundle)
         app.activate()
         Thread.sleep(forTimeInterval: 90)
-        capture("menu90")
+        capture("menu90", app: app)
         print("CAPTURE_MENU90_FOREGROUND=" + String(app.state == .runningForeground))
         XCTAssertEqual(app.state, .runningForeground, "OWN_GAME_NOT_FOREGROUND")
         let button = app.buttons[startLabel]
         var method = "accessibility-button"
         if button.exists && button.isHittable {
             button.tap()
-        } else if let point = startPoint(XCUIScreen.main.screenshot()) {
+        } else if let point = startPoint(app) {
             method = "visible-label-vision"
+            print("CAPTURE_OCR_POINT=x:" + String(Double(point.dx)) + ";y:" + String(Double(point.dy)))
             app.coordinate(withNormalizedOffset: point).tap()
         } else {
             XCTFail("OWN_GAME_START_LABEL_NOT_VISIBLE_AFTER_90_SECONDS")
             return
         }
         Thread.sleep(forTimeInterval: 20)
-        capture("after-start")
+        capture("after-start", app: app)
         XCTAssertEqual(app.state, .runningForeground, "OWN_GAME_EXITED_AFTER_START")
         print("CAPTURE_START_INPUT_METHOD=" + method)
         app.terminate()
         app.launch()
         Thread.sleep(forTimeInterval: 90)
-        capture("relaunch90")
+        capture("relaunch90", app: app)
         XCTAssertEqual(app.state, .runningForeground, "OWN_GAME_NOT_FOREGROUND_AFTER_RELAUNCH")
     }
 }

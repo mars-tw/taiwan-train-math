@@ -27,6 +27,8 @@ async function fixture(t) {
   await put("src/main.css", 'body { background-image: url("../assets/icon.svg"); }');
   await put("data/trains.json", JSON.stringify({ trains: [{ image: "assets/icon.svg" }] }));
   await put("assets/icon.svg", '<svg xmlns="http://www.w3.org/2000/svg"></svg>');
+  await put("games/fixture-game/privacy.html", '<a href="support.html">Support</a>');
+  await put("games/fixture-game/support.html", '<a href="privacy.html">Privacy</a>');
   for (const path of ["docs/credits.md", "LICENSE", "NOTICE", "ASSET-LICENSE.md", "PRIVACY.md"]) await put(path);
   return { root, temporary, put, read: (path) => readFile(join(root, path), "utf8") };
 }
@@ -44,6 +46,7 @@ test("a second build removes deleted assets and old output without publishing re
   await buildSite(root);
   assert.equal(await read("dist/src/value.js"), "export const value = 2;");
   assert.equal(await read("dist/PRIVACY.md"), "fixture");
+  assert.equal(await read("dist/games/fixture-game/privacy.html"), '<a href="support.html">Support</a>');
   for (const path of ["assets/old.svg", "private.txt", "README.md", "package.json", "scripts/local.mjs", "tests/local.test.mjs", ".git/config", "src/.env", "data/.cache/local.json"])
     await assert.rejects(read(`dist/${path}`), { code: "ENOENT" });
 });

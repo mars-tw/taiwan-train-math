@@ -38,13 +38,13 @@ Apple 以資料是否離開裝置且可被開發者／合作方持續存取判�
 ## Native 盤點記錄待填
 
 - 原生 version／build：1.0.0／1；Web：1.11.0。final IPA／AAB 的 SHA-256：待正式簽署包填寫。
-- 建置狀態：Android release APK／AAB 已編譯、簽署並核驗；iOS Simulator App／未簽 device archive 已編譯並核對內建 PrivacyInfo，Apple 正式簽署與啟動補驗仍待完成。
+- 建置狀態：Android release APK／AAB 已編譯、簽署並核驗；iOS 正式 IPA 已在 workflow 37565567993 簽署、核對 profile／entitlements／PrivacyInfo 與 165 份資源，iPhone／iPad 模擬器首頁補驗完成。這些證據不取代真機網路／語音行為與商店隱私申報。
 - 本遊戲獨立 Android 上傳金鑰已建立並在 repo 外登記 live source；`scripts/sign-android.ps1` 需 JDK 21／Build Tools 36，密碼僅在 process environment。簽章核驗不代表商店上架或 OS 服務網路行為已驗收。
 - 20 種遊戲飛航首次安裝／重新開啟結果：待實機驗收。
 - Release 網路盤點，含有／沒有本機中文語音：待記錄；不將本機 `capacitor://`／WebView asset 讀取當成遠端服務。
 - 背景／鎖屏停音、原生儲存失敗、清除與更新結果：待記錄。
 - 最終 SDK／權限清單與 native backup 設定：待記錄。
 - `PrivacyInfo.xcprivacy`／UserDefaults required-reason 與 build Privacy Report：待記錄；Preferences 官方建議 `CA92.1`，用途須符合。[官方插件要求](https://capacitorjs.com/docs/apis/preferences)
-- `privacy.html`／`support.html` 已在 2026-10-06 驗 HTTP 200；Apple Seller／權利人名稱與客服保留／刪除方式仍待核對。另一遊戲的 Apple 私鑰授權僅限彼遊戲，不共用到本 App。
+- `privacy.html`／`support.html` 已在 2026-10-06 驗 HTTP 200；Apple Seller／權利人名稱與客服保留／刪除方式仍待核對。共用 Apple API／Distribution 憑證已獲授權，本遊戲 profile／包各自核驗。
 
 兒童家長關卡只攔截離開 App 的連結，以成人乘法作答放行；不是身分驗證或法律同意機制，也不提供法律合規保證。[Apple 5.1.4](https://developer.apple.com/app-store/review/guidelines/#kids)

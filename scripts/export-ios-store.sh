@@ -149,22 +149,47 @@ PY
   openssl pkey -in "$TASK_TMP/private_keys/AuthKey_$ASC_KEY_ID.p8" -check -noout >"$TASK_TMP/key-check.log" 2>&1 || fail 'API key invalid'
   TRANSPORTER=''
   while IFS= read -r candidate; do [ ! -x "$candidate" ] || { TRANSPORTER="$candidate"; break; }; done < <(find "$DEVELOPER_DIR/../SharedFrameworks" -name iTMSTransporter -type f 2>/dev/null)
-  [ -n "$TRANSPORTER" ] || fail 'official Xcode Transporter unavailable'
+  if [ -n "$TRANSPORTER" ]; then
+    UPLOAD_TOOL='iTMSTransporter'
+  else
+    ALTOOL="$(clean_tool xcrun --find altool 2>"$TASK_TMP/altool-preflight.log")" || fail 'official Xcode altool unavailable'
+    [ -n "$ALTOOL" ] && [ -x "$ALTOOL" ] || fail 'official Xcode altool unavailable'
+    UPLOAD_TOOL='altool'
+  fi
+  # altool accepts an explicit key directory; CWD also supplies its standard
+  # ./private_keys lookup. The p8 stays inside the owned temporary directory.
+  export API_PRIVATE_KEYS_DIR="$TASK_TMP/private_keys"
   cd "$TASK_TMP"
+  write_upload_result() {
+    python3 - "$OUT" "$UPLOAD_TOOL" "$1" "$2" "${3:-}" <<'PY'
+import json,pathlib,sys
+phase=sys.argv[5]
+(pathlib.Path(sys.argv[1])/'upload-result.json').write_text(json.dumps({'uploadTool':sys.argv[2],'appleValidationAccepted':sys.argv[3]=='true','uploadCommandAccepted':sys.argv[4]=='true','failedPhase':phase or None,'uploadOutcomeUnknown':phase=='upload','processingVerified':False,'testFlightAvailabilityVerified':False,'appStoreReviewApproved':False},indent=2))
+PY
+  }
   for operation in verify upload; do
-    if ! clean_tool "$TRANSPORTER" -m "$operation" -assetFile "$OUT/TrainMath.ipa" -apiKey "$ASC_KEY_ID" -apiIssuer "$ASC_ISSUER_ID" -v informational >"$TASK_TMP/$operation.log" 2>&1; then
+    if [ "$UPLOAD_TOOL" = iTMSTransporter ]; then
+      UPLOAD_ARGS=("$TRANSPORTER" -m "$operation" -assetFile "$OUT/TrainMath.ipa" -apiKey "$ASC_KEY_ID" -apiIssuer "$ASC_ISSUER_ID" -v informational)
+    elif [ "$operation" = verify ]; then
+      UPLOAD_ARGS=(xcrun altool --validate-app -f "$OUT/TrainMath.ipa" -t ios --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID")
+    else
+      UPLOAD_ARGS=(xcrun altool --upload-app -f "$OUT/TrainMath.ipa" -t ios --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID")
+    fi
+    if ! clean_tool "${UPLOAD_ARGS[@]}" >"$TASK_TMP/$operation.log" 2>&1; then
       python3 - "$TASK_TMP/$operation.log" <<'PY'
 import pathlib,re,sys
 codes=sorted(set(re.findall(r'\bITMS-[0-9]+\b',pathlib.Path(sys.argv[1]).read_text(errors='replace'))))
 print('Apple result codes: '+(', '.join(codes) if codes else 'authentication/network/tool failure'),file=sys.stderr)
 PY
+      if [ "$operation" = verify ]; then
+        write_upload_result false false validate
+      else
+        write_upload_result true false upload
+      fi
       fail 'Apple validation/upload failed; no success is claimed'
     fi
   done
-  python3 - "$OUT" <<'PY'
-import json,pathlib,sys
-(pathlib.Path(sys.argv[1])/'upload-result.json').write_text(json.dumps({'appleValidationAccepted':True,'uploadCommandAccepted':True,'processingVerified':False,'testFlightAvailabilityVerified':False,'appStoreReviewApproved':False},indent=2))
-PY
+  write_upload_result true true
   printf 'Apple upload command accepted; processing and App Store review are unverified.\n'
   exit 0
 fi

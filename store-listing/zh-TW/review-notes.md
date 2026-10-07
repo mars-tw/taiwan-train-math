@@ -1,21 +1,21 @@
 # 本遊戲審查演示路線草稿
 
-更新：2026-10-06。以下供 final signed build 驗收及填 Review Notes；未驗項目不要當成已實作／已通過而送出。
+更新：2026-10-07。以下供填 Review Notes；未驗項目不要當成已通過而送出。
 
-原生 App **1.0.0／build 1**，Web **1.11.0**。Android release APK／AAB 已簽署並核驗；iOS 已使用 Xcode 26.6／SDK 26.5 成功編譯 Simulator App 及未簽 device archive。首輪模擬器 OS 初始化逾時，啟動驗證另行補做；尚未商店上傳或獲審。
+原生 App **1.0.0／build 1**，Web **1.11.0**。Android release APK／AAB 已簽署並核驗；iOS 已使用 Xcode 26.3／SDK 26.2 編譯並完成 iPhone／iPad 模擬器首頁補驗。正式 IPA 在 workflow 37565567993 簽署成功，簽章、profile、entitlements 與 165 份內建檔案核對通過；尚未獲審。
 
-本遊戲的 Android 上傳金鑰已獨立建立；`scripts/sign-android.ps1` 可在 Windows JDK 21／Build Tools 36 重跑，密碼只放當次 process environment。已核對 release 版本、素材及簽章；另一遊戲的 Apple 私鑰尚未取得本遊戲使用授權。
+本遊戲的 Android 上傳金鑰已獨立建立；`scripts/sign-android.ps1` 可在 Windows JDK 21／Build Tools 36 重跑，密碼只放當次 process environment。Apple 共用 API／Distribution 憑證已獲授權，本遊戲使用獨立 App Store profile。
 
 | Review 資料 | 狀態 |
 | --- | --- |
 | App 名稱 | 小小列車長 |
-| Bundle ID／package | tw.mars.trainmath，平台 App 記錄待確認 |
+| Bundle ID／package | tw.mars.trainmath；Apple App ID 6819930616 |
 | Version／Build | 原生 1.0.0／1；Web 1.11.0 不當作原生商店版本 |
-| final IPA／AAB SHA-256 | 待正式簽署包填寫 |
+| final IPA／AAB SHA-256 | IPA：220196e11802c3b16882ce990d7d06f509eaead0a1a5dafabcd6fe7686a5baa4；AAB：57f2a8b7d0f9f88cad3740a18c763fd6fca38c068496b362853c1434ada8983e |
 | 客服與回報 email | a820628a@gmail.com |
 | Review 聯絡姓名／電話 | 未設定 |
 | 示範帳號 | 不需要，App 無登入 |
-| 其他 App 的憑證／帳戶流程 | 另一遊戲 Apple 私鑰授權僅限彼遊戲，不共用；不作本遊戲審查證據 |
+| 共用憑證／帳戶流程 | 同 Apple Team 共用 API／Distribution 憑證；各 App 的 profile 與 binary 證據各自核對 |
 | 隱私 URL | https://mars-tw.github.io/taiwan-train-math/privacy.html，2026-10-06 已部署，HTTP 200 |
 | 支援 URL | https://mars-tw.github.io/taiwan-train-math/support.html，2026-10-06 已部署，HTTP 200 |
 

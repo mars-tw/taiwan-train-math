@@ -2,9 +2,9 @@
 
 更新：2026-10-06。原生離線、儲存與外連門檻需 final release AAB 驗收後再提交本稿。
 
-原生 **1.0.0／build 1**，Web **1.11.0**。Android release APK／AAB 已使用這款遊戲獨立金鑰簽署並核驗，Google Play 尚未上架。iOS 已完成 Xcode 26.6／SDK 26.5 原生編譯，Apple 正式簽署及 TestFlight 尚待設定。
+原生 **1.0.0／build 1**，Web **1.11.0**。Android release APK／AAB 已使用這款遊戲獨立金鑰簽署並核驗，Google Play 尚未上架。iOS 已完成 Xcode 26.3／SDK 26.2 原生編譯與正式 IPA 簽署驗證。
 
-本遊戲的獨立 Android 上傳金鑰已建立，私檔在 repo 外並登記 live source；尚未把它當成已簽署 release 證據。Apple 的另一遊戲私鑰授權不適用本遊戲。
+本遊戲的獨立 Android 上傳金鑰已建立，私檔在 repo 外並登記 live source，簽署 release 已核驗。Apple 共用 API／Distribution 憑證已獲授權，本遊戲 profile 與包獨立核對。
 
 | 欄位 | 草稿／狀態 |
 | --- | --- |
@@ -19,8 +19,8 @@
 | 支援網址 | https://mars-tw.github.io/taiwan-train-math/support.html，2026-10-06 已部署，HTTP 200 |
 | 原生隱私網址 | https://mars-tw.github.io/taiwan-train-math/privacy.html，2026-10-06 已部署，HTTP 200 |
 | versionName／versionCode | 1.0.0／1；Web 1.11.0 為獨立版本 |
-| release 簽署、發布地區／價格 | 尚未完成／設定 |
-| 身分／電話／裝置驗證 | 身分已完成；電話與裝置仍待，本輪不代辦 |
+| release 簽署、發布地區／價格 | 簽署已完成；發布地區／價格尚未設定 |
+| 身分／電話／裝置驗證 | Google 帳戶已驗證，App 建立按鈕已可使用 |
 
 ## 短描述
 

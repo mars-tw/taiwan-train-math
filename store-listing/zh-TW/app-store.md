@@ -1,10 +1,10 @@
 # App Store 繁體中文草稿
 
-更新：2026-10-06。離線、家長門檻及本機語音文字，需 final signed build 驗收後才能作為商店承諾；不是已送審紀錄。
+更新：2026-10-07。iOS 正式簽署包已驗證；真機語音與完整背景操作仍需補驗，本稿不是已獲審紀錄。
 
-原生 **1.0.0／build 1**；Web **1.11.0**。Android release APK／AAB 已簽署並核驗；iOS 使用 Xcode 26.6／SDK 26.5 編譯出 Simulator App 與未簽 device archive，Apple 正式簽署及 TestFlight 尚待本遊戲授權設定。
+原生 **1.0.0／build 1**；Web **1.11.0**。Android release APK／AAB 已簽署並核驗；iOS 使用 Xcode 26.3／SDK 26.2 編譯，iPhone／iPad 模擬器首頁啟動補驗完成。正式 IPA 已在 workflow 37565567993 匯出，簽章、profile、entitlements 與 165 份內建檔案核對通過。
 
-Android 的本遊戲上傳金鑰已獨立建立，`scripts/sign-android.ps1` 為 Windows 重跑路徑（JDK 21／Build Tools 36，密碼僅在 process environment）；目前尚不作已簽署證據。Apple 仍待本遊戲專用授權設定，不使用另一遊戲的私鑰授權。
+Android 使用本遊戲的獨立上傳金鑰，`scripts/sign-android.ps1` 為 Windows 重跑路徑（JDK 21／Build Tools 36，密碼僅在 process environment）。Apple 使用已授權的同團隊共用 API／Distribution 憑證，搭配本遊戲獨立 profile；私密資料全放在程式庫外。
 
 ## 欄位
 
@@ -13,7 +13,8 @@ Android 的本遊戲上傳金鑰已獨立建立，`scripts/sign-android.ps1` 為
 | 名稱 | 小小列車長 |
 | 副標題 | 台灣火車圖鑑與數學遊戲 |
 | 主要語言 | 繁體中文（台灣） |
-| Bundle ID | tw.mars.trainmath，平台記錄待確認 |
+| Bundle ID | tw.mars.trainmath，Apple App ID 6819930616 |
+| SKU | taiwan-train-math |
 | 主要類別建議 | 教育；次要可選遊戲，最終由發布者設定 |
 | Made for Kids／Kids 年齡段 | 建議參與；尚未設定適用分組 |
 | App Store 年齡評級 | 未完成當前問卷，不硬填 4+ 或其他等級 |
@@ -41,7 +42,7 @@ Android 的本遊戲上傳金鑰已獨立建立，`scripts/sign-android.ps1` 為
 - 拼火車照片、整理行李、走迷宮、接軌道、排方向指令。
 - 分享點心、配重量、用代幣付剛好的車票點數。
 - 閱讀 59 個列車與名稱條目，欣賞 58 張核對過的實車照片；尚未取得正確照片的條目明確標示待補。
-- 看四段星光高鐵的想像故事，點小鳥、燈塔與信封；答對後再讀一句真實列車或台灣地理小發現。
+- 看四段星光高鐵的想像故事，開啟信封中的故事任務；答對後再讀一句真實列車或台灣地理小發現。
 - 收集旅程紀念章及 36 款小禮物，所有玩法不靠購買解鎖。
 
 原生版將遊戲、故事和照片放在 App 裡，安裝後可離線玩。護照與未完成操作保留在這台裝置，不設帳號、不提供跨裝置同步。沒有廣告、付費購買或分析追蹤。
@@ -56,4 +57,4 @@ Android 的本遊戲上傳金鑰已獨立建立，`scripts/sign-android.ps1` 為
 
 僅在按兒童產品設定 Made for Kids 並完成檢查後，使用本稿中的兒童定位文案；不要以改成成人分類迴避原產品定位。參考 [Apple Kids](https://developer.apple.com/kids/)。
 
-送審備註需說明成人乘法關卡只攔截離開 App 的連結，不是身分驗證或法律同意；另一遊戲的 Apple 私鑰授權不適用本遊戲。
+送審備註需說明成人乘法關卡只攔截離開 App 的連結，不是身分驗證或法律同意。共用帳戶授權已完成；每款 App 的包、profile 與審查證據仍各自核對。

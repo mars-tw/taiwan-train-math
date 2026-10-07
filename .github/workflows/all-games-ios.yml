@@ -19,7 +19,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: native-fleet-ios-${{ github.repository }}-${{ inputs.release_tag }}
+  group: native-fleet-ios-${{ github.repository }}-${{ inputs.release_tag }}-${{ inputs.project }}
   cancel-in-progress: false
 jobs:
   select:
@@ -199,7 +199,7 @@ jobs:
         run: bash "$CI_TOOLS/ci_ios_export.sh" prepare "$APP_SOURCE" "$PROJECT_ID" "$PUBLIC_OUTPUT"
       - name: Compile and capture each app on its own fresh iPhone17ProMax and iPadM4
         if: inputs.project == 'all' || inputs.project == matrix.project
-        run: bash "$CI_TOOLS/ci_ios_export.sh" sim "$APP_SOURCE" "$PROJECT_ID" "$PUBLIC_OUTPUT"
+        run: bash scripts/ci-web-capture-long.sh sim "$APP_SOURCE" "$PROJECT_ID" "$PUBLIC_OUTPUT"
       - name: Manual per-app archive, signed IPA export and Apple signature/source verification
         if: inputs.project == 'all' || inputs.project == matrix.project
         env:

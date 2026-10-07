@@ -9,7 +9,7 @@ import path from 'node:path';
 
 const APP_ID = 'tw.mars.sevendistrictreckoning';
 const HTTP_TIMEOUT = 180000;
-const READY_TIMEOUT = 30000;
+const READY_TIMEOUT = 90000;
 const OBSERVATION_TIMEOUT = 600000;
 const RESPONSE_LIMIT = 64 * 1024 * 1024;
 const LOG_LIMIT = 20 * 1024 * 1024;
@@ -21,7 +21,7 @@ const ERRORS = Object.freeze({
   PRIVATE_LOG_FAILED: 'The private Appium log could not be retained.',
   SERVER_START_FAILED: 'The owned Appium server could not start.',
   SERVER_EXITED: 'The owned Appium server exited before the session finished.',
-  SERVER_NOT_READY: 'The owned Appium server was not ready within 30 seconds.',
+  SERVER_NOT_READY: 'The owned Appium server was not ready within 90 seconds.',
   HTTP_TIMEOUT: 'An Appium request exceeded its 180 second limit; it was not retried.',
   HTTP_ABORTED: 'An Appium request was cancelled during bounded cleanup; it was not retried.',
   HTTP_FAILED: 'An Appium request failed; it was not retried.',
@@ -123,9 +123,10 @@ function checkCommand(script, args) {
 export async function runAppiumSession({ appiumBin, udid, bundleId, model, platformVersion, output, scratch, observeStart } = {}) {
   const report = { status: 'failed', stage: 'prepare', sessionCreated: false,
     observation: Object.fromEntries(OBSERVATIONS.map(key => [key, false])),
-    cleanup: { session: 'not-created', server: 'not-started' }, rawLogsUploaded: false };
+    cleanup: { session: 'not-created', server: 'not-started' }, rawLogsUploaded: false,
+    serverStartup: { limitMs: READY_TIMEOUT, observations: [], stdoutSummary: [], stderrSummary: [], exitCode: null, exitSignal: null } };
   let child, sessionId, endpoint, log, logFailed = false, logClosed = false;
-  let spawnedError = false, childClosed = false, commandOpen = false, commandBusy = false, commandsFailed = false;
+  let spawnedError = false, childClosed = false, serverExitCode = null, serverExitSignal = null, commandOpen = false, commandBusy = false, commandsFailed = false;
   let sessionAttempted = false, pendingChildClose;
   const controllers = new Set();
 
@@ -221,14 +222,29 @@ export async function runAppiumSession({ appiumBin, udid, bundleId, model, platf
       logBytes += retained.length;
       log.write(retained);
     };
-    child.stdout.on('data', append); child.stderr.on('data', append);
+    const summarize = (chunk, stream) => {
+      const clean = chunk.toString('utf8').replace(/\x1b\[[0-9;]*m/g, '').split(/\r?\n/)
+        .filter(line => /Appium|XCUITest|driver|[Ee]rror|[Ww]arn|listen|server/.test(line))
+        .map(line => line.replace(/https?:\/\/[^\s"'<>]+/g, '<url>')
+          .replace(/[A-Z]:[\\/][^\s"'<>]+/gi, '<path>')
+          .replace(/\/(?:Users|private|var|Volumes|tmp|home)\/[^\s"'<>]+/g, '<path>')
+          .replace(/\b(?:password|secret|token|api[_-]?key|authorization)\s*[:=]\s*[^\s,;]+/gi, '<redacted>')
+          .replace(/\bBearer\s+[^\s,;]+/gi, 'Bearer <redacted>')
+          .replace(/[\x00-\x1f\x7f]/g, ' ').slice(0, 500));
+      report.serverStartup[stream].push(...clean);
+      report.serverStartup[stream] = report.serverStartup[stream].slice(-20);
+      append(chunk);
+    };
+    child.stdout.on('data', chunk => summarize(chunk, 'stdoutSummary'));
+    child.stderr.on('data', chunk => summarize(chunk, 'stderrSummary'));
     child.once('error', () => { spawnedError = true; });
-    pendingChildClose = new Promise(resolve => child.once('close', () => { childClosed = true; resolve(); }));
+    pendingChildClose = new Promise(resolve => child.once('close', (code, signal) => { childClosed = true; serverExitCode = code; serverExitSignal = signal; resolve(); }));
 
     report.stage = 'server-ready';
     const readyController = new AbortController();
     const readyTimer = setTimeout(() => readyController.abort(), READY_TIMEOUT);
-    const readyDeadline = performance.now() + READY_TIMEOUT;
+    const startupStarted = performance.now();
+    const readyDeadline = startupStarted + READY_TIMEOUT;
     let ready = false;
     try {
       while (performance.now() < readyDeadline) {
@@ -236,8 +252,12 @@ export async function runAppiumSession({ appiumBin, udid, bundleId, model, platf
         if (childClosed) fail('SERVER_EXITED');
         try {
           const status = await request('GET', '/status', undefined, readyController.signal);
+          report.serverStartup.observations.push({ elapsedMs: Math.round(performance.now() - startupStarted),
+            ready: status?.ready === true, serverVersion: typeof status?.build?.version === 'string'
+              && /^[0-9]+\.[0-9]+\.[0-9]+$/.test(status.build.version) ? status.build.version : null });
           if (!childClosed && status?.ready === true && status?.build?.version === EXPECTED_VERSIONS.appium) { ready = true; break; }
         } catch (error) {
+          report.serverStartup.observations.push({ elapsedMs: Math.round(performance.now() - startupStarted), errorCode: safeError(error).code });
           if (readyController.signal.aborted) break;
           if (error.code !== 'HTTP_FAILED') throw error;
         }
@@ -326,6 +346,8 @@ export async function runAppiumSession({ appiumBin, udid, bundleId, model, platf
       report.stage = 'cleanup';
       report.error = safeError(new SessionError('CLEANUP_FAILED'));
     }
+    report.serverStartup.exitCode = serverExitCode;
+    report.serverStartup.exitSignal = serverExitSignal;
     if (report.error) report.status = 'failed';
   }
   return report;

@@ -2,6 +2,12 @@ name: Bounded Godot Seven Appium and Crack phone runtime proof
 
 on:
   workflow_dispatch:
+    inputs:
+      capture_mode:
+        type: choice
+        required: true
+        default: seven-only
+        options: [seven-only, both]
 
 permissions:
   contents: read
@@ -120,7 +126,7 @@ jobs:
         run: |
           node scripts/godot-bounded-native-capture.mjs seven-appium "$RUNNER_TEMP/godot-bounded-source-seven-district-reckoning" "$RUNNER_TEMP/godot-bounded-input/seven-district-reckoning-source-verification.json" "$RUNNER_TEMP/godot-bounded-input/ci_verify_godot_ios.py" "$GITHUB_WORKSPACE/output/godot-bounded/seven-district-reckoning"
       - name: Crack phone-only cold and warm capture without accessibility queries
-        if: always() && steps.source.outcome == 'success'
+        if: always() && steps.source.outcome == 'success' && inputs.capture_mode == 'both'
         run: |
           node scripts/godot-bounded-native-capture.mjs crack-phone "$RUNNER_TEMP/godot-bounded-source-crackveil-vanguard" "$RUNNER_TEMP/godot-bounded-input/crackveil-vanguard-source-verification.json" "$RUNNER_TEMP/godot-bounded-input/ci_verify_godot_ios.py" "$GITHUB_WORKSPACE/output/godot-bounded/crackveil-vanguard"
       - name: Remove only owned input and extracted source directories

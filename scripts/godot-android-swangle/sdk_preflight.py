@@ -70,17 +70,19 @@ def missing_child_libraries(record):
 def probe_text(raw, limit=8192):
     value=raw[:limit].decode('utf-8','backslashreplace')
     value=''.join('\\u%04x'%ord(c) if ord(c)<32 and c not in '\r\n\t' else c for c in value)
-    return {'text':value,'fullBytes':len(raw),'truncated':len(raw)>limit,'sha256':hashlib.sha256(raw).hexdigest()}
+    return {'text':value,'fullBytes':len(raw),'retainedBytes':min(len(raw),limit),'capBytes':limit,'truncated':len(raw)>limit,'sha256':hashlib.sha256(raw).hexdigest()}
 
-def diagnostic_probe(argv, record, persist, timeout=15, env=None):
+def diagnostic_probe(argv, record, persist, timeout=15, env=None, readback_limit=8192):
     # The caller restricts these argv to the verified own-SDK binary only.
+    if readback_limit not in (8192,16384):
+        raise RuntimeError('Unsupported diagnostic cap; STOP')
     try:
         result=subprocess.run(argv,capture_output=True,timeout=timeout,env=env)
-        record.update(argv=argv,exitCode=result.returncode,stdout=probe_text(result.stdout),stderr=probe_text(result.stderr),timedOut=False)
+        record.update(argv=argv,exitCode=result.returncode,stdout=probe_text(result.stdout,readback_limit),stderr=probe_text(result.stderr,readback_limit),timedOut=False)
     except subprocess.TimeoutExpired as error:
-        record.update(argv=argv,exitCode=None,stdout=probe_text(error.stdout or b''),stderr=probe_text(error.stderr or b''),timedOut=True)
+        record.update(argv=argv,exitCode=None,stdout=probe_text(error.stdout or b'',readback_limit),stderr=probe_text(error.stderr or b'',readback_limit),timedOut=True)
     except FileNotFoundError:
-        record.update(argv=argv,exitCode=None,toolUnavailable=True,stdout=probe_text(b''),stderr=probe_text(b''),timedOut=False)
+        record.update(argv=argv,exitCode=None,toolUnavailable=True,stdout=probe_text(b'',readback_limit),stderr=probe_text(b'',readback_limit),timedOut=False)
     persist()
     return record
 
@@ -148,7 +150,7 @@ def main():
         child=report['qemuChildEvidence']['realpath']
         child_diagnostics=report.setdefault('qemuChildDiagnostics',{})
         for key,argv in [('ldd',['ldd',child]),('readelfDynamic',['readelf','-d',child])]:
-            diagnostic_probe(argv,child_diagnostics.setdefault(key,{}),save)
+            diagnostic_probe(argv,child_diagnostics.setdefault(key,{}),save,readback_limit=16384 if key=='ldd' else 8192)
         missing=missing_child_libraries(child_diagnostics['ldd'])
         report['qemuChildMissingDependencies']=missing
         save()
@@ -177,7 +179,7 @@ def main():
         report['actualLauncherChildEnvironmentCaptured']=False
         contextual=report.setdefault('qemuVendorLayoutDiagnostics',{})
         for key,argv in [('ldd',['ldd',child]),('readelfDynamic',['readelf','-d',child])]:
-            diagnostic_probe(argv,contextual.setdefault(key,{}),save,env=child_env)
+            diagnostic_probe(argv,contextual.setdefault(key,{}),save,env=child_env,readback_limit=16384 if key=='ldd' else 8192)
         report['contextualMissingDependencies']=missing_child_libraries(contextual['ldd']);save()
         if report['contextualMissingDependencies'] or any(row.get('exitCode')!=0 or row.get('stdout',{}).get('truncated') or row.get('stderr',{}).get('truncated') for row in contextual.values()):
             raise RuntimeError('Verified SDK-layout child context unresolved/incomplete; STOP')

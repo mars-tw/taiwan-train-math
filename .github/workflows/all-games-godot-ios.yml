@@ -10,12 +10,12 @@ on:
         options: [crackveil-vanguard, seven-district-reckoning]
       release_tag:
         description: Same-repository DRAFT release containing verified Godot sources and helpers
-        default: all-games-godot-ci-20261007-r2
+        default: all-games-godot-ci-20261007-r3
         required: true
         type: string
       sums_sha256:
         description: Approved SHA256 of that release's SHA256SUMS file
-        default: 877c92c8501047cc1a8c161dd1af0d79516d197a19a9de33f7ebbe94bd5223e3
+        default: d5eb56f07dbc88b98c1b126173e53922fbbd4840ad3b4741b3d0321cfaa784a1
         required: true
         type: string
 
@@ -90,7 +90,7 @@ jobs:
           retention-days: 1
   export:
     needs: fetch
-    runs-on: macos-15
+    runs-on: macos-15-intel
     timeout-minutes: 90
     permissions:
       contents: read
@@ -165,6 +165,7 @@ jobs:
             output/godot-ios/input-provenance.json
             output/godot-ios/source-verification.json
             output/godot-ios/sim-build-failure.json
+            output/godot-ios/simulator-architecture.json
             output/godot-ios/simulator-verification.json
             output/godot-ios/simulator-launch.json
             output/godot-ios/verification.json

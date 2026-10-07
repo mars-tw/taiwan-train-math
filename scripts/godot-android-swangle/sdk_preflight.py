@@ -11,6 +11,20 @@ from pathlib import Path
 
 PROJECT = 'crackveil-vanguard'
 
+def own_qemu_evidence(sdk, reference_bytes):
+    child=sdk/'emulator/qemu/linux-x86_64/qemu-system-x86_64'
+    real=child.resolve()
+    if not real.is_relative_to(sdk/'emulator/qemu/linux-x86_64') or not child.is_file():
+        raise RuntimeError('Exact owned QEMU child scope mismatch; STOP')
+    raw=child.read_bytes()
+    row={'path':str(child),'realpath':str(real),'bytes':len(raw),'sha256':hashlib.sha256(raw).hexdigest(),'elfMagic':raw[:4].hex(),'executable':os.access(child,os.X_OK)}
+    if raw[:4]!=b'\x7fELF' or not row['executable'] or hashlib.sha256(raw).digest()!=hashlib.sha256(reference_bytes).digest():
+        raise RuntimeError('Owned QEMU ELF/executable/archive byte proof failed; STOP')
+    return row
+
+def missing_child_libraries(record):
+    return re.findall(r'^\s*(\S+)\s+=>\s+not found\s*$',record.get('stdout',{}).get('text',''),re.M)
+
 def probe_text(raw, limit=8192):
     value=raw[:limit].decode('utf-8','backslashreplace')
     value=''.join('\\u%04x'%ord(c) if ord(c)<32 and c not in '\r\n\t' else c for c in value)
@@ -86,6 +100,18 @@ def main():
         for key,argv in [('ldd',['ldd',str(real)]),('readelfDynamic',['readelf','-d',str(real)])]:
             row=report['loaderDiagnostics'].setdefault(key,{})
             diagnostic_probe(argv,row,save)
+        with zipfile.ZipFile(archive) as verified_package:
+            report['qemuChildEvidence']=own_qemu_evidence(sdk,verified_package.read('emulator/qemu/linux-x86_64/qemu-system-x86_64'))
+        save()
+        child=report['qemuChildEvidence']['realpath']
+        child_diagnostics=report.setdefault('qemuChildDiagnostics',{})
+        for key,argv in [('ldd',['ldd',child]),('readelfDynamic',['readelf','-d',child])]:
+            diagnostic_probe(argv,child_diagnostics.setdefault(key,{}),save)
+        missing=missing_child_libraries(child_diagnostics['ldd'])
+        report['qemuChildMissingDependencies']=missing
+        save()
+        if missing or any(row.get('exitCode')!=0 or row.get('stdout',{}).get('truncated') or row.get('stderr',{}).get('truncated') for row in child_diagnostics.values()):
+            raise RuntimeError('Owned QEMU child dependency proof incomplete or missing; STOP before version/AVD/APK')
         probes=report.setdefault('binaryCommands',{})
         version_probe=diagnostic_probe([str(real),'-version'],probes.setdefault('version',{}),save)
         if version_probe.get('exitCode')!=0:

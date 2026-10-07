@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-10-07",
+  "updatedAt": "2026-10-07T17:50:55.873435+08:00",
   "appId": "6819930616",
   "bundleId": "tw.mars.trainmath",
   "version": "1.0.0",
@@ -35,8 +35,9 @@
   },
   "reviewDetailsSavedAndReadBack": true,
   "reviewSubmissionId": "562ddbde-e569-4189-9835-c1b924a03d78",
-  "reviewSubmissionState": "WAITING_FOR_REVIEW",
+  "reviewSubmissionState": "IN_REVIEW",
   "appPrivacyAnswersPublished": true,
   "copyrightSavedAndReadBack": true,
-  "contentRightsDeclaration": "USES_THIRD_PARTY_CONTENT"
+  "contentRightsDeclaration": "USES_THIRD_PARTY_CONTENT",
+  "liveReviewStateReadBackVerified": true
 }

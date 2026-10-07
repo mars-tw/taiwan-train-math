@@ -62,9 +62,9 @@ jobs:
           python3 - <<'PY'
           import hashlib,json,os,pathlib,re,time,subprocess
           tag=os.environ['SOURCE_TAG'];expected=os.environ['EXPECTED_CHECKSUMS_SHA256'].lower();project=os.environ['PROJECT_ID']
-          approved_tag='all-games-mobile-ci-20261007'
-          approved_pin='90743278d23d4a12753e81cee078157f691302c9ae79c716804552a4c23b35bd'
-          approved_release_id=405458880
+          approved_tag='all-games-mobile-ci-20261007-r2'
+          approved_pin='aeebf609ae2edf40762fd5948fe797d4c418c0a8f15fa3bf7d388ee1713d3db9'
+          approved_release_id=405522017
           known=['ashes-convoy','island-flight-school','night-train-watch-protocol','pixel-idle-farm-skill','storm-apocalypse','taiwan-train-school','tower-defense-skill','village-siege','web-card-game-skill']
           if tag!=approved_tag or expected!=approved_pin or project not in known:raise SystemExit('Only the fixed approved source tag/checksum and explicit Web adapter are allowed')
           repository='mars-tw/taiwan-train-math'
@@ -161,7 +161,7 @@ jobs:
           python3 - <<'PY'
           import hashlib,json,os,pathlib,re
           tag=os.environ['SOURCE_TAG'];expected=os.environ['EXPECTED_CHECKSUMS_SHA256'].lower();project=os.environ['PROJECT_ID']
-          if tag!='all-games-mobile-ci-20261007' or expected!='90743278d23d4a12753e81cee078157f691302c9ae79c716804552a4c23b35bd':raise SystemExit('Relay requires the fixed approved release/checksum pin')
+          if tag!='all-games-mobile-ci-20261007-r2' or expected!='aeebf609ae2edf40762fd5948fe797d4c418c0a8f15fa3bf7d388ee1713d3db9':raise SystemExit('Relay requires the fixed approved release/checksum pin')
           repository='mars-tw/taiwan-train-math'
           if os.environ['GITHUB_REPOSITORY']!=repository:raise SystemExit('Unexpected caller repository')
           staging=pathlib.Path(os.environ['RUNNER_TEMP'],'native-release')
@@ -171,7 +171,7 @@ jobs:
               file=staging/name;maximum=1024**3 if name.endswith('.zip') else 1024*1024
               if not file.is_file() or file.is_symlink() or not 0<file.stat().st_size<=maximum:raise SystemExit('Invalid or oversized relayed input')
           provenance=json.loads((staging/'input-provenance.json').read_text(encoding='utf-8'))
-          approved={'repository':repository,'releaseTag':tag,'releaseId':405458880,'releaseDraft':True,'projectId':project,'checksumManifestSha256':expected,'helpersExecuted':False,'gameExecuted':False,'appleSecretsUsed':False}
+          approved={'repository':repository,'releaseTag':tag,'releaseId':405522017,'releaseDraft':True,'projectId':project,'checksumManifestSha256':expected,'helpersExecuted':False,'gameExecuted':False,'appleSecretsUsed':False}
           if provenance!=approved:raise SystemExit('Same-run source provenance does not match the approved inputs')
           checksum_file=staging/'SHA256SUMS'
           if hashlib.sha256(checksum_file.read_bytes()).hexdigest()!=expected:raise SystemExit('Public checksum manifest differs from the approved pin')

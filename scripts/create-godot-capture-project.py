@@ -51,7 +51,7 @@ final class CaptureUITests: XCTestCase {
             "imageOrientation":image.imageOrientation.rawValue,"imageWidth":image.size.width,"imageHeight":image.size.height,"imageScale":image.scale,
             "cgWidth":image.cgImage?.width ?? 0,"cgHeight":image.cgImage?.height ?? 0,
             "pngOrientation":properties?[kCGImagePropertyOrientation as String] ?? 0,
-            "appX":app.frame.origin.x,"appY":app.frame.origin.y,"appWidth":app.frame.width,"appHeight":app.frame.height]
+            "appX":frame.origin.x,"appY":frame.origin.y,"appWidth":frame.width,"appHeight":frame.height]
         if let data = try? JSONSerialization.data(withJSONObject: geometry, options: [.sortedKeys]), let text = String(data:data,encoding:.utf8) { print("CAPTURE_GEOMETRY=" + text) }
         let attachment = XCTAttachment(screenshot: screen)
         attachment.name = kind + "-" + name
@@ -81,6 +81,14 @@ final class CaptureUITests: XCTestCase {
         guard frame.width > 0, frame.height > 0, point.x >= 0, point.x <= 1, point.y >= 0, point.y <= 1 else { return nil }
         return CGPoint(x: frame.minX + point.x * frame.width, y: frame.minY + (1 - point.y) * frame.height)
     }
+    private func fullScreenGeometry(_ frame: CGRect, size: CGSize, pixels: CGSize, scale: CGFloat, orientation: CGImagePropertyOrientation) -> Bool {
+        guard frame.minX == 0, frame.minY == 0, frame.width > 0, frame.height > 0, scale > 0,
+            abs(size.width-frame.width) < 0.01, abs(size.height-frame.height) < 0.01 else { return false }
+        let quarterTurn = [CGImagePropertyOrientation.left,.leftMirrored,.right,.rightMirrored].contains(orientation)
+        let width = quarterTurn ? pixels.height : pixels.width
+        let height = quarterTurn ? pixels.width : pixels.height
+        return abs(width-size.width*scale) < 1 && abs(height-size.height*scale) < 1
+    }
     func testCoordinateContract() {
         let pairs: [(UIImage.Orientation,UInt32)] = [(.up,1),(.upMirrored,2),(.down,3),(.downMirrored,4),(.leftMirrored,5),(.right,6),(.rightMirrored,7),(.left,8)]
         for (image,expected) in pairs { XCTAssertEqual(exif(image)?.rawValue, expected) }
@@ -89,18 +97,27 @@ final class CaptureUITests: XCTestCase {
         XCTAssertEqual(offsetPoint?.y ?? -1,150,accuracy:0.0000001)
         XCTAssertNil(screenPoint(CGPoint(x:-0.1,y:0.8),frame:CGRect(x:20,y:30,width:1000,height:600)))
         XCTAssertNil(screenPoint(CGPoint(x:0.1,y:0.8),frame:.zero))
+        // Actual run 37616329788: screen backing pixels are portrait with
+        // EXIF6, while UIImage and app frame are correctly landscape.
+        let phoneFrame = CGRect(x:0,y:0,width:956,height:440)
+        XCTAssertTrue(fullScreenGeometry(phoneFrame,size:phoneFrame.size,pixels:CGSize(width:1320,height:2868),scale:3,orientation:.right))
+        XCTAssertFalse(fullScreenGeometry(phoneFrame,size:phoneFrame.size,pixels:CGSize(width:2868,height:1320),scale:3,orientation:.right))
+        XCTAssertFalse(fullScreenGeometry(CGRect(x:20,y:0,width:956,height:440),size:phoneFrame.size,pixels:CGSize(width:1320,height:2868),scale:3,orientation:.right))
     }
     private func startPoint(_ app: XCUIApplication) -> CGVector? {
         print("CAPTURE_PRE_QUERY=" + kind + ";query=ocr-app-frame")
         let frame = app.frame
-        print("CAPTURE_PRE_QUERY=" + kind + ";query=ocr-app-screenshot")
-        let screen = app.screenshot()
+        print("CAPTURE_PRE_QUERY=" + kind + ";query=ocr-screen-screenshot")
+        // Use the same screen snapshot scope as the proven raw capture. The
+        // app snapshot in the actual run had already turned its CG pixels while
+        // retaining EXIF6, so applying its orientation again was invalid.
+        let screen = XCUIScreen.main.screenshot()
         guard let image = screen.image.cgImage else { return nil }
         guard let orientation = exif(screen.image.imageOrientation) else { print("CAPTURE_OCR_UNKNOWN_ORIENTATION"); return nil }
-        let quarterTurn = [UIImage.Orientation.left,.leftMirrored,.right,.rightMirrored].contains(screen.image.imageOrientation)
-        let width = CGFloat(quarterTurn ? image.height : image.width)
-        let height = CGFloat(quarterTurn ? image.width : image.height)
-        guard frame.width > 0, frame.height > 0, abs(width / height - frame.width / frame.height) < 0.01 else {
+        let properties = CGImageSourceCreateWithData(screen.pngRepresentation as CFData,nil).flatMap { CGImageSourceCopyPropertiesAtIndex($0,0,nil) as? [String:Any] }
+        let pngOrientation = (properties?[kCGImagePropertyOrientation as String] as? NSNumber)?.uint32Value
+        guard pngOrientation == orientation.rawValue,
+            fullScreenGeometry(frame,size:screen.image.size,pixels:CGSize(width:CGFloat(image.width),height:CGFloat(image.height)),scale:screen.image.scale,orientation:orientation) else {
             print("CAPTURE_OCR_AXIS_SCOPE_UNKNOWN;cgW:" + String(image.width) + ";cgH:" + String(image.height) + ";exif:" + String(orientation.rawValue) + ";frameW:" + String(Double(frame.width)) + ";frameH:" + String(Double(frame.height)))
             return nil
         }
@@ -119,7 +136,7 @@ final class CaptureUITests: XCTestCase {
                     let normalized = CGVector(dx:(point.x-frame.minX)/frame.width,dy:(point.y-frame.minY)/frame.height)
                     let coordinate = app.coordinate(withNormalizedOffset: normalized)
                     guard abs(coordinate.screenPoint.x-point.x) < 1, abs(coordinate.screenPoint.y-point.y) < 1 else { print("CAPTURE_OCR_SCREEN_POINT_MISMATCH"); return nil }
-                    print("CAPTURE_OCR_CONTRACT=scope:app;exif:" + String(orientation.rawValue) + ";confidence:" + String(text.confidence) + ";bbox:" + String(describing:bbox) + ";frame:" + String(describing:frame) + ";screenPoint:" + String(describing:point))
+                    print("CAPTURE_OCR_CONTRACT=scope:full-screen-matching-app;exif:" + String(orientation.rawValue) + ";confidence:" + String(text.confidence) + ";bbox:" + String(describing:bbox) + ";frame:" + String(describing:frame) + ";screenPoint:" + String(describing:point))
                     return normalized
                 }
             }

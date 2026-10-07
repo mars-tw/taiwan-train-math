@@ -157,6 +157,24 @@ try {
         return Object.fromEntries(['stage', ...fields].map(key => [key, data[key]]));
       } catch { return null; }
     }).filter(Boolean);
+    // IHDR is backing pixel storage, not displayed orientation. The actual
+    // Seven screen is 1320x2868 with EXIF6 and a 956x440 landscape UIImage.
+    // Verify that complete contract; preserve every original PNG pixel.
+    const exifForImage = [1, 3, 8, 6, 2, 4, 5, 7];
+    for (const shot of shots) {
+      const stage = path.basename(shot.file, '.png');
+      const g = geometry.find(item => item.stage === stage);
+      const exif = g && exifForImage[g.imageOrientation];
+      const quarterTurn = [5, 6, 7, 8].includes(exif);
+      const semanticWidth = g && (quarterTurn ? g.cgHeight : g.cgWidth);
+      const semanticHeight = g && (quarterTurn ? g.cgWidth : g.cgHeight);
+      shot.encodedLandscapeFrame = shot.width > shot.height;
+      shot.landscapeFrame = Boolean(g && exif && g.pngOrientation === exif && g.appX === 0 && g.appY === 0
+        && g.appWidth > g.appHeight && g.imageScale > 0 && shot.width === g.cgWidth && shot.height === g.cgHeight
+        && Math.abs(g.imageWidth - g.appWidth) < 0.01 && Math.abs(g.imageHeight - g.appHeight) < 0.01
+        && Math.abs(semanticWidth - g.imageWidth * g.imageScale) < 1 && Math.abs(semanticHeight - g.imageHeight * g.imageScale) < 1);
+      shot.displayOrientationVerifiedFromNativeMetadata = shot.landscapeFrame;
+    }
     results.push({ device: kind, model: model.name, statusBarOverride: { code: statusBar.code, timedOut: statusBar.timedOut }, actualXCTestExit: test.code, timedOut: test.timedOut, screenshots: shots, rawScreenshots: rawShots, geometry,
       actualXCTestExecuted: /CAPTURE_TEST_METHOD_ENTERED=/.test(test.text), ownGameForegroundAtMenu90: /CAPTURE_MENU90_FOREGROUND=true/.test(test.text) ? true : /CAPTURE_MENU90_FOREGROUND=false/.test(test.text) ? false : null,
       ownGameConsoleDiagnostics: safeLines(consoleText), uiTestDiagnostics: safeLines(test.text),

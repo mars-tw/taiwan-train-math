@@ -11,11 +11,11 @@ on:
         required: true
         type: string
       project:
-        description: 'Choose one of the five approved native UI repair packages'
+        description: 'Farm-only approved map-fit layout repair package'
         required: true
-        default: storm-apocalypse
+        default: pixel-idle-farm-skill
         type: choice
-        options: [island-flight-school, pixel-idle-farm-skill, storm-apocalypse, taiwan-train-school, village-siege]
+        options: [pixel-idle-farm-skill]
 permissions:
   contents: read
 concurrency:
@@ -34,7 +34,7 @@ jobs:
         run: |
           python3 - <<'PY'
           import json,os
-          known=['island-flight-school','pixel-idle-farm-skill','storm-apocalypse','taiwan-train-school','village-siege']
+          known=['pixel-idle-farm-skill']
           selected=os.environ['SELECTED_PROJECT']
           if selected not in known:raise SystemExit('Unknown explicit approved repair adapter')
           with open(os.environ['GITHUB_OUTPUT'],'a') as out:out.write('matrix='+json.dumps({'project':[selected]})+'\n')
@@ -62,9 +62,9 @@ jobs:
           python3 - <<'PY'
           import hashlib,json,os,pathlib,re,time,subprocess
           tag=os.environ['SOURCE_TAG'];expected=os.environ['EXPECTED_CHECKSUMS_SHA256'].lower();project=os.environ['PROJECT_ID']
-          approved_tag='all-games-mobile-ci-20261007-r4'
-          approved_pin='d51c72ab3133fa965deca0e14a70920d5ea76a731904b010d55b23245bb56ae0'
-          approved_release_id=405668118
+          approved_tag='all-games-mobile-ci-20261007-r5'
+          approved_pin='e31d3ecce145b189e359657284062f0e3c0383152a7b0f022897d8d5aa05665c'
+          approved_release_id=405714105
           known=['ashes-convoy','island-flight-school','night-train-watch-protocol','pixel-idle-farm-skill','storm-apocalypse','taiwan-train-school','tower-defense-skill','village-siege','web-card-game-skill']
           if tag!=approved_tag or expected!=approved_pin or project not in known:raise SystemExit('Only the fixed approved source tag/checksum and explicit Web adapter are allowed')
           repository='mars-tw/taiwan-train-math'
@@ -161,7 +161,7 @@ jobs:
           python3 - <<'PY'
           import hashlib,json,os,pathlib,re
           tag=os.environ['SOURCE_TAG'];expected=os.environ['EXPECTED_CHECKSUMS_SHA256'].lower();project=os.environ['PROJECT_ID']
-          if tag!='all-games-mobile-ci-20261007-r4' or expected!='d51c72ab3133fa965deca0e14a70920d5ea76a731904b010d55b23245bb56ae0':raise SystemExit('Relay requires the fixed approved release/checksum pin')
+          if tag!='all-games-mobile-ci-20261007-r5' or expected!='e31d3ecce145b189e359657284062f0e3c0383152a7b0f022897d8d5aa05665c':raise SystemExit('Relay requires the fixed approved release/checksum pin')
           repository='mars-tw/taiwan-train-math'
           if os.environ['GITHUB_REPOSITORY']!=repository:raise SystemExit('Unexpected caller repository')
           staging=pathlib.Path(os.environ['RUNNER_TEMP'],'native-release')
@@ -171,7 +171,7 @@ jobs:
               file=staging/name;maximum=1024**3 if name.endswith('.zip') else 1024*1024
               if not file.is_file() or file.is_symlink() or not 0<file.stat().st_size<=maximum:raise SystemExit('Invalid or oversized relayed input')
           provenance=json.loads((staging/'input-provenance.json').read_text(encoding='utf-8'))
-          approved={'repository':repository,'releaseTag':tag,'releaseId':405668118,'releaseDraft':True,'projectId':project,'checksumManifestSha256':expected,'helpersExecuted':False,'gameExecuted':False,'appleSecretsUsed':False}
+          approved={'repository':repository,'releaseTag':tag,'releaseId':405714105,'releaseDraft':True,'projectId':project,'checksumManifestSha256':expected,'helpersExecuted':False,'gameExecuted':False,'appleSecretsUsed':False}
           if provenance!=approved:raise SystemExit('Same-run source provenance does not match the approved inputs')
           checksum_file=staging/'SHA256SUMS'
           if hashlib.sha256(checksum_file.read_bytes()).hexdigest()!=expected:raise SystemExit('Public checksum manifest differs from the approved pin')

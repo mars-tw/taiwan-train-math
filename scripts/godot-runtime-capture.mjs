@@ -95,7 +95,9 @@ try {
     devices.push(device);
     await command(kind + '-boot', ['xcrun', 'simctl', 'boot', device], { timeout: 180000 });
     await command(kind + '-bootstatus', ['xcrun', 'simctl', 'bootstatus', device, '-b'], { timeout: 600000 });
-    await command(kind + '-statusbar', ['xcrun', 'simctl', 'status_bar', device, 'override', '--time', '9:41', '--batteryState', 'charged', '--batteryLevel', '100']);
+    // Cosmetic only: an observed status_bar timeout must not prevent actual
+    // install/launch/XCTest verification. Preserve the native bar if unavailable.
+    const statusBar = await command(kind + '-statusbar', ['xcrun', 'simctl', 'status_bar', device, 'override', '--time', '9:41', '--batteryState', 'charged', '--batteryLevel', '100'], { timeout: 30000, allowFailure: true });
     await command(kind + '-install', ['xcrun', 'simctl', 'install', device, app], { timeout: 360000 });
     // The console is attached only to this fresh own game. No system log stream.
     const consoleLog = createWriteStream(path.join(scratch, kind + '-own-game-console.log'), { flags: 'wx', mode: 0o600 });
@@ -155,7 +157,7 @@ try {
         return Object.fromEntries(['stage', ...fields].map(key => [key, data[key]]));
       } catch { return null; }
     }).filter(Boolean);
-    results.push({ device: kind, model: model.name, actualXCTestExit: test.code, timedOut: test.timedOut, screenshots: shots, rawScreenshots: rawShots, geometry,
+    results.push({ device: kind, model: model.name, statusBarOverride: { code: statusBar.code, timedOut: statusBar.timedOut }, actualXCTestExit: test.code, timedOut: test.timedOut, screenshots: shots, rawScreenshots: rawShots, geometry,
       actualXCTestExecuted: /CAPTURE_TEST_METHOD_ENTERED=/.test(test.text), ownGameForegroundAtMenu90: /CAPTURE_MENU90_FOREGROUND=true/.test(test.text) ? true : /CAPTURE_MENU90_FOREGROUND=false/.test(test.text) ? false : null,
       ownGameConsoleDiagnostics: safeLines(consoleText), uiTestDiagnostics: safeLines(test.text),
       visibleStartLabelTapped: /CAPTURE_START_INPUT_METHOD=/.test(test.text), gameplaySceneRequiresVisualReview: true });

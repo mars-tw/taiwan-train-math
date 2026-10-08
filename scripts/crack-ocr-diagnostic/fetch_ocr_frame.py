@@ -13,7 +13,15 @@ IMAGE_BYTES = 2964682
 MANIFEST_SHA = '9603c26c869e7f4caafce284a6282c32bce01b81ff5cb6b3d4455db749a617e3'
 
 def gh(resource):
-    result = subprocess.run(['gh', 'api', resource, '-H', 'Accept: application/octet-stream'],
+    release_route = f'repos/{REPO}/releases/'
+    asset_route = release_route+'assets/'
+    if resource.startswith(asset_route) and resource.removeprefix(asset_route).isdigit():
+        accept = 'application/octet-stream'
+    elif resource.startswith(release_route) and resource.removeprefix(release_route).isdigit():
+        accept = 'application/vnd.github+json'
+    else:
+        raise RuntimeError('Unapproved GitHub diagnostic input route')
+    result = subprocess.run(['gh', 'api', resource, '-H', 'Accept: '+accept],
                             capture_output=True, timeout=60)
     if result.returncode:
         raise RuntimeError('Official input GET failed; authenticated raw output suppressed')

@@ -48,7 +48,7 @@ jobs:
           priority=['night-train-watch-protocol','tower-defense-skill','web-card-game-skill']
           rest=['ashes-convoy','island-flight-school','taiwan-train-school','pixel-idle-farm-skill','storm-apocalypse','village-siege','taiwan-train-math','taiwan-island-drive','crackveil-vanguard','seven-district-reckoning']
           value=os.environ['PROJECT']
-          if os.environ['DEVICE_FAMILY']=='phone' and not (value=='storm-apocalypse' or (value=='village-siege' and os.environ['ORIENTATION']=='landscape')):raise SystemExit('Phone-only correction is authorized for Storm or Village landscape observation only')
+          if os.environ['DEVICE_FAMILY']=='phone' and not (value=='storm-apocalypse' or (value=='village-siege' and os.environ['ORIENTATION']=='landscape') or (value=='island-flight-school' and os.environ['ORIENTATION']=='portrait')):raise SystemExit('Phone-only correction is authorized for Storm or Village landscape observation only')
           if os.environ['ORIENTATION']=='landscape' and value!='village-siege':raise SystemExit('Landscape unit is authorized for Village only')
           choices=['village-siege','storm-apocalypse','crackveil-vanguard','seven-district-reckoning','island-flight-school','taiwan-island-drive'] if value=='resource-cases' else priority if value=='priority' else rest if value=='remaining' else [p for p in rest if p!='taiwan-train-math'] if value=='corrective' else [value]
           if any(p not in priority+rest+['taiwan-island-drive'] for p in choices):raise SystemExit('Unapproved project selector')

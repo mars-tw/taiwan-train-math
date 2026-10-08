@@ -174,6 +174,11 @@ def main():
  if len(items)!=1:raise RuntimeError('One exact project required')
  item=items[0];apk=source/item['apkFile'];package=item['packageName']
  sdk=Path(os.environ['ANDROID_HOME']);adb=str(sdk/'platform-tools/adb');build=sdk/'build-tools/36.0.0';serial='emulator-5554'
+ flight_observer=None
+ if a.project=='island-flight-school' and a.family=='phone':
+  if a.orientation!='portrait':raise RuntimeError('Flight transport unit retains original portrait orientation')
+  from flight_transport_observer import FlightTransportObserver
+  flight_observer=FlightTransportObserver(out,sdk,adb,serial,a.avd,os.environ['GITHUB_RUN_ID'],apk)
  def ad(*args,timeout=45,evidence=None):
   binary=args==('exec-out','screencap','-p')
   allowed=set(VILLAGE_ORIENTATION_READS)|{('shell','wm','user-rotation','lock','1'),('exec-out','screencap','-p')}
@@ -190,7 +195,8 @@ def main():
     evidence.update(stdoutKind='native_png',stdoutRawFile=str(file.relative_to(out)),diagnosticOnly=True)
    else:evidence['stdoutSanitized']=native_diagnostic_text(stdout)
    save()
-  return run([adb,'-s',serial,*args],timeout,record if evidence is not None else None)
+  callback=record if evidence is not None else (lambda code,stdout,stderr,timedout:flight_observer.record_command(args,code,stdout,stderr,timedout)) if flight_observer is not None else None
+  return run([adb,'-s',serial,*args],timeout,callback)
  if a.project=='village-siege' and a.orientation=='landscape':
   require_owned_village_avd(a.avd,a.family,os.environ['GITHUB_RUN_ID'])
  if ad('emu','avd','name').decode().splitlines()[0].strip()!=a.avd:raise RuntimeError('Serial belongs to another AVD')
@@ -254,6 +260,7 @@ def main():
   if not component.startswith(package+'/') or not re.fullmatch(r'[A-Za-z0-9._/$]+',component):raise RuntimeError('Unexpected resolved activity')
   ad('logcat','-c');ad('shell','am','start','-W','-n',component)
   report['resolvedActivity']=component;save()
+  if flight_observer is not None:flight_observer.after_launch()
   deadline=time.monotonic()+150;nodes=[];candidate=None
   while time.monotonic()<deadline:
    time.sleep(4)
@@ -335,6 +342,9 @@ def main():
  except Exception as error:
   report['status']='FAILED_NATIVE_CAPTURE';report['error']=str(error);return 2
  finally:
+  if flight_observer is not None:
+   try:flight_observer.finish()
+   except Exception as error:report['warnings'].append('Flight transport observation finalization: '+type(error).__name__)
   try:
    pid=ad('shell','pidof',package).decode().strip()
    if pid.isdigit():

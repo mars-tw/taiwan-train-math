@@ -1,3 +1,4 @@
+import { StringDecoder } from 'node:string_decoder';
 // Bounded, unsigned Simulator capture of the unchanged, verifier-bound 47 files.
 import { spawn } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
@@ -180,6 +181,87 @@ export function startupPhaseObservations(raw) {
   return { observations:result, rejectedOrTruncated:rejected, rawConsolePublished:false, runtimeReady:false };
 }
 
+// Internal buffers stay bounded; only counters and original typed markers leave this collector.
+export function createConsolePhaseCoverage() {
+  const marker = 'SEVEN_STARTUP ', observations = [];
+  let rejected = 0, instrumentationFailures = 0, finished;
+  const streams = Object.fromEntries(['stdout', 'stderr'].map(name => [name, {
+    decoder: new StringDecoder('utf8'), line: '', overlong: false, droppedTail: false,
+    scanTail: '', beforeTail: null,
+    facts: { bytesReceived: 0, bytesRetained: 0, bytesDropped: 0, markerCandidatesReceived: 0,
+      lineStartMarkerCandidates: 0, nonLineStartMarkerCandidates: 0, retainedLines: 0,
+      overlongLines: 0, incompleteLinesAtEof: 0, truncatedMarkerLines: 0 },
+  }]));
+  function finishLine(stream, eof = false) {
+    const line = !eof && stream.line.endsWith('\r') ? stream.line.slice(0, -1) : stream.line;
+    if (eof && (line || stream.overlong)) stream.facts.incompleteLinesAtEof++;
+    if (stream.overlong) stream.facts.overlongLines++;
+    if (line.startsWith(marker)) {
+      if (stream.overlong || (eof && stream.droppedTail)) {
+        rejected++; stream.facts.truncatedMarkerLines++;
+      } else {
+        const parsed = startupPhaseObservations(line);
+        rejected += parsed.rejectedOrTruncated;
+        for (const value of parsed.observations) {
+          if (observations.length < 64) observations.push(value); else rejected++;
+        }
+      }
+    }
+    stream.facts.retainedLines++; stream.line = ''; stream.overlong = false;
+  }
+  function decode(stream, text) {
+    for (const character of text) {
+      if (character === '\n') finishLine(stream);
+      else if (!stream.overlong) {
+        if (stream.line.length + character.length > 512 && !(character === '\r' && stream.line.length === 512)) stream.overlong = true;
+        else stream.line += character;
+      }
+    }
+  }
+  function push(name, chunk, retainedBytes) {
+    if (finished || !Object.hasOwn(streams, name) || !Buffer.isBuffer(chunk)
+      || !Number.isInteger(retainedBytes) || retainedBytes < 0 || retainedBytes > chunk.length) {
+      instrumentationFailures++; return;
+    }
+    const stream = streams[name], previousBytes = stream.facts.bytesReceived;
+    stream.facts.bytesReceived += chunk.length; stream.facts.bytesRetained += retainedBytes;
+    stream.facts.bytesDropped += chunk.length - retainedBytes;
+    const scanned = stream.scanTail + chunk.toString('latin1');
+    for (let at = scanned.indexOf(marker); at !== -1; at = scanned.indexOf(marker, at + marker.length)) {
+      const absolute = previousBytes - stream.scanTail.length + at;
+      const start = absolute === 0 || (at > 0 ? scanned[at - 1] === '\n' : stream.beforeTail === '\n');
+      stream.facts.markerCandidatesReceived++;
+      stream.facts[start ? 'lineStartMarkerCandidates' : 'nonLineStartMarkerCandidates']++;
+    }
+    const tailStart = Math.max(0, scanned.length - (marker.length - 1));
+    stream.beforeTail = tailStart > 0 ? scanned[tailStart - 1] : stream.beforeTail;
+    stream.scanTail = scanned.slice(tailStart);
+    if (retainedBytes) decode(stream, stream.decoder.write(chunk.subarray(0, retainedBytes)));
+    if (retainedBytes < chunk.length) stream.droppedTail = true;
+  }
+  function finish(processFacts = {}) {
+    if (finished) return finished;
+    for (const stream of Object.values(streams)) {
+      decode(stream, stream.decoder.end());
+      if (stream.line || stream.overlong) finishLine(stream, true);
+    }
+    finished = { observations, rejectedOrTruncated: rejected, rawConsolePublished: false, runtimeReady: false,
+      evidenceStatus: observations.length ? 'TYPED_PHASE_MARKERS_OBSERVED' : 'MISSING_PHASE_EVIDENCE',
+      coverage: { streams: Object.fromEntries(Object.entries(streams).map(([name, stream]) => [name, { ...stream.facts }])),
+        privateCombinedReadBoundBytes: 20 * 1024 * 1024, stdoutReturnReadBoundBytes: 8 * 1024 * 1024,
+        maxLineCodeUnits: 512, maxBufferedLineCodeUnits: 513, optionalCrTerminatorCodeUnits: 1, maxTypedObservations: 64,
+        stdoutReturnBytesRetained: Number.isInteger(processFacts.stdoutReturnBytesRetained) ? processFacts.stdoutReturnBytesRetained : null,
+        instrumentationFailures: instrumentationFailures + (processFacts.instrumentationFailures || 0),
+        launcher: { closed: typeof processFacts.closed === 'boolean' ? processFacts.closed : null,
+          exitCode: Number.isInteger(processFacts.exitCode) ? processFacts.exitCode : null,
+          exitSignal: typeof processFacts.exitSignal === 'string' ? processFacts.exitSignal : null,
+          timedOut: typeof processFacts.timedOut === 'boolean' ? processFacts.timedOut : null,
+          spawnFailed: typeof processFacts.spawnFailed === 'boolean' ? processFacts.spawnFailed : null } } };
+    return finished;
+  }
+  return { push, finish };
+}
+
 export async function capturePreDriverNative8({ wait, capture, ownConsole }) {
   await wait(8000);
   const evidence = { waitedMs:8000, ownConsoleAlive:!ownConsole.closed,
@@ -218,25 +300,31 @@ export async function captureNative({ mode, source, metadata, verifier, output }
     if (!/^[a-z0-9-]+$/.test(label) || !Array.isArray(args) || !Number.isInteger(timeout) || timeout < 1) fail('COMMAND_CONTRACT_INVALID');
     const logPath = path.join(scratch, `${String(++sequence).padStart(3, '0')}-${label}.log`);
     const log = createWriteStream(logPath, { flags: 'wx', mode: 0o600 });
-    let logFailed = false, bytes = 0, stdoutBytes = 0, closed = false, timedOut = false, spawnFailed = false, exitCode = null;
+    let logFailed = false, bytes = 0, stdoutBytes = 0, closed = false, timedOut = false, spawnFailed = false, exitCode = null, exitSignal = null;
+    const phaseCoverage = recipe.project === 'seven-district-reckoning' && label.endsWith('-own-game-console') ? createConsolePhaseCoverage() : null;
+    let phaseCoverageFailures = 0;
     const stdout = [];
     log.on('error', () => { logFailed = true; });
     try { await new Promise((resolve, reject) => { log.once('open', resolve); log.once('error', reject); }); }
     catch { fail('PRIVATE_COMMAND_LOG_FAILED'); }
     const child = spawn(args[0], args.slice(1), { stdio: ['ignore', 'pipe', 'pipe'],
       env: { ...process.env, TMPDIR: scratch }, windowsHide: true });
-    const append = chunk => { if (!logFailed && bytes < 20 * 1024 * 1024) {
-      const retained = chunk.subarray(0, 20 * 1024 * 1024 - bytes); bytes += retained.length; log.write(retained);
-    } };
+    const append = chunk => {
+      const retained = chunk.subarray(0, !logFailed ? Math.max(0, 20 * 1024 * 1024 - bytes) : 0);
+      if (retained.length) { bytes += retained.length; log.write(retained); }
+      return retained;
+    };
+    const cover = (stream, chunk, retained) => { try { phaseCoverage?.push(stream, chunk, retained.length); } catch { phaseCoverageFailures++; } };
+    const appendStderr = chunk => { const retained = append(chunk); cover('stderr', chunk, retained); };
     const appendStdout = chunk => {
-      append(chunk);
+      const retained = append(chunk); cover('stdout', chunk, retained);
       if (stdoutBytes < 8 * 1024 * 1024) {
         const retained = chunk.subarray(0, 8 * 1024 * 1024 - stdoutBytes); stdoutBytes += retained.length; stdout.push(retained);
       }
     };
-    child.stdout.on('data', appendStdout); child.stderr.on('data', append);
+    child.stdout.on('data', appendStdout); child.stderr.on('data', appendStderr);
     child.once('error', () => { spawnFailed = true; });
-    const finished = new Promise(resolve => child.once('close', code => { closed = true; exitCode = code; resolve(); }));
+    const finished = new Promise(resolve => child.once('close', (code, signal) => { closed = true; exitCode = code; exitSignal = signal; resolve(); }));
     let forceTimer;
     const timer = setTimeout(() => { timedOut = true; child.kill('SIGTERM'); forceTimer = setTimeout(() => { if (!closed) child.kill('SIGKILL'); }, 5000); }, timeout);
     const record = { child, finished, get closed() { return closed; }, get timedOut() { return timedOut; },
@@ -259,11 +347,14 @@ export async function captureNative({ mode, source, metadata, verifier, output }
         finally { clearTimeout(endTimer); }
         if (!closed) await record.stop();
         clearTimeout(timer); clearTimeout(forceTimer);
-        child.stdout.removeListener('data', appendStdout); child.stderr.removeListener('data', append);
+        child.stdout.removeListener('data', appendStdout); child.stderr.removeListener('data', appendStderr);
         if (!log.destroyed && !log.writableFinished) await new Promise(resolve => { log.once('finish', resolve); log.once('error', resolve); log.end(); });
         processes.delete(record);
         if (logFailed) fail('PRIVATE_COMMAND_LOG_FAILED');
-        return { code: spawnFailed ? -1 : exitCode, timedOut, text: await fs.readFile(logPath, 'utf8'), stdout: Buffer.concat(stdout).toString('utf8') };
+        let phaseEvidence;
+        try { phaseEvidence = phaseCoverage?.finish({ closed, exitCode: spawnFailed ? -1 : exitCode, exitSignal, timedOut, spawnFailed, stdoutReturnBytesRetained: stdoutBytes, instrumentationFailures: phaseCoverageFailures }); }
+        catch { phaseEvidence = { ...startupPhaseObservations(''), evidenceStatus:'MISSING_PHASE_EVIDENCE', coverage:{ instrumentationFailures:phaseCoverageFailures + 1 } }; }
+        return { code: spawnFailed ? -1 : exitCode, timedOut, text: await fs.readFile(logPath, 'utf8'), stdout: Buffer.concat(stdout).toString('utf8'), phaseEvidence };
       },
     };
     processes.add(record); return record;
@@ -286,11 +377,12 @@ export async function captureNative({ mode, source, metadata, verifier, output }
   }
   async function stopConsole(console, result, phase) {
     if (!console) return;
+    const launcherWasAliveBeforeStop = !console.closed;
     await console.stop();
     const capture = await console.result();
     result.ownGameConsoleDiagnostics.push(...consoleDiagnostics(capture.text).map(item => ({ phase, ...item })));
     if (recipe.project === 'seven-district-reckoning')
-      (result.startupPhaseDiagnostics ||= []).push({ consolePhase:phase, ...startupPhaseObservations(capture.text) });
+      (result.startupPhaseDiagnostics ||= []).push({ consolePhase:phase, launcherWasAliveBeforeStop, ...(capture.phaseEvidence || { ...startupPhaseObservations(''), evidenceStatus:'MISSING_PHASE_EVIDENCE', coverage:{ unavailable:true } }) });
     if (capture.timedOut) fail('OWN_GAME_CONSOLE_TIMED_OUT');
   }
   async function rawShot(device, stage, recognize = false) {

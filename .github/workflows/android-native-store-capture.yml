@@ -164,6 +164,12 @@ jobs:
           disable-linux-hw-accel: false
           pre-emulator-launch-script: python3 scripts/android-native-store-capture/device_config.py --name "$NATIVE_AVD_NAME" --family tablet
           script: python3 scripts/android-native-store-capture/capture.py --project "$PROJECT" --family tablet --avd "$NATIVE_AVD_NAME" --orientation "$SCREEN_ORIENTATION" --input "$RUNNER_TEMP/native-capture-input" --output "$GITHUB_WORKSPACE/output/native-android-capture/tablet"
+      - name: Preserve exact Flight emulator crash material without inference
+        if: always() && matrix.project == 'island-flight-school' && inputs.device_family == 'phone'
+        env:
+          PROJECT: ${{ matrix.project }}
+          NATIVE_AVD_NAME: NativeCapturePhone_${{ github.run_id }}_${{ matrix.project }}
+        run: python3 scripts/android-native-store-capture/preserve_flight_exit_material.py --capture-output "$GITHUB_WORKSPACE/output/native-android-capture/phone"
       - name: Preserve actual PNGs, UI hierarchy and own-app evidence even on failure
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02

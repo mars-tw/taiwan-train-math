@@ -65,6 +65,15 @@ class FlightTransportObserver:
   if self.log_process is not None:row['ownPidLogProcessExitCode']=self.log_process.poll()
   self.report['snapshots'].append(row);self.save()
  def record_command(self,args,code,stdout,stderr,timedout):
+  # Process exit0 is insufficient: preserve empty/non-PNG first payload before
+  # original capture decoding rejects it. Never manufacture/retry a frame.
+  if args==('exec-out','screencap','-p') and code==0 and not timedout and not stdout.startswith(b'\x89PNG\r\n\x1a\n') and not self.report.get('firstInvalidNativePng'):
+   out=self.directory/'first-invalid-native-png.stdout.bin';err=self.directory/'first-invalid-native-png.stderr.bin'
+   out.write_bytes(stdout);err.write_bytes(stderr)
+   self.report['firstInvalidNativePng']={'command':list(args),'exitCode':code,'timedOut':False,'observedAtUtc':now(),
+    'stdoutFile':out.name,'stderrFile':err.name,'stdoutBytes':len(stdout),'stderrBytes':len(stderr),
+    'stdoutSha256':sha(stdout),'stderrSha256':sha(stderr),'invalidPngSignatureOrEmpty':True,'notAReadyGameFrame':True}
+   self.snapshot('first_invalid_native_png_payload');self.save()
   # Commands originate only in the fixed capture driver using owned adb -s.
   # Preserve the first actual failure; later failures never overwrite it.
   if (code==0 and not timedout) or self.report['firstNativeFailure'] is not None:return

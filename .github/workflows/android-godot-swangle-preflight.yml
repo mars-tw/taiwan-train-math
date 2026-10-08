@@ -16,7 +16,11 @@ on:
         type: choice
         required: true
         default: cold_warm
-        options: [cold_warm, menu_start]
+        options: [cold_warm, menu_start, root_visible_start]
+      approval_release_id:
+        type: string
+        required: false
+        description: Dedicated Root-owned approval DRAFT ID for root_visible_start only
       root_menu_sha:
         type: string
         required: true
@@ -60,7 +64,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     permissions:
-      contents: read
+      contents: write # Required to read the private DRAFT; token only passed to approval controller.
       actions: read
     env:
       NATIVE_AVD_NAME: NativeCapturePhone_${{ github.run_id }}_crackveil-vanguard
@@ -93,8 +97,36 @@ jobs:
           mkdir -p "$ANDROID_AVD_HOME" "$ANDROID_USER_HOME"
           echo no | "$ISOLATED_AVDMANAGER" create avd --name "$NATIVE_AVD_NAME" --package 'system-images;android-36;google_apis;x86_64' --device pixel_2
           python3 scripts/android-native-store-capture/device_config.py --name "$NATIVE_AVD_NAME" --family phone
-      - name: Cold/warm framebuffer and actual GL observation; no game Start tap
+      - name: Existing cold/warm or OCR menu-start observation
+        if: inputs.proof_phase != 'root_visible_start'
         run: python3 scripts/godot-android-swangle/observe.py
+      - name: Start owned driver and wait only for its new fresh native menu
+        if: inputs.proof_phase == 'root_visible_start'
+        run: python3 scripts/godot-android-swangle/root_visible_exchange.py launch
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: inputs.proof_phase == 'root_visible_start'
+        with:
+          name: crack-root-visible-menu-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            output/godot-swangle-preflight/fresh-clean-menu.png
+            output/godot-swangle-preflight/fresh-clean-menu-raw-native.png
+            output/godot-swangle-preflight/fresh-clean-menu.xml
+            output/godot-swangle-preflight/root-visible-request.json
+            output/godot-swangle-preflight/native-observation.json
+          if-no-files-found: error
+          retention-days: 30
+      - name: Fixed official GET for one Root approval; no native command in this process
+        if: inputs.proof_phase == 'root_visible_start'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          APPROVAL_RELEASE_ID: ${{ inputs.approval_release_id }}
+        run: python3 scripts/godot-android-swangle/root_visible_exchange.py poll --approval-release-id "$APPROVAL_RELEASE_ID"
+      - name: Observe same driver completion; post20 and warm90 unchanged
+        if: inputs.proof_phase == 'root_visible_start'
+        run: python3 scripts/godot-android-swangle/root_visible_exchange.py finish
+      - name: Clean up only recorded run-owned driver/emulator identities
+        if: always() && inputs.proof_phase == 'root_visible_start'
+        run: python3 scripts/godot-android-swangle/root_visible_exchange.py cleanup
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:

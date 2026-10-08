@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 import re
+import signal
 import subprocess
 import time
 import xml.etree.ElementTree as ET
@@ -89,9 +90,13 @@ def measured_touch_once(ad,record,persist,point):
 def main():
     avd = os.environ['NATIVE_AVD_NAME']; scope_guard(os.environ, avd)
     phase=os.environ.get('PROOF_PHASE','cold_warm')
-    if phase not in ['cold_warm','menu_start']:raise RuntimeError('Unknown proof phase; STOP')
+    if phase not in ['cold_warm','menu_start','root_visible_start']:raise RuntimeError('Unknown proof phase; STOP')
     if phase=='menu_start' and os.environ.get('ROOT_MENU_REVIEW_SHA')!=ROOT_REVIEWED_MENU_SHA:
         raise RuntimeError('Concrete Root menu image review binding missing; STOP')
+    if phase == 'root_visible_start':
+        def stopped(signum, frame):
+            raise RuntimeError('Owned Root-visible driver was stopped; no action replay')
+        signal.signal(signal.SIGTERM, stopped)
     sdk = Path(os.environ['ANDROID_HOME']).resolve(); temp = Path(os.environ['RUNNER_TEMP']).resolve()
     if not sdk.is_relative_to(temp):
         raise RuntimeError('Isolated SDK required before any native command')
@@ -146,7 +151,11 @@ def main():
     argv = [str(sdk / 'emulator/emulator'), '-avd', avd, '-port', '5554', '-memory', '3072', '-no-window', '-gpu', 'swangle', '-feature', '-Vulkan', '-no-snapshot', '-no-audio', '-no-boot-anim', '-camera-back', 'none', '-camera-front', 'none']
     report['exactEmulatorArgv'] = argv; save()
     process = subprocess.Popen(argv, stdout=emulator_log, stderr=subprocess.STDOUT)
-    report['ownedEmulatorPid'] = process.pid; save()
+    report['ownedEmulatorPid'] = process.pid
+    if phase == 'root_visible_start':
+        from root_visible_exchange import ticks
+        report['ownedEmulatorStartTicks'] = ticks(process.pid)
+    save()
     try:
         deadline = time.monotonic() + 180
         while time.monotonic() < deadline:
@@ -198,21 +207,33 @@ def main():
             full_ui_guard(clean_nodes,menu['width'],menu['height'],False)
             report['systemNoticeDismissCount']=1 if notice else 0
             report['systemNoticeDisappearanceVerifiedAtUtc']=now();save()
-            languages=command(['tesseract','--list-langs']).decode();assert {'chi_tra','eng'}<=set(languages.splitlines())
-            command(['tesseract',str(output/'fresh-clean-menu.png'),str(output/'fresh-clean-menu-ocr'),'-l','chi_tra+eng','--oem','1','--psm','11','tsv'])
-            with (output/'fresh-clean-menu-ocr.tsv').open(encoding='utf-8') as source:
-                rows=list(csv.DictReader(source,delimiter='\t'))
-            candidate=unique_ocr_candidate(rows,menu['width'],menu['height'],True,{'開始出擊'})
-            if not candidate:raise RuntimeError('Fresh unique exact 開始出擊 confidence90 native bbox not proven; STOP')
+            if phase == 'root_visible_start':
+                from root_visible_exchange import await_root_candidate
+                candidate = await_root_candidate(output, report, save, menu, ad, capture_native, full_ui_guard, process)
+            else:
+                languages=command(['tesseract','--list-langs']).decode();assert {'chi_tra','eng'}<=set(languages.splitlines())
+                command(['tesseract',str(output/'fresh-clean-menu.png'),str(output/'fresh-clean-menu-ocr'),'-l','chi_tra+eng','--oem','1','--psm','11','tsv'])
+                with (output/'fresh-clean-menu-ocr.tsv').open(encoding='utf-8') as source:
+                    rows=list(csv.DictReader(source,delimiter='\t'))
+                candidate=unique_ocr_candidate(rows,menu['width'],menu['height'],True,{'開始出擊'})
+                if not candidate:raise RuntimeError('Fresh unique exact 開始出擊 confidence90 native bbox not proven; STOP')
             menu_pid=ad('shell','pidof',PACKAGE).decode().strip()
             if not menu_pid.isdigit():raise RuntimeError('Own menu PID unavailable; STOP')
             menu_log=ad('logcat','-d','--pid='+menu_pid,'-v','brief').decode('utf-8','replace')
             (output/'fresh-menu-own-app.log').write_text(menu_log,encoding='utf-8')
             if 'Program linking failed' in menu_log or re.search(r'FATAL EXCEPTION|Fatal signal',menu_log) or not re.search(r'ANGLE|SwANGLE|Subzero',menu_log,re.I):
                 raise RuntimeError('Fresh rendered-menu backend/log proof failed; STOP before Start')
-            report['freshStartOcrCandidate']=candidate;report['freshMenuRootReferenceBound']=True;save()
-            # Root approved this visible menu/button type on the pinned original
-            # frame. Current coordinates are exclusively from the fresh OCR.
+            report['freshStartRootVisibleCandidate' if phase == 'root_visible_start' else 'freshStartOcrCandidate']=candidate
+            report['freshMenuRootReferenceBound']=True;save()
+            # Root-visible coordinates come only from this run's approved fresh frame;
+            # the original menu_start path continues to require its exact OCR evidence.
+            if phase == 'root_visible_start':
+                if time.time() >= report['rootVisibleApproval']['expiresAtUnix']:
+                    raise RuntimeError('Root approval expired before touch intent; no Start')
+                age = (datetime.now(timezone.utc)-datetime.fromisoformat(report['rootVisibleApproval']['recheckCapturedAtUtc'])).total_seconds()
+                report['rootVisibleFrameAgeAtIntentSeconds'] = age;save()
+                if not 0 <= age <= 10:
+                    raise RuntimeError('Immediate native frame too old before intent; no Start')
             report['gameStartAttemptCount']=1
             start_action=report.setdefault('gameStartAction',{})
             measured_touch_once(ad,start_action,save,candidate['nativePoint'])
@@ -231,18 +252,19 @@ def main():
             report['warmProcessRelaunchAtUtc']=now();save();time.sleep(90)
             capture_native('warm-relaunch-90s')
             report['warmRelaunchMenuVisualVerificationPending']=True
-        languages = command(['tesseract', '--list-langs']).decode()
-        report['ocrVersion'] = command(['tesseract', '--version']).decode()
-        report['ocrLanguages'] = languages
-        assert {'chi_tra', 'eng'} <= set(languages.splitlines())
-        report['ocrDistributionPackages'] = command(['dpkg-query', '-W', '-f=${Package}=${Version}\n', 'tesseract-ocr', 'tesseract-ocr-chi-tra']).decode()
-        model_files = command(['dpkg', '-L', 'tesseract-ocr-chi-tra']).decode().splitlines()
-        model = next(Path(path) for path in model_files if path.endswith('/chi_tra.traineddata'))
-        report['chiTraModelSha256'] = hashlib.sha256(model.read_bytes()).hexdigest()
-        ocr_frame='warm' if phase=='cold_warm' else 'warm-relaunch-90s'
-        command(['tesseract',str(output/(ocr_frame+'.png')),str(output/(ocr_frame+'-ocr')),'-l','chi_tra+eng','--oem','1','--psm','11','tsv'])
-        report['ocrMenuProposalOnly'] = True; report['ocrCandidate'] = None
-        # No Start point is used: menu/frame review is the next bounded proof phase.
+        if phase != 'root_visible_start':
+            languages = command(['tesseract', '--list-langs']).decode()
+            report['ocrVersion'] = command(['tesseract', '--version']).decode()
+            report['ocrLanguages'] = languages
+            assert {'chi_tra', 'eng'} <= set(languages.splitlines())
+            report['ocrDistributionPackages'] = command(['dpkg-query', '-W', '-f=${Package}=${Version}\n', 'tesseract-ocr', 'tesseract-ocr-chi-tra']).decode()
+            model_files = command(['dpkg', '-L', 'tesseract-ocr-chi-tra']).decode().splitlines()
+            model = next(Path(path) for path in model_files if path.endswith('/chi_tra.traineddata'))
+            report['chiTraModelSha256'] = hashlib.sha256(model.read_bytes()).hexdigest()
+            ocr_frame='warm' if phase=='cold_warm' else 'warm-relaunch-90s'
+            command(['tesseract',str(output/(ocr_frame+'.png')),str(output/(ocr_frame+'-ocr')),'-l','chi_tra+eng','--oem','1','--psm','11','tsv'])
+            report['ocrMenuProposalOnly'] = True; report['ocrCandidate'] = None
+            # No Start point is used: menu/frame review is the next bounded proof phase.
         pid = ad('shell', 'pidof', PACKAGE).decode().strip()
         if pid.isdigit():
             own_log = ad('logcat', '-d', '--pid=' + pid, '-v', 'brief').decode('utf-8', 'replace')
@@ -257,13 +279,24 @@ def main():
                 raise RuntimeError('Original shader linking still failed; preserve cold/warm proof and STOP')
         else:
             raise RuntimeError('Own app PID/log unavailable; STOP')
-        report['status']='COLD_WARM_CAPTURED_ROOT_MENU_REVIEW_PENDING' if phase=='cold_warm' else 'MENU_ONE_START_POST20_WARM90_CAPTURED_ROOT_GAMEPLAY_REVIEW_PENDING'
+        report['status']='COLD_WARM_CAPTURED_ROOT_MENU_REVIEW_PENDING' if phase=='cold_warm' else ('ROOT_VISIBLE_ONE_START_POST20_WARM90_REVIEW_PENDING' if phase=='root_visible_start' else 'MENU_ONE_START_POST20_WARM90_CAPTURED_ROOT_GAMEPLAY_REVIEW_PENDING')
     except Exception as error:
         report.update(status='HOLD_OBSERVATION_STOP', error=str(error), noFallbackAttempted=True)
         raise
     finally:
         save()
         process.terminate()  # Only this script's exact child PID, never another AVD.
+        if phase == 'root_visible_start':
+            try:
+                process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                process.kill();process.wait(timeout=5)
+            from root_visible_exchange import write, ticks
+            write(output/'root-driver-finished.json', {'schemaVersion': 1,
+                'runId': report['runId'], 'runAttempt': os.environ['GITHUB_RUN_ATTEMPT'],
+                'headSha': report['headSha'], 'driverPid': os.getpid(),
+                'driverStartTicks': ticks(os.getpid()), 'status': report['status'],
+                'gameStartAction': report.get('gameStartAction')})
         emulator_log.close()
 
 if __name__ == '__main__':

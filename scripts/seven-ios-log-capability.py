@@ -276,7 +276,7 @@ def run_probe(source,metadata,verifier,output):
   report.update(actualCapabilitiesVerified=unified_verified,unifiedLogVerified=unified_verified,phaseEvents=values,
    unifiedLogDiagnostics=[stream_evidence,history_evidence],coverage=counts,canonicalFileLoggingRequested=True)
   # Read only the existing exact owned canonical path; no recursive userdata.
-  raw,_=command('container',['xcrun','simctl','get_app_container',udid,APP,'data']);file=safe_file(raw.decode().strip(),udid)
+  raw,_=command('container',['xcrun','simctl','get_app_container',udid,APP,'data'],seconds=90);file=safe_file(raw.decode().strip(),udid)
   report['canonicalGodotLogExists']=file.is_file();canonical_failure=None
   if file.is_file():
    with file.open('rb') as stream:data=stream.read(MAX_BYTES)

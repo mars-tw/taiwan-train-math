@@ -15,6 +15,15 @@ def capabilities(helps):
   'streamInfoNdjson':all(key in stream for key in ['--predicate','--style','ndjson','--level','info']),
   'showInfoNdjson':all(key in show for key in ['--predicate','--style','ndjson','--info','--last']),
   'exactPredicateFields':all(re.search(r'\b'+key+r'\b',manual) for key in ['processID','subsystem','category','eventMessage','messageType'])}
+def log_help_response(label,payload,stats):
+ require(label in {'log-stream-help','log-show-help'},'HELP_RESPONSE_UNRECOGNIZED')
+ require(type(stats.get('exitCode')) is int and stats['exitCode'] in {0,64} and stats.get('timedOut') is False and stats.get('bytesDropped')==0 and 0<len(payload)<=131072 and payload.strip(),'HELP_RESPONSE_UNRECOGNIZED')
+ try:text=payload.decode('utf-8')
+ except UnicodeError:raise ProbeStop('HELP_RESPONSE_UNRECOGNIZED')
+ verb='stream' if label=='log-stream-help' else 'show'
+ require(re.search(r'(?im)^\s*usage:\s*(?:/usr/bin/)?log\s+'+verb+r'\b',text),'HELP_RESPONSE_UNRECOGNIZED')
+ return text
+
 def parse_pid(text):
  rows=re.findall(r'^'+re.escape(APP)+r':\s*([1-9][0-9]*)\s*$',text,re.M)
  require(len(rows)==1,'OWNED_APP_PID_NOT_UNAMBIGUOUS');return int(rows[0])
@@ -97,7 +106,9 @@ def run_probe(source,metadata,verifier,output):
   help_commands=[('simctl-help',['xcrun','simctl','help']),('launch-help',['xcrun','simctl','help','launch']),('spawn-help',['xcrun','simctl','help','spawn']),('container-help',['xcrun','simctl','help','get_app_container']),('log-stream-help',['/usr/bin/log','help','stream']),('log-show-help',['/usr/bin/log','help','show']),('log-manual',['/usr/bin/man','log'])]
   environment['MANPAGER']='cat';environment['PAGER']='cat'
   for label,args in help_commands:
-   raw,_=command(label,args,seconds=90 if label=='simctl-help' else 15);helps[label]=raw.decode('utf-8','replace')
+   usage_help=label in {'log-stream-help','log-show-help'}
+   raw,stats=command(label,args,seconds=90 if label=='simctl-help' else 15,allow_failure=usage_help)
+   helps[label]=log_help_response(label,raw,stats) if usage_help else raw.decode('utf-8','replace')
   support=capabilities(helps);report['helpCapabilities']=support;publish();require(all(support.values()),'CAPABILITY_UNSUPPORTED_HELP_OR_PREDICATE')
   command('source-verify',[sys.executable,verifier,'source','--root',source,'--metadata',metadata,'--project','seven-district-reckoning','--output',output/'source-verification.json'],seconds=300,limit=MAX_BYTES)
   original_pck=hashlib.sha256((source/'SevenDistrict.pck').read_bytes()).hexdigest();require(original_pck==PCK,'ORIGINAL_PCK4_REQUIRED')

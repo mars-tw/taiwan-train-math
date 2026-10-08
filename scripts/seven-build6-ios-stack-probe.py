@@ -229,11 +229,11 @@ def ps_manual_evidence(manual):
     else:cells.append(char)
     cursor+=1
   rendered.append(''.join(cells))
- plain='\n'.join(rendered)
- fields={'pidSelection':bool(re.search(r'(?m)^\s*-p\s+pid(?:list)?\b',plain,re.I)),
-  'outputFormatOption':bool(re.search(r'(?m)^\s*-o\s+(?:format|fmt)\b',plain,re.I)),
+ plain='\n'.join(rendered);match=re.search(r'\bSYNOPSIS\b(.*?)\bDESCRIPTION\b',plain,re.S|re.I);synopsis=match.group(1) if match else ''
+ fields={'pidSelection':bool(re.search(r'(?<!\w)-p\s+pid(?:list)?\b',synopsis,re.I)),
+  'outputFormatOption':bool(re.search(r'(?<!\w)-o\s+(?:format|fmt)\b',synopsis,re.I)),
   'commKeyword':bool(re.search(r'(?m)^\s*comm\s+',plain)),
-  'repeatedWideOutput':bool(re.search(r'(?<!\w)-w\b.{0,1024}(?:more than once|twice|repeated)',plain,re.S|re.I))}
+  'repeatedWideOutput':bool(re.search(r'(?<!\w)-w\b.{0,1024}(?:more\s+than\s+once|twice|repeated)',plain,re.S|re.I))}
  return {'documented':all(fields.values()),'fields':fields,'runtimeManualVerified':True}
 
 def run_probe(source,metadata,verifier,output):

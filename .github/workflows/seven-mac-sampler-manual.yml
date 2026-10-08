@@ -1,0 +1,82 @@
+name: Seven Mac sampler manual only
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: seven-mac-sampler-manual-only
+  cancel-in-progress: false
+jobs:
+  manual:
+    runs-on: macos-26-intel
+    timeout-minutes: 5
+    steps:
+      - name: Two bounded local manual reads only
+        run: |
+          python3 - <<'PYCODE'
+          import hashlib,json,re,subprocess
+          from pathlib import Path
+          MAX_MANUAL=131072
+          DOCS={'sample':['sample','pid','process','duration','interval','-file'],'ps':['ps','-p','-o','comm','-w','-ww']}
+          def normalized_manual(raw):
+           text=raw.decode('utf-8');text=re.sub(r'\x1b\[[0-9:;]*m','',text)
+           unknown={'ESC':0,'C0':0,'DEL':0}
+           for char in text:
+            value=ord(char)
+            if value==27:unknown['ESC']+=1
+            elif value==127:unknown['DEL']+=1
+            elif value<32 and value not in {8,9,10,13}:unknown['C0']+=1
+           if any(unknown.values()):return None,unknown
+           rendered=[]
+           for line in text.split('\n'):
+            cells=[];cursor=0
+            for char in line:
+             if char=='\b':cursor=max(0,cursor-1)
+             elif char=='\r':cursor=0
+             else:
+              if cursor<len(cells):cells[cursor]=char
+              else:cells.append(char)
+              cursor+=1
+            rendered.append(''.join(cells))
+           return '\n'.join(rendered),unknown
+          rows=[]
+          for document,names in DOCS.items():
+           raw=b'';exit_code=None;timed_out=False;status='UNKNOWN';synopsis='';words=[];unknown={'ESC':0,'C0':0,'DEL':0};present={name:False for name in names}
+           try:
+            result=subprocess.run(['/usr/bin/man',document],stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=15,check=False,
+             env={'PATH':'/usr/bin:/bin','MANPAGER':'cat','PAGER':'cat','LC_ALL':'C'})
+            raw=result.stdout;exit_code=result.returncode
+           except subprocess.TimeoutExpired as error:
+            raw=error.stdout or b'';timed_out=True;status='MANUAL_TIMEOUT'
+           except OSError:
+            status='MANUAL_COMMAND_UNAVAILABLE'
+           if not timed_out and exit_code is not None:
+            if exit_code!=0:status='MANUAL_COMMAND_FAILED'
+            elif len(raw)>MAX_MANUAL:status='MANUAL_INPUT_BOUND_EXCEEDED'
+            else:
+             try:plain,unknown=normalized_manual(raw)
+             except UnicodeError:plain=None;status='MANUAL_UTF8_UNKNOWN'
+             if plain is None:
+              if any(unknown.values()):status='MANUAL_UNKNOWN_CONTROL'
+             else:
+              present={name:bool(re.search(r'(?<![A-Za-z0-9_])'+re.escape(name)+r'(?![A-Za-z0-9_])',plain)) for name in names}
+              match=re.search(r'\bSYNOPSIS\b(.*?)\bDESCRIPTION\b',plain,re.S|re.I)
+              if match:
+               words=match.group(1).split();synopsis=' '.join(words[:25]);status='MANUAL_SYNOPSIS_OBSERVED' if words else 'SYNOPSIS_MISSING_UNKNOWN'
+              else:status='SYNOPSIS_MISSING_UNKNOWN'
+           rows.append({'document':document,'status':status,'manualSha256':hashlib.sha256(raw).hexdigest(),'manualBytes':len(raw),'manualLines':raw.count(b'\n'),
+            'exitCode':exit_code,'timedOut':timed_out,'readBoundBytes':MAX_MANUAL,'synopsis':synopsis,'synopsisWordCount':len(words),'synopsisWordsRetained':min(25,len(words)),
+            'synopsisTruncated':len(words)>25,'argumentNamesPresent':present,'unknownControlCounts':unknown})
+          out=Path('output/seven-mac-sampler-manual');out.mkdir(parents=True,exist_ok=True)
+          report={'status':'MANUAL_ONLY_DIAGNOSTIC','runtimeArgvSupportClaimed':False,'nativeGameExecuted':False,'documents':rows}
+          (out/'manual-evidence.json').write_text(json.dumps(report,indent=2)+'\n',encoding='utf-8')
+          raise SystemExit(0 if all(row['status']=='MANUAL_SYNOPSIS_OBSERVED' for row in rows) else 2)
+          PYCODE
+      - name: Save safe manual synopsis evidence only
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: seven-mac-sampler-manual-${{ github.run_id }}
+          path: output/seven-mac-sampler-manual/manual-evidence.json
+          retention-days: 14
+          if-no-files-found: error

@@ -1,6 +1,6 @@
 """One owned Simulator log-sink capability probe; no Appium/sign/store actions."""
 from pathlib import Path
-import argparse,datetime,hashlib,json,math,os,platform,re,selectors,shutil,signal,subprocess,sys,tempfile,time,uuid
+import argparse,datetime,hashlib,json,math,os,platform,re,selectors,shutil,signal,struct,subprocess,sys,tempfile,time,uuid
 APP='tw.mars.sevendistrictreckoning';PCK='0fd586eb8e4f0b40ea0b7b88b0a1f7b3425ece3dfe34c59cf9418d578ad98bd7'
 MAX_BYTES=2*1024*1024;MAX_JSON=4096;MAX_RECORDS=64
 PHASES={'first_frame','base_world','actors','district_life','content_world','urban_detail','contacts','expansion','taiwan_world','bindings','world_ready'}
@@ -113,6 +113,56 @@ def parse_canonical_log(payload):
   else:counts['recordLimitDropped']+=1
  return values,counts
 
+DIAGNOSTIC_PUBLIC_KEY_SHA='ded6ee7789f2073902914539a4d7fe61f78e3c92278f22d84de014926014b470'
+DIAGNOSTIC_LOG_MAX=65536;DIAGNOSTIC_CHUNK=384;DIAGNOSTIC_RSA_BYTES=512
+DIAGNOSTIC_FRAME=struct.Struct('>4s16sHHI32sH')
+def canonical_frames(payload,nonce):
+ require(isinstance(payload,bytes) and 0<len(payload)<=DIAGNOSTIC_LOG_MAX and isinstance(nonce,bytes) and len(nonce)==16,'DIAGNOSTIC_CANONICAL_INPUT_BOUND')
+ digest=hashlib.sha256(payload).digest();count=(len(payload)+DIAGNOSTIC_CHUNK-1)//DIAGNOSTIC_CHUNK;frames=[]
+ for index in range(count):
+  chunk=payload[index*DIAGNOSTIC_CHUNK:(index+1)*DIAGNOSTIC_CHUNK]
+  frames.append(DIAGNOSTIC_FRAME.pack(b'SC9\0',nonce,index,count,len(payload),digest,len(chunk))+chunk)
+ return frames
+
+def unframe_canonical_frames(frames,manifest):
+ require(len(frames)==manifest['chunkCount'] and manifest['publicKeySha256']==DIAGNOSTIC_PUBLIC_KEY_SHA,'DIAGNOSTIC_FRAME_INVENTORY_MISMATCH')
+ parts=[]
+ for index,frame in enumerate(frames):
+  require(len(frame)>=DIAGNOSTIC_FRAME.size,'DIAGNOSTIC_FRAME_INVALID')
+  magic,nonce,seq,count,total,digest,length=DIAGNOSTIC_FRAME.unpack(frame[:DIAGNOSTIC_FRAME.size])
+  require(magic==b'SC9\0' and nonce.hex()==manifest['packetNonce'] and seq==index and count==manifest['chunkCount']
+   and total==manifest['plaintextBytes'] and digest.hex()==manifest['plaintextSha256'] and 0<length<=DIAGNOSTIC_CHUNK
+   and len(frame)==DIAGNOSTIC_FRAME.size+length,'DIAGNOSTIC_FRAME_BINDING_MISMATCH')
+  parts.append(frame[DIAGNOSTIC_FRAME.size:])
+ payload=b''.join(parts)
+ require(len(payload)==manifest['plaintextBytes'] and hashlib.sha256(payload).hexdigest()==manifest['plaintextSha256'],'DIAGNOSTIC_RECONSTRUCTION_MISMATCH')
+ return payload
+
+def encrypt_canonical_log(payload,output,children,environment):
+ public=Path(__file__).with_name('seven-ios-debug-log-public.pem')
+ require(not public.is_symlink() and public.is_file(),'DIAGNOSTIC_PUBLIC_KEY_MISSING')
+ key=public.read_bytes();require(len(key)<=4096 and key.startswith(b'-----BEGIN PUBLIC KEY-----') and b'PRIVATE KEY' not in key
+  and hashlib.sha256(key).hexdigest()==DIAGNOSTIC_PUBLIC_KEY_SHA,'DIAGNOSTIC_PUBLIC_KEY_PIN_MISMATCH')
+ nonce=uuid.uuid4().bytes;frames=canonical_frames(payload,nonce);cipher=[];chunks=[];start=time.monotonic()
+ for index,frame in enumerate(frames):
+  remaining=15-(time.monotonic()-start);require(remaining>0,'DIAGNOSTIC_ENCRYPT_BUDGET_EXCEEDED')
+  argv=['/usr/bin/openssl','pkeyutl','-encrypt','-pubin','-inkey',str(public),'-pkeyopt','rsa_padding_mode:oaep','-pkeyopt','rsa_oaep_md:sha256','-pkeyopt','rsa_mgf1_md:sha256']
+  process=subprocess.Popen(argv,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,env=environment,start_new_session=True);children.add(process)
+  encrypted,_=process.communicate(input=frame,timeout=min(15,remaining))
+  require(process.returncode==0 and len(encrypted)==DIAGNOSTIC_RSA_BYTES,'DIAGNOSTIC_ENCRYPT_UNCONFIRMED')
+  children.discard(process);cipher.append(encrypted)
+  chunks.append({'index':index,'plaintextChunkBytes':len(frame)-DIAGNOSTIC_FRAME.size,'ciphertextBytes':len(encrypted),'ciphertextSha256':hashlib.sha256(encrypted).hexdigest()})
+ blob=b''.join(cipher);manifest={'format':'SEVEN_CANONICAL_RSA4096_OAEP_SHA256_V1','packetNonce':nonce.hex(),'publicKeySha256':DIAGNOSTIC_PUBLIC_KEY_SHA,
+  'plaintextBytes':len(payload),'plaintextSha256':hashlib.sha256(payload).hexdigest(),'chunkBytes':DIAGNOSTIC_CHUNK,'frameHeaderBytes':DIAGNOSTIC_FRAME.size,
+  'chunkCount':len(frames),'ciphertextBlockBytes':DIAGNOSTIC_RSA_BYTES,'ciphertextBytes':len(blob),'ciphertextSha256':hashlib.sha256(blob).hexdigest(),
+  'ciphertextFile':'canonical-log-rsa4096-oaep.bin','chunks':chunks,'privateKeyInCI':False,'plaintextPubliclyStored':False}
+ file=output/manifest['ciphertextFile'];meta=output/'canonical-log-encryption.json'
+ require(not file.exists() and not meta.exists() and not file.is_symlink() and not meta.is_symlink(),'DIAGNOSTIC_FRESH_CIPHERTEXT_OUTPUT_REQUIRED')
+ file.write_bytes(blob);meta.write_text(json.dumps(manifest,indent=2)+'\n')
+ return {'status':'ENCRYPTED_CANONICAL_PREFIX_VERIFIED','publicKeySha256':DIAGNOSTIC_PUBLIC_KEY_SHA,'plaintextBytes':len(payload),
+  'plaintextSha256':manifest['plaintextSha256'],'ciphertextBytes':len(blob),'ciphertextSha256':manifest['ciphertextSha256'],'chunkCount':len(frames),
+  'ciphertextFile':file.name,'manifestFile':meta.name,'noPrivateKeyUsed':True}
+
 def owned_identity(inventory,udid,name,runtime,model):
  rows=[d for d in inventory.get('devices',{}).get(runtime,[]) if d.get('udid','').lower()==udid.lower()]
  return len(rows)==1 and rows[0].get('name')==name and rows[0].get('deviceTypeIdentifier')==model and rows[0].get('isAvailable') is True
@@ -221,6 +271,10 @@ def run_probe(source,metadata,verifier,output):
      if value not in report['phaseEvents'] and len(report['phaseEvents'])<MAX_RECORDS:report['phaseEvents'].append(value);added+=1
     coverage.update(file_counts,typedEvidenceParsed=True,additionalTypedRecords=added)
    report['canonicalFileCoverage']=coverage
+   if data:
+    report['encryptedCanonicalLog']=encrypt_canonical_log(data[:DIAGNOSTIC_LOG_MAX],output,children,environment)
+    report['encryptedCanonicalLog']['prefixTruncated']=len(data)>DIAGNOSTIC_LOG_MAX or coverage['atReadBound']
+   else:report['encryptedCanonicalLog']={'status':'NO_CANONICAL_BYTES','plaintextBytes':0}
   report['gameTypedEvidenceVerified']=bool(report['phaseEvents'])
   report['evidenceStatus']='TYPED_PHASE_MARKERS_OBSERVED' if report['gameTypedEvidenceVerified'] else 'MISSING_PHASE_EVIDENCE'
   if unified_verified and not canonical_failure:report['status']='CAPABILITY_PROBE_COMPLETED_DIAGNOSTIC_ONLY'

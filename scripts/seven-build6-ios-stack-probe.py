@@ -208,7 +208,7 @@ def sample_manual_evidence(manual):
   rendered.append(''.join(cells))
  plain='\n'.join(rendered);match=re.search(r'\bSYNOPSIS\b(.*?)\bDESCRIPTION\b',plain,re.S|re.I)
  synopsis=match.group(1) if match else ''
- fields={'pidDurationIntervalOrder':bool(re.search(r'\bsample\b.{0,1024}\bpid\b.{0,1024}\bduration\b.{0,1024}\binterval\b',synopsis,re.S|re.I)),
+ fields={'pidDurationIntervalOrder':bool(re.search(r'\bsample\b.{0,1024}\bpid\b.{0,1024}\bduration\b.{0,1024}\bsamplingInterval\b',synopsis,re.S|re.I)),
   'fileOptionDocumented':bool(re.search(r'(?<!\w)-file\s+(?:\[\s*)?[A-Za-z][A-Za-z_-]*',synopsis)),
   'durationSecondsDocumented':bool(re.search(r'\bduration\b.{0,512}\bseconds?\b',plain,re.S|re.I)),
   'intervalMillisecondsDocumented':bool(re.search(r'\binterval\b.{0,512}\bmilliseconds?\b',plain,re.S|re.I))}

@@ -85,7 +85,7 @@ jobs:
           expected={'ci_seven_ios_build4_export.sh': '3c9d8e7e5439a8d4ee03064e36c79c329700fc58d711cb906a025a9563f83e0c', 'ci_verify_seven_build4.py': '46ccdb1bf5a66b3a96cf0603bbf41a82385234d0e056ef128d680b380b1b4dcd', 'seven-district-reckoning-build4-source-verification.json': '9db1c21d3560cfbd1dcf1d2b5fc4eaf9cb1da5c19c1425c0cb5ed6494434b0af', 'SevenDistrict-1.0.0-build4-unsigned-source.zip': 'f20681b369bdd2d451ea537615c8022e2df048bc2b390f660057d46ae0397696', 'SHA256SUMS': '059fd419f23dbcac7a4a56df9ca534604d3aee08634eab32c998a14b0d895c2a'}
           for name,digest in expected.items():
               if hashlib.sha256((base/name).read_bytes()).hexdigest()!=digest:raise SystemExit('Immutable input differs')
-          if hashlib.sha256(pathlib.Path('scripts/seven-ios-log-capability.py').read_bytes()).hexdigest()!='ba4ab0ca06f27403bb1d6c29afcb03d9116106413105655c16f3981d482d995d':raise SystemExit('Reviewed runner differs')
+          if hashlib.sha256(pathlib.Path('scripts/seven-ios-log-capability.py').read_bytes()).hexdigest()!='4580e333dec8a098eeb40836f7dcc3429dfa1840a8de6372f30814de31f3bd6d':raise SystemExit('Reviewed runner differs')
           subprocess.run(['python3',str(base/'ci_verify_seven_build4.py'),'source','--zip',str(base/'SevenDistrict-1.0.0-build4-unsigned-source.zip'),'--metadata',str(base/'seven-district-reckoning-build4-source-verification.json'),'--project','seven-district-reckoning','--root',str(root),'--output',str(output/'source-relay-verification.json')],check=True,timeout=300)
           (output/'input-provenance.json').write_bytes((base/'input-provenance.json').read_bytes())
           PYCODE

@@ -79,22 +79,29 @@ def run_probe(source,metadata,verifier,output):
     if key.fileobj is process.stdout:stdout.extend(keep)
   code=process.wait(timeout=5);selector.close();children.discard(process)
   private=scratch/(str(sequence)+'-'+label+'.log');private.write_bytes(retained)
-  row={'command':label,'exitCode':code,'timedOut':timed_out,'bytesReceived':received,'bytesRetained':len(retained),'bytesDropped':received-len(retained)};report['commands'].append(row);report.pop('activeCommand',None);publish()
+  row={'command':label,'configuredBudgetSeconds':seconds,'elapsedMs':round((time.monotonic()-start)*1000),'exitCode':code,'exitSignal':signal.Signals(-code).name if code<0 else None,'timedOut':timed_out,'bytesReceived':received,'bytesRetained':len(retained),'bytesDropped':received-len(retained)};report['commands'].append(row);report.pop('activeCommand',None);publish()
   if not allow_failure:require(code==0 and not timed_out,'COMMAND_FAILED_'+label.upper())
   return bytes(stdout if stdout_only else retained),row
  def json_command(label,args,seconds=15):return json.loads(command(label,args,seconds=seconds,limit=MAX_BYTES)[0])
  def confirm():
   require(owner and owned_identity(json_command('own-inventory',['xcrun','simctl','list','--json']),**owner),'OWNED_SIM_IDENTITY_UNCONFIRMED')
  try:
+  report['toolPreflight']={'simctlFound':False,'xcodeVersionExact':False,'supportState':'UNKNOWN'}
+  raw,find_stats=command('tool-find-simctl',['xcrun','--find','simctl'],seconds=90)
+  found=raw.decode('utf-8','replace').strip();require(len(found.splitlines())==1 and Path(found).is_absolute() and Path(found).name=='simctl','SIMCTL_TOOL_FIND_UNCONFIRMED')
+  report['toolPreflight'].update(simctlFound=True,findElapsedMs=find_stats['elapsedMs']);publish()
+  raw,xcode_stats=command('tool-xcode-version',['xcodebuild','-version'],seconds=90)
+  require(re.fullmatch(r'Xcode 26\.3\s+Build version 17C529\s*',raw.decode().strip()),'EXACT_XCODE_REQUIRED')
+  report['toolPreflight'].update(xcodeVersionExact=True,xcodeElapsedMs=xcode_stats['elapsedMs']);publish()
   helps={}
   help_commands=[('simctl-help',['xcrun','simctl','help']),('launch-help',['xcrun','simctl','help','launch']),('spawn-help',['xcrun','simctl','help','spawn']),('container-help',['xcrun','simctl','help','get_app_container']),('log-stream-help',['/usr/bin/log','help','stream']),('log-show-help',['/usr/bin/log','help','show']),('log-manual',['/usr/bin/man','log'])]
   environment['MANPAGER']='cat';environment['PAGER']='cat'
   for label,args in help_commands:
-   raw,_=command(label,args);helps[label]=raw.decode('utf-8','replace')
+   raw,_=command(label,args,seconds=90 if label=='simctl-help' else 15);helps[label]=raw.decode('utf-8','replace')
   support=capabilities(helps);report['helpCapabilities']=support;publish();require(all(support.values()),'CAPABILITY_UNSUPPORTED_HELP_OR_PREDICATE')
   command('source-verify',[sys.executable,verifier,'source','--root',source,'--metadata',metadata,'--project','seven-district-reckoning','--output',output/'source-verification.json'],seconds=300,limit=MAX_BYTES)
   original_pck=hashlib.sha256((source/'SevenDistrict.pck').read_bytes()).hexdigest();require(original_pck==PCK,'ORIGINAL_PCK4_REQUIRED')
-  raw,_=command('xcode-version',['xcodebuild','-version']);require(re.fullmatch(r'Xcode 26\.3\s+Build version 17C529\s*',raw.decode().strip()),'EXACT_XCODE_REQUIRED');derived=scratch/'derived-sim'
+  derived=scratch/'derived-sim'
   command('sim-build',['xcodebuild','-project',source/'SevenDistrict.xcodeproj','-scheme','SevenDistrict','-configuration','Debug','-sdk','iphonesimulator','-destination','generic/platform=iOS Simulator','-derivedDataPath',derived,'CODE_SIGNING_ALLOWED=NO','ONLY_ACTIVE_ARCH=NO','ARCHS=x86_64','EXCLUDED_ARCHS=arm64','build'],seconds=2400,limit=MAX_BYTES)
   app=derived/'Build/Products/Debug-iphonesimulator/SevenDistrict.app'
   command('sim-verify',[sys.executable,verifier,'app','--root',source,'--project','seven-district-reckoning','--app',app,'--output',output/'simulator-verification.json'],seconds=300,limit=MAX_BYTES)

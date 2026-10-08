@@ -78,6 +78,41 @@ VILLAGE_ORIENTATION_READS=(
  ('shell','getprop','ro.build.fingerprint'),
  ('shell','wm','size'),
 )
+def wait_owned_wm_lock1(ad,evidence,persist):
+ # One successful setter only; each additional operation is this fixed GET.
+ # Budget replaces the existing45s read timeout, never extends it per attempt.
+ started=time.monotonic();deadline=started+45
+ evidence.update(wmReadinessBudgetSeconds=45,wmReadinessStartedAtUtc=now(),
+  wmReadbackHistory=[],wmReadinessSettled=False,wmReadinessDeadlineExceeded=False);persist()
+ previous_start=None
+ while True:
+  current=time.monotonic();remaining=deadline-current
+  if remaining<=0:
+   evidence.update(wmReadinessDeadlineExceeded=True,wmReadinessElapsedSeconds=current-started);persist()
+   raise RuntimeError('Native landscape rotation not confirmed within existing45s; actual GET sequence retained')
+  row={'attempt':len(evidence['wmReadbackHistory'])+1,'requestedAtUtc':now(),
+   'readStartedElapsedSeconds':current-started,'remainingBudgetSeconds':remaining,
+   'intervalSincePreviousReadStartSeconds':None if previous_start is None else current-previous_start}
+  previous_start=current;evidence['wmReadbackHistory'].append(row);evidence['readbackCommand']=row;persist()
+  try:raw=ad('shell','wm','user-rotation',timeout=remaining,evidence=row)
+  except Exception as error:row['observationError']=str(error);persist();raise
+  finished=time.monotonic();row['readFinishedElapsedSeconds']=finished-started
+  try:observed=raw.decode('utf-8','strict').strip()
+  except UnicodeError:
+   row['unknownReadback']=True;persist()
+   raise RuntimeError('Unknown WM readback encoding; raw evidence retained')
+  row['normalizedReadback']=observed;evidence['normalizedReadback']=observed;persist()
+  if finished>deadline:
+   evidence.update(wmReadinessDeadlineExceeded=True,wmReadinessElapsedSeconds=finished-started);persist()
+   raise RuntimeError('WM read returned after existing45s budget; no late success accepted')
+  if observed=='lock 1':
+   evidence.update(wmReadinessSettled=True,wmReadinessElapsedSeconds=finished-started);persist()
+   return raw
+  if observed not in {'free','lock 0','lock 2','lock 3'}:
+   row['unknownReadback']=True;persist()
+   raise RuntimeError('Unknown/multiline WM readback; no readiness retry')
+  time.sleep(min(1,deadline-finished))
+
 def require_owned_village_avd(avd,family,run_id):
  if not run_id.isdigit() or avd!='NativeCapture'+family.capitalize()+'_'+run_id+'_village-siege':
   raise RuntimeError('Village observation requires this exact owned CI AVD')
@@ -93,7 +128,9 @@ def set_owned_orientation(ad,project,orientation,evidence=None,persist=None,land
  set_error=None;read_error=None;raw=None
  try:ad('shell','wm','user-rotation','lock','1',evidence=evidence['setCommand'])
  except Exception as error:set_error=error;evidence['setObservationError']=str(error);persist()
- try:raw=ad('shell','wm','user-rotation',evidence=evidence['readbackCommand'])
+ try:
+  if set_error is None:raw=wait_owned_wm_lock1(ad,evidence,persist)
+  else:raw=ad('shell','wm','user-rotation',evidence=evidence['readbackCommand'])
  except Exception as error:read_error=error;evidence['readbackObservationError']=str(error);persist()
  # Only fixed read-only policy/rotation getters. Never alter accelerometer,
  # fixed-to-user-rotation or ignore-orientation-request to obtain success.

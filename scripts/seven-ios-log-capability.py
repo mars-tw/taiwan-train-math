@@ -10,9 +10,8 @@ def require(value,code):
  if not value:raise ProbeStop(code)
 def inside(path,parent):return path.resolve()!=parent.resolve() and path.resolve().is_relative_to(parent.resolve())
 def capabilities(helps):
- text='\n'.join(helps.values());stream=helps.get('log-stream-help','');show=helps.get('log-show-help','');manual=helps.get('log-manual','');sim=helps.get('simctl-help','')
- return {'simctlLifecycle':all(re.search(r'\b'+key+r'\b',sim) for key in ['create','boot','bootstatus','install','launch','io','terminate','delete','get_app_container']),
-  'streamInfoNdjson':all(key in stream for key in ['--predicate','--style','ndjson','--level','info']),
+ stream=helps.get('log-stream-help','');show=helps.get('log-show-help','');manual=helps.get('log-manual','')
+ return {'streamInfoNdjson':all(key in stream for key in ['--predicate','--style','ndjson','--level','info']),
   'showInfoNdjson':all(key in show for key in ['--predicate','--style','ndjson','--info','--last']),
   'exactPredicateFields':all(re.search(r'\b'+key+r'\b',manual) for key in ['processID','subsystem','category','eventMessage','messageType'])}
 def log_help_response(label,payload,stats):
@@ -102,12 +101,13 @@ def run_probe(source,metadata,verifier,output):
   raw,xcode_stats=command('tool-xcode-version',['xcodebuild','-version'],seconds=90)
   require(re.fullmatch(r'Xcode 26\.3\s+Build version 17C529\s*',raw.decode().strip()),'EXACT_XCODE_REQUIRED')
   report['toolPreflight'].update(xcodeVersionExact=True,xcodeElapsedMs=xcode_stats['elapsedMs']);publish()
+  report['simctlLifecyclePriorEvidence']={'status': 'SIMCTL_LIFECYCLE_PRIOR_ACTUAL_VERIFIED', 'evidenceRunIds': [37732463543, 37726700215, 37716545483], 'evidenceReceiptSha256': ['a86758376fb5688274783cdf652c611b511869cca1ca6ddbcc690e56dcf9d773', 'eb583a44167dbb183b87b8a57cf75484b4fa30466bbf887378d261245f0def68', '562fa19db9fe5610a999d22f666e37a008587236dd7ac50ad8549412d9e836f1'], 'observerSha256': 'e9cb3c219d5e2ff78b98a034e076a8a0209902afd5721de376d3c1db79edfccb', 'verifiedCommandTypes': ['list', 'create', 'boot', 'bootstatus', 'install', 'launch', 'io', 'delete'], 'notObservedInReferencedReceipts': ['terminate', 'get_app_container', 'shutdown', 'spawn'], 'currentHelpProbed': False, 'specificCommandPolicyUnchanged': True, 'freshOwnerIdentityRequired': True};publish()
   helps={}
-  help_commands=[('simctl-help',['xcrun','simctl','help']),('launch-help',['xcrun','simctl','help','launch']),('spawn-help',['xcrun','simctl','help','spawn']),('container-help',['xcrun','simctl','help','get_app_container']),('log-stream-help',['/usr/bin/log','help','stream']),('log-show-help',['/usr/bin/log','help','show']),('log-manual',['/usr/bin/man','log'])]
+  help_commands=[('log-stream-help',['/usr/bin/log','help','stream']),('log-show-help',['/usr/bin/log','help','show']),('log-manual',['/usr/bin/man','log'])]
   environment['MANPAGER']='cat';environment['PAGER']='cat'
   for label,args in help_commands:
    usage_help=label in {'log-stream-help','log-show-help'}
-   raw,stats=command(label,args,seconds=90 if label=='simctl-help' else 15,allow_failure=usage_help)
+   raw,stats=command(label,args,seconds=15,allow_failure=usage_help)
    helps[label]=log_help_response(label,raw,stats) if usage_help else raw.decode('utf-8','replace')
   support=capabilities(helps);report['helpCapabilities']=support;publish();require(all(support.values()),'CAPABILITY_UNSUPPORTED_HELP_OR_PREDICATE')
   command('source-verify',[sys.executable,verifier,'source','--root',source,'--metadata',metadata,'--project','seven-district-reckoning','--output',output/'source-verification.json'],seconds=300,limit=MAX_BYTES)

@@ -1,0 +1,158 @@
+name: Seven build2 native interactive capture and signed IPA
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: seven-godot-build2-native
+  cancel-in-progress: false
+jobs:
+  fetch:
+    if: github.ref == 'refs/heads/main' && github.repository == 'mars-tw/taiwan-train-math'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    steps:
+      - name: Read only exact fresh Seven build2 DRAFT inputs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PYCODE'
+          import hashlib,json,os,pathlib,re,subprocess
+          repo='mars-tw/taiwan-train-math';tag='all-games-godot-seven-build2-20261008'
+          expected={'SHA256SUMS': 'd6e24e5ce5979652886c51407d9cc7923350e694d7c840d075bd568750bb8d85', 'SevenDistrict-1.0.0-build2-unsigned-source.zip': '68b4e52fa4742bfaf775c3de01dea7ae395b10810a1cd46c9fa82fe016545038', 'seven-district-reckoning-build2-source-verification.json': '2d9f0fdc4e100a47803cf8df573e10a40fed4237706346adf0c91f0c0aa092b1', 'ci_verify_seven_build2.py': '6e8319106f74edd2882f1a8c75b7442f3286c04c3fcded46b0b943d67ce8ae19', 'ci_seven_ios_build2_export.sh': 'ad6050ec3864c6b88ac58d7c6e656144e3d678b6081d295c1a2dba0ed79e4c44'}
+          def gh(args,timeout=60):
+              p=subprocess.run(['gh',*args],capture_output=True,timeout=timeout)
+              if p.returncode:raise SystemExit('Approved draft read failed; no raw output')
+              return p.stdout
+          if os.environ['GITHUB_REPOSITORY']!=repo:raise SystemExit('Wrong trusted repository')
+          pages=json.loads(gh(['api','--paginate','--slurp','repos/'+repo+'/releases?per_page=100']))
+          matches=[r for page in pages for r in page if r.get('tag_name')==tag and r.get('draft') is True]
+          if len(matches)!=1:raise SystemExit('Need one exact new Seven-only DRAFT')
+          release=matches[0];assets={r['name'] for r in release.get('assets',[])}
+          if not set(expected).issubset(assets):raise SystemExit('Missing immutable Seven2 assets')
+          base=pathlib.Path(os.environ['RUNNER_TEMP'])/'seven-build2-input';base.mkdir(mode=0o700)
+          for filename in expected:gh(['release','download',tag,'--repo',repo,'--pattern',filename,'--dir',str(base)],300)
+          for filename,digest in expected.items():
+              if hashlib.sha256((base/filename).read_bytes()).hexdigest()!=digest:raise SystemExit('Immutable Seven2 input hash mismatch')
+          entries={}
+          for line in (base/'SHA256SUMS').read_text().splitlines():
+              match=re.fullmatch(r'([0-9a-f]{64})  ([A-Za-z0-9._-]+)',line)
+              if not match or match[2] in entries:raise SystemExit('Invalid checksum record')
+              entries[match[2]]=match[1]
+          if entries!={k:v for k,v in expected.items() if k!='SHA256SUMS'}:raise SystemExit('Unexpected manifest tuple')
+          metadata=json.loads((base/'seven-district-reckoning-build2-source-verification.json').read_text())
+          if (metadata.get('appId'),metadata.get('nativeVersion'),metadata.get('nativeBuild'))!=('tw.mars.sevendistrictreckoning','1.0.0',2):raise SystemExit('Only exact Seven2 is allowed')
+          proof={'repository':repo,'releaseTag':tag,'releaseId':release['id'],'releaseDraft':True,'version':'1.0.0','build':2,'projectId':'seven-district-reckoning','inputSha256':expected,'sourceCommit':'b8c55f338a0d5e55d4d2807217bb1f6b136f5f87','storeMutation':False}
+          (base/'input-provenance.json').write_text(json.dumps(proof,indent=2))
+          PYCODE
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: seven-build2-input-${{ github.run_id }}
+          path: ${{ runner.temp }}/seven-build2-input
+          retention-days: 1
+          if-no-files-found: error
+  native:
+    needs: fetch
+    runs-on: macos-15-intel
+    timeout-minutes: 120
+    environment: game-store-seven-district-reckoning
+    permissions:
+      contents: read
+      actions: read
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          sparse-checkout: |
+            scripts/godot-appium-runtime/package.json
+            scripts/godot-appium-runtime/package-lock.json
+            scripts/godot-appium-session.mjs
+            scripts/godot-appium-bootstrap.cjs
+            scripts/godot-bounded-native-capture.mjs
+          sparse-checkout-cone-mode: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: seven-build2-input-${{ github.run_id }}
+          path: ${{ runner.temp }}/seven-build2-input
+      - name: Recheck immutable hashes and extract new47 source before execution
+        run: |
+          python3 - <<'PYCODE'
+          import hashlib,json,os,pathlib,subprocess
+          expected={'SHA256SUMS': 'd6e24e5ce5979652886c51407d9cc7923350e694d7c840d075bd568750bb8d85', 'SevenDistrict-1.0.0-build2-unsigned-source.zip': '68b4e52fa4742bfaf775c3de01dea7ae395b10810a1cd46c9fa82fe016545038', 'seven-district-reckoning-build2-source-verification.json': '2d9f0fdc4e100a47803cf8df573e10a40fed4237706346adf0c91f0c0aa092b1', 'ci_verify_seven_build2.py': '6e8319106f74edd2882f1a8c75b7442f3286c04c3fcded46b0b943d67ce8ae19', 'ci_seven_ios_build2_export.sh': 'ad6050ec3864c6b88ac58d7c6e656144e3d678b6081d295c1a2dba0ed79e4c44'}
+          observer={'scripts/godot-appium-session.mjs': 'd3e26abaef8488b9a509c45387721fffd6d976b4964f8ec770c8389dc6fa8c8e', 'scripts/godot-appium-bootstrap.cjs': '2b2e89fcf22a0bbf2b659ef18fc63c5da92dbd1f1f5d631ca808cfb731a77e4e', 'scripts/godot-bounded-native-capture.mjs': '719b586552e40d7986b5e16d0dd4a7a0eba157e7a44eb58938f31ffcdfa4290a', 'scripts/godot-appium-runtime/package.json': '0dd1ff3cdc1a2122de5eab0809c25f6fbb581f0f442ed59b35eeb8358ba0f98e', 'scripts/godot-appium-runtime/package-lock.json': '8517438786cba60970cc63d980fb799c6b3b0d8f2fabe7b17a24fc640411950c'}
+          base=pathlib.Path(os.environ['RUNNER_TEMP'])/'seven-build2-input';source=pathlib.Path(os.environ['RUNNER_TEMP'])/'seven-build2-source'
+          output=pathlib.Path(os.environ['GITHUB_WORKSPACE'])/'output/seven-build2';output.mkdir(parents=True)
+          for name,digest in expected.items():
+              if hashlib.sha256((base/name).read_bytes()).hexdigest()!=digest:raise SystemExit('Relay digest mismatch')
+          for name,digest in observer.items():
+              if hashlib.sha256(pathlib.Path(name).read_bytes()).hexdigest()!=digest:raise SystemExit('Reviewed observer bytes differ')
+          metadata=base/'seven-district-reckoning-build2-source-verification.json';verify=base/'ci_verify_seven_build2.py'
+          subprocess.run(['python3',str(verify),'source','--zip',str(base/'SevenDistrict-1.0.0-build2-unsigned-source.zip'),'--metadata',str(metadata),'--project','seven-district-reckoning','--root',str(source),'--output',str(output/'source-verification.json')],check=True,timeout=300)
+          (output/'input-provenance.json').write_bytes((base/'input-provenance.json').read_bytes())
+          PYCODE
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 22.14.0
+      - name: Install exact locked official test driver without secrets
+        run: |
+          test "$(node -p 'process.versions.node')" = 22.14.0
+          test "$(npm --version | cut -d. -f1)" = 10
+          npm ci --prefix scripts/godot-appium-runtime --ignore-scripts --no-audit --no-fund
+      - name: One unsignedsim link, real iPhone+iPad menu Start HUD and warm proof
+        run: |
+          node scripts/godot-bounded-native-capture.mjs seven-appium "$RUNNER_TEMP/seven-build2-source" "$RUNNER_TEMP/seven-build2-input/seven-district-reckoning-build2-source-verification.json" "$RUNNER_TEMP/seven-build2-input/ci_verify_seven_build2.py" "$GITHUB_WORKSPACE/output/seven-build2/capture"
+      - name: Require both actual interaction observations before device signing
+        run: |
+          python3 - <<'PYCODE'
+          import json,pathlib
+          r=json.loads(pathlib.Path('output/seven-build2/capture/bounded-native-capture.json').read_text())
+          if r.get('status')!='completed' or r.get('sourceOrPckModified') is not False or not r.get('sourceStill47VerifiedAfterLink'):raise SystemExit('Actual capture/source incomplete')
+          results=r.get('results',[])
+          if len(results)!=2 or {x.get('device') for x in results}!={'iphone','ipad'}:raise SystemExit('Two actual devices required')
+          for d in results:
+              if not d.get('coldForegroundConfirmed') or not d.get('warmForegroundConfirmed') or not d.get('visibleStartLabelTapped'):raise SystemExit('Foreground/visible oneStart missing')
+              observations=d.get('appium',{}).get('observation',{})
+              if not all(observations.get(k) is True for k in ['coldCaptured','startTapped','afterStartCaptured','warmCaptured']):raise SystemExit('Menu/Start/HUD/warm observation incomplete')
+              if not {'cold90','after-start','warm90'}.issubset({s.get('stage') for s in d.get('screenshots',[])}):raise SystemExit('Actual frames missing')
+          pathlib.Path('output/seven-build2/interaction-observed.json').write_text(json.dumps({'actualCaptureCommandsCompleted':True,'nativeRuntimeReady':False,'manualVisualReviewRequired':True,'physicalDeviceTested':False,'storeMutation':False},indent=2))
+          PYCODE
+      - name: Sign only this Seven2 device archive with owned temporary credentials
+        env:
+          APPLE_DISTRIBUTION_P12_BASE64: ${{ secrets.APPLE_DISTRIBUTION_P12_BASE64 }}
+          APPLE_DISTRIBUTION_P12_PASSWORD: ${{ secrets.APPLE_DISTRIBUTION_P12_PASSWORD }}
+          APPLE_APPSTORE_PROFILE_BASE64: ${{ secrets.APPLE_APPSTORE_PROFILE_BASE64 }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          bash "$RUNNER_TEMP/seven-build2-input/ci_seven_ios_build2_export.sh" sign "$RUNNER_TEMP/seven-build2-source" seven-district-reckoning "$GITHUB_WORKSPACE/output/seven-build2/signed" "$RUNNER_TEMP/seven-build2-input/seven-district-reckoning-build2-source-verification.json"
+      - name: Cleanup only the owned newsource input directories
+        if: always()
+        run: |
+          python3 - <<'PYCODE'
+          import os,pathlib,shutil
+          parent=pathlib.Path(os.environ['RUNNER_TEMP']).resolve()
+          for name in ['seven-build2-input','seven-build2-source']:
+              target=(parent/name).resolve()
+              if target!=parent and target.is_relative_to(parent) and not target.is_symlink():shutil.rmtree(target,ignore_errors=True)
+          PYCODE
+      - name: Keep original native frames and public signed receipts only
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: seven-build2-native-${{ github.run_id }}
+          path: |
+            output/seven-build2/input-provenance.json
+            output/seven-build2/source-verification.json
+            output/seven-build2/interaction-observed.json
+            output/seven-build2/capture/*.json
+            output/seven-build2/capture/raw-screenshots/*.png
+            output/seven-build2/capture/screenshots/*.png
+            output/seven-build2/signed/signed.ipa
+            output/seven-build2/signed/verification.json
+            output/seven-build2/signed/source-verification.json
+          retention-days: 14
+          if-no-files-found: error

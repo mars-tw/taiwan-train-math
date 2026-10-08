@@ -204,6 +204,7 @@ def run_probe(source,metadata,verifier,output):
  def command(label,args,seconds=15,limit=131072,allow_failure=False,stdout_only=False):
   nonlocal sequence
   sequence+=1;report['activeCommand']={'label':label,'startedAt':datetime.datetime.now(datetime.timezone.utc).isoformat()};publish()
+  print(json.dumps({'event':'COMMAND_STARTED','command':label,'status':'STARTED'}),flush=True)
   process=subprocess.Popen([str(x) for x in args],stdout=subprocess.PIPE,stderr=subprocess.PIPE,env=environment,cwd=scratch,start_new_session=True);children.add(process)
   selector=selectors.DefaultSelector();selector.register(process.stdout,selectors.EVENT_READ);selector.register(process.stderr,selectors.EVENT_READ)
   received=0;retained=bytearray();stdout=bytearray();start=time.monotonic();timed_out=False
@@ -219,6 +220,7 @@ def run_probe(source,metadata,verifier,output):
   code=process.wait(timeout=5);selector.close();children.discard(process)
   private=scratch/(str(sequence)+'-'+label+'.log');private.write_bytes(retained)
   row={'command':label,'configuredBudgetSeconds':seconds,'elapsedMs':round((time.monotonic()-start)*1000),'exitCode':code,'exitSignal':signal.Signals(-code).name if code<0 else None,'timedOut':timed_out,'bytesReceived':received,'bytesRetained':len(retained),'bytesDropped':received-len(retained)};report['commands'].append(row);report.pop('activeCommand',None);publish()
+  print(json.dumps({'event':'COMMAND_COMPLETED','command':label,'status':'COMPLETED','exitCode':code,'timedOut':timed_out}),flush=True)
   if not allow_failure:require(code==0 and not timed_out,'COMMAND_FAILED_'+label.upper())
   return bytes(stdout if stdout_only else retained),row
  def json_command(label,args,seconds=15):return json.loads(command(label,args,seconds=seconds,limit=MAX_BYTES)[0])

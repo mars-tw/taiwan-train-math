@@ -1,0 +1,153 @@
+name: Seven full6 private ARM64 device package only
+'on':
+  workflow_dispatch: null
+permissions:
+  contents: read
+concurrency:
+  group: seven-build6-private-device-sign
+  cancel-in-progress: false
+jobs:
+  fetch:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    steps:
+    - name: Read fixed original full6 private DRAFT source pins
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        python3 - <<'PYCODE'
+        import hashlib,json,os,pathlib,re,subprocess
+        repo='mars-tw/taiwan-train-math';tag='all-games-godot-seven-build6-20261009'
+        expected={'SHA256SUMS': '3459fc686a1081f2fdf5e9c05148b5bd7b05974547c7dc7a848a37889ea7f755', 'SevenDistrict-1.0.0-build6-unsigned-source.zip': '75ebb6318bc4e6386b7e2b461806eb7bfd1c4036ba796b9176e517bd9ed6390b', 'seven-district-reckoning-build6-source-verification.json': '301940d3b7e563b72fbab6e00569800e814113dcd217a62cdfbbd09a0165284b', 'ci_verify_seven_build6.py': '502389af3d329dee9f3832bf3be06b92804875d3c2d59e20310ab6ce1eac3df7', 'ci_seven_ios_build6_export.sh': 'dd43d6539c504ca15efdf7763cdc24da8ab5466120a1742ae75755bfdef37213'}
+        def gh(args,timeout=60):
+            p=subprocess.run(['gh',*args],capture_output=True,timeout=timeout)
+            if p.returncode:raise SystemExit('Approved draft read failed; no raw output')
+            return p.stdout
+        if os.environ['GITHUB_REPOSITORY']!=repo or os.environ['GITHUB_REF']!='refs/heads/main':raise SystemExit('Wrong trusted repository or main ref')
+        pages=json.loads(gh(['api','--paginate','--slurp','repos/'+repo+'/releases?per_page=100']))
+        matches=[r for page in pages for r in page if r.get('tag_name')==tag and r.get('draft') is True]
+        if len(matches)!=1:raise SystemExit('Need one exact new Seven-only DRAFT')
+        release=matches[0]
+        if release['id']!=407166797:raise SystemExit('Exact original Seven6 DRAFT id required')
+        assets={r['name'] for r in release.get('assets',[])}
+        if not set(expected).issubset(assets):raise SystemExit('Missing immutable Seven2 assets')
+        base=pathlib.Path(os.environ['RUNNER_TEMP'])/'seven-build6-private-device-input';base.mkdir(mode=0o700)
+        for filename in expected:gh(['release','download',tag,'--repo',repo,'--pattern',filename,'--dir',str(base)],300)
+        for filename,digest in expected.items():
+            if hashlib.sha256((base/filename).read_bytes()).hexdigest()!=digest:raise SystemExit('Immutable Seven2 input hash mismatch')
+        entries={}
+        for line in (base/'SHA256SUMS').read_text().splitlines():
+            match=re.fullmatch(r'([0-9a-f]{64})  ([A-Za-z0-9._-]+)',line)
+            if not match or match[2] in entries:raise SystemExit('Invalid checksum record')
+            entries[match[2]]=match[1]
+        if entries!={k:v for k,v in expected.items() if k!='SHA256SUMS'}:raise SystemExit('Unexpected manifest tuple')
+        metadata=json.loads((base/'seven-district-reckoning-build6-source-verification.json').read_text())
+        if (metadata.get('appId'),metadata.get('nativeVersion'),metadata.get('nativeBuild'))!=('tw.mars.sevendistrictreckoning','1.0.0',6):raise SystemExit('Only exact Seven6 is allowed')
+        proof={'repository':repo,'releaseTag':tag,'releaseId':release['id'],'releaseDraft':True,'version':'1.0.0','build':6,'projectId':'seven-district-reckoning','inputSha256':expected,'sourceCommit':'c08b28636ed9fc6c8cb746213513117072e7e0fc','storeMutation':False}
+        (base/'input-provenance.json').write_text(json.dumps(proof,indent=2))
+        PYCODE
+    - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      with:
+        name: seven-build6-private-device-input-${{ github.run_id }}
+        path: ${{ runner.temp }}/seven-build6-private-device-input
+        retention-days: 1
+        if-no-files-found: error
+    - name: Cleanup only owned fetched source input
+      if: always()
+      run: |
+        python3 - <<'PYCODE'
+        import os,pathlib,shutil
+        parent=pathlib.Path(os.environ['RUNNER_TEMP']).resolve()
+        for name in ['seven-build6-private-device-input','seven-build6-private-device-source']:
+            target=parent/name
+            if not target.is_symlink() and target.resolve()!=parent and target.resolve().is_relative_to(parent):shutil.rmtree(target,ignore_errors=True)
+        PYCODE
+  private_device_sign:
+    needs: fetch
+    runs-on: macos-26-intel
+    timeout-minutes: 75
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
+    permissions:
+      contents: read
+    steps:
+    - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+      with:
+        name: seven-build6-private-device-input-${{ github.run_id }}
+        path: ${{ runner.temp }}/seven-build6-private-device-input
+    - name: Verify exact full6 source and assembler before signing secrets
+      run: |
+        python3 - <<'PYCODE'
+        import hashlib,json,os,pathlib,subprocess
+        parent=pathlib.Path(os.environ['RUNNER_TEMP']).resolve()
+        base=parent/'seven-build6-private-device-input';source=parent/'seven-build6-private-device-source'
+        output=pathlib.Path(os.environ['GITHUB_WORKSPACE'])/'output/seven-build6-private-device-test'
+        expected={'SevenDistrict-1.0.0-build6-unsigned-source.zip': '75ebb6318bc4e6386b7e2b461806eb7bfd1c4036ba796b9176e517bd9ed6390b', 'seven-district-reckoning-build6-source-verification.json': '301940d3b7e563b72fbab6e00569800e814113dcd217a62cdfbbd09a0165284b', 'ci_verify_seven_build6.py': '502389af3d329dee9f3832bf3be06b92804875d3c2d59e20310ab6ce1eac3df7', 'ci_seven_ios_build6_export.sh': 'dd43d6539c504ca15efdf7763cdc24da8ab5466120a1742ae75755bfdef37213', 'SHA256SUMS': '3459fc686a1081f2fdf5e9c05148b5bd7b05974547c7dc7a848a37889ea7f755'}
+        if os.environ['GITHUB_REPOSITORY']!='mars-tw/taiwan-train-math' or os.environ['GITHUB_REF']!='refs/heads/main':raise SystemExit('Only trusted main Seven6 private device package')
+        for name,digest in expected.items():
+            file=base/name
+            if file.is_symlink() or hashlib.sha256(file.read_bytes()).hexdigest()!=digest:raise SystemExit('Immutable Seven6 source input differs')
+        proof=json.loads((base/'input-provenance.json').read_text())
+        if proof.get('releaseId')!=407166797 or proof.get('releaseTag')!='all-games-godot-seven-build6-20261009' or proof.get('releaseDraft') is not True or proof.get('inputSha256')!=expected:raise SystemExit('Private Seven6 original DRAFT provenance mismatch')
+        metadata=base/'seven-district-reckoning-build6-source-verification.json';record=json.loads(metadata.read_text())
+        if (record.get('appId'),record.get('nativeVersion'),record.get('nativeBuild'),record.get('pckSha256'),record.get('sourceFiles'))!=('tw.mars.sevendistrictreckoning','1.0.0',6,'16f788b46069c3b2c135009015d3ae90b7252e437e471c981932af1942fe1d07',47):raise SystemExit('Exact full6 source identity required')
+        if record.get('sourceCommit')!='c08b28636ed9fc6c8cb746213513117072e7e0fc' or record.get('sourceInputManifestSha256')!='5dacaa87cda4d2f1c21e94b0c5bd8e8a4cdff16b49a9f39e18ef342be88eeeba':raise SystemExit('Exact Seven6 working source binding required')
+        if source.exists() or source.is_symlink() or output.exists():raise SystemExit('Fresh private device source/output required')
+        output.mkdir(parents=True)
+        verify=base/'ci_verify_seven_build6.py'
+        subprocess.run(['python3',str(verify),'source','--zip',str(base/'SevenDistrict-1.0.0-build6-unsigned-source.zip'),'--metadata',str(metadata),'--project','seven-district-reckoning','--root',str(source),'--output',str(output/'source-verification.json')],check=True,timeout=300)
+        subprocess.run(['bash',str(base/'ci_seven_ios_build6_export.sh'),'prepare',str(source),'seven-district-reckoning',str(output/'prepare'),str(metadata)],check=True,timeout=600)
+        (output/'input-provenance.json').write_text(json.dumps(proof,indent=2))
+        PYCODE
+    - name: Sign only Seven6 private device package with existing per-App guards
+      env:
+        APPLE_DISTRIBUTION_P12_BASE64: ${{ secrets.APPLE_DISTRIBUTION_P12_BASE64 }}
+        APPLE_DISTRIBUTION_P12_PASSWORD: ${{ secrets.APPLE_DISTRIBUTION_P12_PASSWORD }}
+        APPLE_APPSTORE_PROFILE_BASE64: ${{ secrets.APPLE_APPSTORE_PROFILE_BASE64 }}
+        APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      run: |
+        bash "$RUNNER_TEMP/seven-build6-private-device-input/ci_seven_ios_build6_export.sh" sign "$RUNNER_TEMP/seven-build6-private-device-source" seven-district-reckoning "$GITHUB_WORKSPACE/output/seven-build6-private-device-test/signed" "$RUNNER_TEMP/seven-build6-private-device-input/seven-district-reckoning-build6-source-verification.json"
+    - name: Require actual ARM64 IPA signature profile and immutable PCK; declare QA incomplete
+      run: |
+        python3 - <<'PYCODE'
+        import hashlib,json,os,pathlib,subprocess
+        parent=pathlib.Path(os.environ['RUNNER_TEMP']);base=parent/'seven-build6-private-device-input';source=parent/'seven-build6-private-device-source'
+        out=pathlib.Path(os.environ['GITHUB_WORKSPACE'])/'output/seven-build6-private-device-test';signed=out/'signed'
+        subprocess.run(['python3',str(base/'ci_verify_seven_build6.py'),'source','--root',str(source),'--metadata',str(base/'seven-district-reckoning-build6-source-verification.json'),'--project','seven-district-reckoning','--output',str(out/'source-verification-after-sign.json')],check=True,timeout=300)
+        r=json.loads((signed/'verification.json').read_text());s=json.loads((out/'source-verification-after-sign.json').read_text());ipa=signed/'signed.ipa'
+        if (r.get('projectId'),r.get('appId'),r.get('version'),r.get('build'),r.get('architectures'),r.get('pckSha256'))!=('seven-district-reckoning','tw.mars.sevendistrictreckoning','1.0.0',6,['arm64'],'16f788b46069c3b2c135009015d3ae90b7252e437e471c981932af1942fe1d07'):raise SystemExit('Exact ARM64 full6 device IPA required')
+        if not all(r.get(field) is True for field in ['deviceBuild','signatureVerified','profileVerified','requiredReasonsVerified','macBuildPerformed']):raise SystemExit('Actual IPA signature/profile/device guards incomplete')
+        if r.get('storeUploadPerformed') is not False or r.get('appStoreApproved') is not False:raise SystemExit('Private test package cannot claim upload or approval')
+        if s.get('sourceVerified') is not True or s.get('sourceFiles')!=47 or s.get('pckSha256')!='16f788b46069c3b2c135009015d3ae90b7252e437e471c981932af1942fe1d07':raise SystemExit('Original full6 source changed during signing')
+        if ipa.is_symlink() or not ipa.is_file() or ipa.stat().st_size!=r.get('ipaBytes') or hashlib.sha256(ipa.read_bytes()).hexdigest()!=r.get('ipaSha256'):raise SystemExit('Verified IPA byte pin differs')
+        proof={'status':'PRIVATE_DEVICE_TEST_IPA_SIGNATURE_VERIFIED','projectId':'seven-district-reckoning','appId':'tw.mars.sevendistrictreckoning','nativeVersion':'1.0.0','nativeBuild':6,'architectures':['arm64'],'pckSha256':'16f788b46069c3b2c135009015d3ae90b7252e437e471c981932af1942fe1d07','ipaSha256':r['ipaSha256'],'ipaBytes':r['ipaBytes'],'signatureVerified':True,'profileVerified':True,'fullSource47VerifiedBeforeAndAfter':True,'privateDeviceTestOnly':True,'runtimeReady':False,'nativeRuntimeReady':False,'uiReady':False,'uiReleaseReady':False,'notStoreQualified':True,'storeQualified':False,'physicalDeviceTested':False,'binaryUploaded':False,'buildSelectionPerformed':False,'reviewSubmitted':False,'invitationsSent':0,'rawSigningLogsUploaded':False}
+        (out/'private-device-test.json').write_text(json.dumps(proof,indent=2))
+        PYCODE
+    - name: Cleanup only owned source input paths; assembler traps remove owned keys profiles and scratch
+      if: always()
+      run: |
+        python3 - <<'PYCODE'
+        import os,pathlib,shutil
+        parent=pathlib.Path(os.environ['RUNNER_TEMP']).resolve()
+        for name in ['seven-build6-private-device-input','seven-build6-private-device-source']:
+            target=parent/name
+            if not target.is_symlink() and target.resolve()!=parent and target.resolve().is_relative_to(parent):shutil.rmtree(target,ignore_errors=True)
+        PYCODE
+    - name: Keep signed private IPA and public verification only
+      if: always()
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      with:
+        name: seven-build6-private-device-test-${{ github.run_id }}
+        path: |-
+          output/seven-build6-private-device-test/input-provenance.json
+          output/seven-build6-private-device-test/source-verification.json
+          output/seven-build6-private-device-test/source-verification-after-sign.json
+          output/seven-build6-private-device-test/private-device-test.json
+          output/seven-build6-private-device-test/signed/signed.ipa
+          output/seven-build6-private-device-test/signed/verification.json
+          output/seven-build6-private-device-test/signed/source-verification.json
+        retention-days: 14
+        if-no-files-found: error
+    environment: game-store-seven-district-reckoning

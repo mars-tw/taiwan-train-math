@@ -1,0 +1,120 @@
+name: Seven build6 owned log sink capability only
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: seven-build6-log-capability
+  cancel-in-progress: false
+jobs:
+  fetch:
+    if: github.ref == 'refs/heads/main' && github.repository == 'mars-tw/taiwan-train-math'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    steps:
+      - name: Read only exact fresh Seven build6 DRAFT inputs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PYCODE'
+          import hashlib,json,os,pathlib,re,subprocess
+          repo='mars-tw/taiwan-train-math';tag='all-games-godot-seven-build6-20261009'
+          expected={'SHA256SUMS': '3459fc686a1081f2fdf5e9c05148b5bd7b05974547c7dc7a848a37889ea7f755', 'SevenDistrict-1.0.0-build6-unsigned-source.zip': '75ebb6318bc4e6386b7e2b461806eb7bfd1c4036ba796b9176e517bd9ed6390b', 'seven-district-reckoning-build6-source-verification.json': '301940d3b7e563b72fbab6e00569800e814113dcd217a62cdfbbd09a0165284b', 'ci_verify_seven_build6.py': '502389af3d329dee9f3832bf3be06b92804875d3c2d59e20310ab6ce1eac3df7', 'ci_seven_ios_build6_export.sh': 'dd43d6539c504ca15efdf7763cdc24da8ab5466120a1742ae75755bfdef37213'}
+          def gh(args,timeout=60):
+              p=subprocess.run(['gh',*args],capture_output=True,timeout=timeout)
+              if p.returncode:raise SystemExit('Approved draft read failed; no raw output')
+              return p.stdout
+          if os.environ['GITHUB_REPOSITORY']!=repo:raise SystemExit('Wrong trusted repository')
+          pages=json.loads(gh(['api','--paginate','--slurp','repos/'+repo+'/releases?per_page=100']))
+          matches=[r for page in pages for r in page if r.get('tag_name')==tag and r.get('draft') is True]
+          if len(matches)!=1:raise SystemExit('Need one exact new Seven-only DRAFT')
+          release=matches[0];assets={r['name'] for r in release.get('assets',[])}
+          if not set(expected).issubset(assets):raise SystemExit('Missing immutable Seven2 assets')
+          base=pathlib.Path(os.environ['RUNNER_TEMP'])/'seven-build6-log-capability-input';base.mkdir(mode=0o700)
+          for filename in expected:gh(['release','download',tag,'--repo',repo,'--pattern',filename,'--dir',str(base)],300)
+          for filename,digest in expected.items():
+              if hashlib.sha256((base/filename).read_bytes()).hexdigest()!=digest:raise SystemExit('Immutable Seven2 input hash mismatch')
+          entries={}
+          for line in (base/'SHA256SUMS').read_text().splitlines():
+              match=re.fullmatch(r'([0-9a-f]{64})  ([A-Za-z0-9._-]+)',line)
+              if not match or match[2] in entries:raise SystemExit('Invalid checksum record')
+              entries[match[2]]=match[1]
+          if entries!={k:v for k,v in expected.items() if k!='SHA256SUMS'}:raise SystemExit('Unexpected manifest tuple')
+          metadata=json.loads((base/'seven-district-reckoning-build6-source-verification.json').read_text())
+          if (metadata.get('appId'),metadata.get('nativeVersion'),metadata.get('nativeBuild'))!=('tw.mars.sevendistrictreckoning','1.0.0',6):raise SystemExit('Only exact Seven6 is allowed')
+          proof={'repository':repo,'releaseTag':tag,'releaseId':release['id'],'releaseDraft':True,'version':'1.0.0','build':6,'projectId':'seven-district-reckoning','inputSha256':expected,'sourceCommit':'c08b28636ed9fc6c8cb746213513117072e7e0fc','storeMutation':False}
+          (base/'input-provenance.json').write_text(json.dumps(proof,indent=2))
+          PYCODE
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: seven-build6-log-capability-input-${{ github.run_id }}
+          path: ${{ runner.temp }}/seven-build6-log-capability-input
+          retention-days: 1
+          if-no-files-found: error
+  capability:
+    needs: fetch
+    runs-on: macos-15-intel
+    timeout-minutes: 75
+    permissions:
+      contents: read
+      actions: read
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          sparse-checkout: |
+            scripts/seven-build6-ios-log-capability.py
+            scripts/seven-ios-debug-log-public.pem
+          sparse-checkout-cone-mode: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: seven-build6-log-capability-input-${{ github.run_id }}
+          path: ${{ runner.temp }}/seven-build6-log-input
+      - name: Exact input and runner pins before any execution
+        run: |
+          python3 - <<'PYCODE'
+          import hashlib,json,os,pathlib,subprocess
+          base=pathlib.Path(os.environ['RUNNER_TEMP'])/'seven-build6-log-input'
+          root=pathlib.Path(os.environ['RUNNER_TEMP'])/'seven-build6-log-source'
+          output=pathlib.Path(os.environ['GITHUB_WORKSPACE'])/'output/seven-build6-log-capability'
+          output.mkdir(parents=True)
+          expected={'ci_seven_ios_build6_export.sh': 'dd43d6539c504ca15efdf7763cdc24da8ab5466120a1742ae75755bfdef37213', 'ci_verify_seven_build6.py': '502389af3d329dee9f3832bf3be06b92804875d3c2d59e20310ab6ce1eac3df7', 'seven-district-reckoning-build6-source-verification.json': '301940d3b7e563b72fbab6e00569800e814113dcd217a62cdfbbd09a0165284b', 'SevenDistrict-1.0.0-build6-unsigned-source.zip': '75ebb6318bc4e6386b7e2b461806eb7bfd1c4036ba796b9176e517bd9ed6390b', 'SHA256SUMS': '3459fc686a1081f2fdf5e9c05148b5bd7b05974547c7dc7a848a37889ea7f755'}
+          for name,digest in expected.items():
+              if hashlib.sha256((base/name).read_bytes()).hexdigest()!=digest:raise SystemExit('Immutable input differs')
+          if hashlib.sha256(pathlib.Path('scripts/seven-build6-ios-log-capability.py').read_bytes()).hexdigest()!='1de418b0186c84755d078ad826efe766c208587e453a6a7c94b3199f91e4dc8a':raise SystemExit('Reviewed runner differs')
+          if hashlib.sha256(pathlib.Path('scripts/seven-ios-debug-log-public.pem').read_bytes()).hexdigest()!='ded6ee7789f2073902914539a4d7fe61f78e3c92278f22d84de014926014b470':raise SystemExit('Diagnostic public key differs')
+          subprocess.run(['python3',str(base/'ci_verify_seven_build6.py'),'source','--zip',str(base/'SevenDistrict-1.0.0-build6-unsigned-source.zip'),'--metadata',str(base/'seven-district-reckoning-build6-source-verification.json'),'--project','seven-district-reckoning','--root',str(root),'--output',str(output/'source-relay-verification.json')],check=True,timeout=300)
+          (output/'input-provenance.json').write_bytes((base/'input-provenance.json').read_bytes())
+          PYCODE
+      - name: One help-first owned Simulator log capability and cold frame
+        run: |
+          python3 scripts/seven-build6-ios-log-capability.py --source "$RUNNER_TEMP/seven-build6-log-source" --metadata "$RUNNER_TEMP/seven-build6-log-input/seven-district-reckoning-build6-source-verification.json" --verifier "$RUNNER_TEMP/seven-build6-log-input/ci_verify_seven_build6.py" --output "$GITHUB_WORKSPACE/output/seven-build6-log-capability/probe"
+      - name: Cleanup only these owned source input paths
+        if: always()
+        run: |
+          python3 - <<'PYCODE'
+          import os,pathlib,shutil
+          parent=pathlib.Path(os.environ['RUNNER_TEMP']).resolve()
+          for name in ['seven-build6-log-input','seven-build6-log-source']:
+              target=parent/name
+              if target.resolve()!=parent and target.resolve().is_relative_to(parent) and not target.is_symlink():shutil.rmtree(target,ignore_errors=True)
+          PYCODE
+      - name: Public capability facts and original cold frame only
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: seven-build6-log-capability-${{ github.run_id }}
+          path: |
+            output/seven-build6-log-capability/input-provenance.json
+            output/seven-build6-log-capability/source-relay-verification.json
+            output/seven-build6-log-capability/probe/*.json
+            output/seven-build6-log-capability/probe/cold-diagnostic-raw.png
+            output/seven-build6-log-capability/probe/canonical-log-rsa4096-oaep.bin
+            output/seven-build6-log-capability/probe/collector-exception-rsa4096-oaep.bin
+          retention-days: 14
+          if-no-files-found: error

@@ -1,0 +1,79 @@
+name: Measure saved Crack native frame OCR only
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_id:
+        description: Root-approved new diagnostic DRAFT release ID
+        type: string
+        required: true
+      manifest_sha:
+        description: Reviewed immutable diagnostic manifest SHA-256
+        type: string
+        required: true
+
+permissions:
+  contents: read
+concurrency:
+  group: crack-saved-frame-native-ocr-diagnostic
+  cancel-in-progress: false
+
+jobs:
+  fetch:
+    if: github.repository == 'mars-tw/taiwan-train-math' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - name: Fetch the dedicated reviewed DRAFT input only
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_ID: ${{ inputs.release_id }}
+          MANIFEST_SHA: ${{ inputs.manifest_sha }}
+        run: |
+          python3 scripts/crack-ocr-diagnostic/fetch_ocr_frame.py --release-id "$RELEASE_ID" --manifest-sha "$MANIFEST_SHA" --directory "$RUNNER_TEMP/crack-ocr-input"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: crack-saved-ocr-input-${{ github.run_id }}
+          path: ${{ runner.temp }}/crack-ocr-input
+          retention-days: 1
+          if-no-files-found: error
+
+  measure:
+    needs: fetch
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: crack-saved-ocr-input-${{ github.run_id }}
+          path: ${{ runner.temp }}/crack-ocr-input
+      - name: Install only declared native OCR packages
+        run: |
+          set -euo pipefail
+          mkdir -p output/crack-ocr-diagnostic
+          sudo apt-get update -qq
+          sudo apt-get install --yes --no-install-recommends tesseract-ocr=5.3.4-1build5 tesseract-ocr-chi-tra=1:4.1.0-2 tesseract-ocr-eng=1:4.1.0-2
+          dpkg-query -W '-f=${Package}=${Version}\n' tesseract-ocr tesseract-ocr-chi-tra tesseract-ocr-eng libtesseract5 liblept5 > output/crack-ocr-diagnostic/packages.txt
+          tesseract --version > output/crack-ocr-diagnostic/native-version.txt 2>&1
+          cp "$RUNNER_TEMP/crack-ocr-input/fetch-provenance.json" output/crack-ocr-diagnostic/
+      - name: One default 30-second and one child-thread-limited 60-second measurement
+        run: |
+          python3 scripts/crack-ocr-diagnostic/measure_native_ocr.py --image "$RUNNER_TEMP/crack-ocr-input/fresh-clean-menu.png" --tesseract /usr/bin/tesseract --tessdata /usr/share/tesseract-ocr/5/tessdata --output output/crack-ocr-diagnostic/trials
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: crack-saved-frame-ocr-diagnostic-${{ github.run_id }}
+          path: output/crack-ocr-diagnostic
+          retention-days: 30
+          if-no-files-found: warn

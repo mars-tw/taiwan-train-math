@@ -9,11 +9,42 @@ class ProbeStop(Exception):pass
 def require(value,code):
  if not value:raise ProbeStop(code)
 def inside(path,parent):return path.resolve()!=parent.resolve() and path.resolve().is_relative_to(parent.resolve())
+def manual_field_evidence(manual):
+ require(isinstance(manual,str) and len(manual)<=131072,'MANUAL_PREDICATE_FIELDS_UNVERIFIED')
+ fields=('processID','subsystem','category','eventMessage','messageType')
+ raw={field:bool(re.search(r'\b'+field+r'\b',manual)) for field in fields}
+ # SGR is presentation-only. Leave other/unknown escape sequences intact,
+ # rather than guessing cursor operations or joining field-name fragments.
+ ansi=re.compile(r'\x1b\[[0-9:;]*m');controls=len(ansi.findall(manual));text=ansi.sub('',manual)
+ # Only BS/CR/LF/TAB have modeled display semantics. Unknown controls may
+ # leave all field tokens present, so preserve their safe counts and refuse trust.
+ unknown={'ESC':0,'C0':0,'DEL':0}
+ for char in text:
+  value=ord(char)
+  if value==27:unknown['ESC']+=1
+  elif value==127:unknown['DEL']+=1
+  elif value<32 and value not in {8,9,10,13}:unknown['C0']+=1
+ rendered=[]
+ for line in text.split('\n'):
+  cells=[];cursor=0
+  for char in line:
+   if char=='\b':cursor=max(0,cursor-1)
+   elif char=='\r':cursor=0
+   else:
+    if cursor<len(cells):cells[cursor]=char
+    else:cells.append(char)
+    cursor+=1
+  rendered.append(''.join(cells))
+ normalized='\n'.join(rendered)
+ present={field:bool(re.search(r'\b'+field+r'\b',normalized)) for field in fields}
+ return {'rawFieldPresence':raw,'normalizedFieldPresence':present,'missingFields':[field for field in fields if not present[field]],'backspaceCount':manual.count('\b'),'ansiControlCount':controls,'unknownControlCount':sum(unknown.values()),'unknownControlKinds':[kind for kind,count in unknown.items() if count]}
+
 def capabilities(helps):
  stream=helps.get('log-stream-help','');show=helps.get('log-show-help','');manual=helps.get('log-manual','')
+ evidence=manual_field_evidence(manual)
  return {'streamInfoNdjson':all(key in stream for key in ['--predicate','--style','ndjson','--level','info']),
   'showInfoNdjson':all(key in show for key in ['--predicate','--style','ndjson','--info','--last']),
-  'exactPredicateFields':all(re.search(r'\b'+key+r'\b',manual) for key in ['processID','subsystem','category','eventMessage','messageType'])}
+  'exactPredicateFields':evidence['unknownControlCount']==0 and all(evidence['normalizedFieldPresence'].values())}
 def log_help_response(label,payload,stats):
  require(label in {'log-stream-help','log-show-help'},'HELP_RESPONSE_UNRECOGNIZED')
  require(type(stats.get('exitCode')) is int and stats['exitCode'] in {0,64} and stats.get('timedOut') is False and stats.get('bytesDropped')==0 and 0<len(payload)<=131072 and payload.strip(),'HELP_RESPONSE_UNRECOGNIZED')
@@ -109,7 +140,10 @@ def run_probe(source,metadata,verifier,output):
    usage_help=label in {'log-stream-help','log-show-help'}
    raw,stats=command(label,args,seconds=15,allow_failure=usage_help)
    helps[label]=log_help_response(label,raw,stats) if usage_help else raw.decode('utf-8','replace')
-  support=capabilities(helps);report['helpCapabilities']=support;publish();require(all(support.values()),'CAPABILITY_UNSUPPORTED_HELP_OR_PREDICATE')
+  report['manualPredicateFieldEvidence']=manual_field_evidence(helps.get('log-manual',''))
+  support=capabilities(helps);report['helpCapabilities']=support;publish()
+  require(support['streamInfoNdjson'] and support['showInfoNdjson'],'CAPABILITY_UNSUPPORTED_HELP_OR_PREDICATE')
+  require(support['exactPredicateFields'],'MANUAL_PREDICATE_FIELDS_UNVERIFIED')
   command('source-verify',[sys.executable,verifier,'source','--root',source,'--metadata',metadata,'--project','seven-district-reckoning','--output',output/'source-verification.json'],seconds=300,limit=MAX_BYTES)
   original_pck=hashlib.sha256((source/'SevenDistrict.pck').read_bytes()).hexdigest();require(original_pck==PCK,'ORIGINAL_PCK4_REQUIRED')
   derived=scratch/'derived-sim'

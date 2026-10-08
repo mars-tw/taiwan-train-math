@@ -5,6 +5,7 @@ coordinate guessing, frame resizing, rendering-rate change or signer keys.
 """
 import argparse
 import hashlib
+import io
 import json
 import os
 import re
@@ -32,8 +33,16 @@ ACTIONS={
 }
 def sha(raw):return hashlib.sha256(raw).hexdigest()
 def now():return datetime.now(timezone.utc).isoformat()
-def run(argv,timeout=45):
- r=subprocess.run(argv,capture_output=True,timeout=timeout)
+def native_diagnostic_text(raw):
+ # No truncation/redaction: escape controls while retaining raw bytes/hash separately.
+ text=raw.decode('utf-8','backslashreplace')
+ return ''.join('\\u%04x'%ord(c) if (ord(c)<32 and c not in '\r\n\t') or 127<=ord(c)<160 else c for c in text)
+def run(argv,timeout=45,record=None):
+ try:r=subprocess.run(argv,capture_output=True,timeout=timeout)
+ except subprocess.TimeoutExpired as error:
+  if record:record(None,error.stdout or b'',error.stderr or b'',True)
+  raise
+ if record:record(r.returncode,r.stdout,r.stderr,False)
  if r.returncode:raise RuntimeError('Native command failed: '+Path(argv[0]).name+' exit'+str(r.returncode))
  return r.stdout
 def observed_target(nodes,patterns,width,height,package):
@@ -60,15 +69,61 @@ def observed_storm_phase(nodes,package):
  return 'unconfirmed'
 
 
-def set_owned_orientation(ad,project,orientation):
+VILLAGE_ORIENTATION_READS=(
+ ('shell','wm','user-rotation'),
+ ('shell','wm','fixed-to-user-rotation'),
+ ('shell','wm','get-ignore-orientation-request'),
+ ('shell','settings','get','system','accelerometer_rotation'),
+ ('shell','settings','get','system','user_rotation'),
+ ('shell','getprop','ro.build.fingerprint'),
+ ('shell','wm','size'),
+)
+def require_owned_village_avd(avd,family,run_id):
+ if not run_id.isdigit() or avd!='NativeCapture'+family.capitalize()+'_'+run_id+'_village-siege':
+  raise RuntimeError('Village observation requires this exact owned CI AVD')
+def set_owned_orientation(ad,project,orientation,evidence=None,persist=None,landscape_size=None):
  if orientation=='portrait':return {'requested':'portrait','deviceRotationChanged':False}
  if project!='village-siege':raise RuntimeError('Landscape unit is authorized for Village only')
- # AOSP Android 16 WindowManagerShellCommand documents this actual display
- # rotation. The caller has already checked the exact owned CI AVD identity.
- ad('shell','wm','user-rotation','lock','1')
- readback=ad('shell','wm','user-rotation').decode().strip()
- if readback!='lock 1':raise RuntimeError('Native landscape rotation not confirmed')
- return {'requested':'landscape','deviceRotationChanged':True,'command':['wm','user-rotation','lock','1'],'readback':readback,'imageRotationPerformed':False}
+ evidence=evidence if evidence is not None else {};persist=persist or (lambda:None)
+ evidence.update(requested='landscape',rotationConfirmed=False,imageRotationPerformed=False,
+  beforeCommand={},setCommand={},readbackCommand={},readonlyDiagnostics=[],nativeFramebufferCommand={},
+  nativeFramebufferDiagnosticOnly=True,notAppForegroundOrGameplayEvidence=True);persist()
+ try:ad(*VILLAGE_ORIENTATION_READS[0],evidence=evidence['beforeCommand'])
+ except Exception as error:evidence['beforeObservationError']=str(error);persist()
+ set_error=None;read_error=None;raw=None
+ try:ad('shell','wm','user-rotation','lock','1',evidence=evidence['setCommand'])
+ except Exception as error:set_error=error;evidence['setObservationError']=str(error);persist()
+ try:raw=ad('shell','wm','user-rotation',evidence=evidence['readbackCommand'])
+ except Exception as error:read_error=error;evidence['readbackObservationError']=str(error);persist()
+ # Only fixed read-only policy/rotation getters. Never alter accelerometer,
+ # fixed-to-user-rotation or ignore-orientation-request to obtain success.
+ for command in VILLAGE_ORIENTATION_READS[1:]:
+  row={};evidence['readonlyDiagnostics'].append(row);persist()
+  try:ad(*command,evidence=row)
+  except Exception as error:row['observationError']=str(error);persist()
+ try:
+  pixels=ad('exec-out','screencap','-p',evidence=evidence['nativeFramebufferCommand'])
+  with Image.open(io.BytesIO(pixels)) as frame:
+   frame.load()
+   if frame.format!='PNG':raise RuntimeError('Diagnostic native framebuffer is not PNG')
+   evidence['nativeFramebuffer']={'width':frame.width,'height':frame.height,'mode':frame.mode,
+    'sha256':sha(pixels),'rawBytes':len(pixels),'resizedOrCropped':False,'appForegroundClaimed':False}
+  persist()
+ except Exception as error:evidence['nativeFramebufferObservationError']=str(error);persist()
+ # Persist actual stdout/stderr/exit/hash before unchanged strict text guard.
+ if set_error is not None:raise set_error
+ if read_error is not None:raise read_error
+ evidence['readbackSanitized']=native_diagnostic_text(raw);persist()
+ readback=raw.decode('utf-8','strict').strip()
+ evidence['normalizedReadback']=readback;evidence['rotationConfirmed']=readback=='lock 1';persist()
+ if readback!='lock 1':raise RuntimeError('Native landscape rotation not confirmed; actual readback retained')
+ # Native size is observed without transforming pixels. No game is launched
+ # if the diagnostic framebuffer is missing/portrait/otherwise unexpected.
+ frame=evidence.get('nativeFramebuffer',{});expected=landscape_size or (1920,1080)
+ evidence['landscapeFramebufferConfirmed']=(frame.get('width'),frame.get('height'))==expected;persist()
+ if not evidence['landscapeFramebufferConfirmed']:raise RuntimeError('Observed native framebuffer is not expected landscape; original diagnostic retained')
+ evidence.update(deviceRotationChanged=True,command=['wm','user-rotation','lock','1']);persist()
+ return evidence
 
 def main():
  p=argparse.ArgumentParser();p.add_argument('--project',required=True);p.add_argument('--family',choices=['phone','tablet'],required=True);p.add_argument('--input',required=True);p.add_argument('--output',required=True);p.add_argument('--avd',required=True);p.add_argument('--orientation',choices=['portrait','landscape'],default='portrait');a=p.parse_args()
@@ -80,7 +135,25 @@ def main():
  if len(items)!=1:raise RuntimeError('One exact project required')
  item=items[0];apk=source/item['apkFile'];package=item['packageName']
  sdk=Path(os.environ['ANDROID_HOME']);adb=str(sdk/'platform-tools/adb');build=sdk/'build-tools/36.0.0';serial='emulator-5554'
- def ad(*args,timeout=45):return run([adb,'-s',serial,*args],timeout)
+ def ad(*args,timeout=45,evidence=None):
+  binary=args==('exec-out','screencap','-p')
+  allowed=set(VILLAGE_ORIENTATION_READS)|{('shell','wm','user-rotation','lock','1'),('exec-out','screencap','-p')}
+  if evidence is not None and (a.project!='village-siege' or a.orientation!='landscape' or args not in allowed):
+   raise RuntimeError('Only fixed Village orientation observations may be recorded')
+  def record(code,stdout,stderr,timedout):
+   evidence.update(command=list(args),exitCode=code,timedOut=timedout,observedAtUtc=now(),
+    stdoutBytes=len(stdout),stderrBytes=len(stderr),stdoutSha256=sha(stdout),stderrSha256=sha(stderr),
+    stderrSanitized=native_diagnostic_text(stderr))
+   if binary:
+    # Quarantine exact native bytes; never create a delivery/ready game frame.
+    directory=out/'orientation-diagnostics';directory.mkdir(exist_ok=True)
+    file=directory/'native-framebuffer.png';file.write_bytes(stdout)
+    evidence.update(stdoutKind='native_png',stdoutRawFile=str(file.relative_to(out)),diagnosticOnly=True)
+   else:evidence['stdoutSanitized']=native_diagnostic_text(stdout)
+   save()
+  return run([adb,'-s',serial,*args],timeout,record if evidence is not None else None)
+ if a.project=='village-siege' and a.orientation=='landscape':
+  require_owned_village_avd(a.avd,a.family,os.environ['GITHUB_RUN_ID'])
  if ad('emu','avd','name').decode().splitlines()[0].strip()!=a.avd:raise RuntimeError('Serial belongs to another AVD')
  if sha(apk.read_bytes())!=item['apkSha256']:raise RuntimeError('APK mutated after relay')
  if ad('shell','getprop','ro.build.version.sdk').decode().strip()!='36':raise RuntimeError('API36 device required')
@@ -123,7 +196,11 @@ def main():
   ad('shell','input','keyevent','82');install=ad('install','--no-streaming',str(apk),timeout=120).decode()
   if 'Success' not in install:raise RuntimeError('APK install did not report Success')
   report['installVerified']=True
-  report['displayOrientation']=set_owned_orientation(ad,a.project,a.orientation)
+  if a.project=='village-siege' and a.orientation=='landscape':
+   report['displayOrientation']={};save()
+   report['displayOrientation']=set_owned_orientation(ad,a.project,a.orientation,report['displayOrientation'],save,
+    (1920,1080) if a.family=='phone' else (2560,1600))
+  else:report['displayOrientation']=set_owned_orientation(ad,a.project,a.orientation)
   installed=ad('shell','dumpsys','package',package).decode('utf-8','replace')
   if 'versionName='+item['version'] not in installed or not re.search(r'\bversionCode='+str(item['build'])+r'\b',installed):raise RuntimeError('Installed package does not match signed input')
   component=ad('shell','cmd','package','resolve-activity','--brief',package).decode().strip().splitlines()[-1]

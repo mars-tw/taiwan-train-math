@@ -159,6 +159,27 @@ const consoleDiagnostics = raw => raw.split(/\r?\n/).filter(line => /^(?:SCRIPT 
     .replace(/[\x00-\x1f\x7f]/g, ' ').slice(0, 400),
 }));
 
+// Parse only the original source's static typed markers. Never publish console text.
+export function startupPhaseObservations(raw) {
+  const phases = new Set(['first_frame','base_world','actors','district_life','content_world','urban_detail','contacts','expansion','taiwan_world','bindings','world_ready']);
+  const events = new Set(['begin','phase','complete','first_frame_wait','first_frame_drawn','first_frame_headless_not_rendered','font_load_begin','font_load_end']);
+  const result = []; let rejected = 0;
+  for (const line of raw.split(/\r?\n/)) {
+    if (!line.startsWith('SEVEN_STARTUP ')) continue;
+    if (line.length > 512) { rejected++; continue; }
+    try {
+      const value = JSON.parse(line.slice(14));
+      if (!value || Array.isArray(value) || Object.keys(value).sort().join(',') !== 'elapsed_ms,event,items,phase,ready'
+        || !phases.has(value.phase) || !events.has(value.event)
+        || typeof value.elapsed_ms !== 'number' || !Number.isFinite(value.elapsed_ms) || value.elapsed_ms < 0
+        || !Number.isSafeInteger(value.items) || value.items < 0 || typeof value.ready !== 'boolean') { rejected++; continue; }
+      if (result.length < 64) result.push({ phase:value.phase, event:value.event, elapsedMs:value.elapsed_ms });
+      else rejected++;
+    } catch { rejected++; }
+  }
+  return { observations:result, rejectedOrTruncated:rejected, rawConsolePublished:false, runtimeReady:false };
+}
+
 export async function capturePreDriverNative8({ wait, capture, ownConsole }) {
   await wait(8000);
   const evidence = { waitedMs:8000, ownConsoleAlive:!ownConsole.closed,
@@ -268,6 +289,8 @@ export async function captureNative({ mode, source, metadata, verifier, output }
     await console.stop();
     const capture = await console.result();
     result.ownGameConsoleDiagnostics.push(...consoleDiagnostics(capture.text).map(item => ({ phase, ...item })));
+    if (recipe.project === 'seven-district-reckoning')
+      (result.startupPhaseDiagnostics ||= []).push({ consolePhase:phase, ...startupPhaseObservations(capture.text) });
     if (capture.timedOut) fail('OWN_GAME_CONSOLE_TIMED_OUT');
   }
   async function rawShot(device, stage, recognize = false) {

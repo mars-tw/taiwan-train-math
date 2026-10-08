@@ -1,6 +1,6 @@
 """One owned Simulator log-sink capability probe; no Appium/sign/store actions."""
 from pathlib import Path
-import argparse,datetime,hashlib,json,math,os,platform,re,selectors,shutil,signal,struct,subprocess,sys,tempfile,time,uuid
+import argparse,datetime,hashlib,json,math,os,platform,re,selectors,shutil,signal,struct,subprocess,sys,tempfile,time,traceback,uuid
 APP='tw.mars.sevendistrictreckoning';PCK='0fd586eb8e4f0b40ea0b7b88b0a1f7b3425ece3dfe34c59cf9418d578ad98bd7'
 MAX_BYTES=2*1024*1024;MAX_JSON=4096;MAX_RECORDS=64
 PHASES={'first_frame','base_world','actors','district_life','content_world','urban_detail','contacts','expansion','taiwan_world','bindings','world_ready'}
@@ -116,21 +116,24 @@ def parse_canonical_log(payload):
 DIAGNOSTIC_PUBLIC_KEY_SHA='ded6ee7789f2073902914539a4d7fe61f78e3c92278f22d84de014926014b470'
 DIAGNOSTIC_LOG_MAX=65536;DIAGNOSTIC_CHUNK=384;DIAGNOSTIC_RSA_BYTES=512
 DIAGNOSTIC_FRAME=struct.Struct('>4s16sHHI32sH')
-def canonical_frames(payload,nonce):
+DIAGNOSTIC_KINDS={'CANONICAL_LOG':(b'SC10','canonical-log'),'COLLECTOR_EXCEPTION':(b'SE10','collector-exception')}
+def canonical_frames(payload,nonce,kind='CANONICAL_LOG'):
+ require(kind in DIAGNOSTIC_KINDS,'DIAGNOSTIC_PACKET_KIND_INVALID')
  require(isinstance(payload,bytes) and 0<len(payload)<=DIAGNOSTIC_LOG_MAX and isinstance(nonce,bytes) and len(nonce)==16,'DIAGNOSTIC_CANONICAL_INPUT_BOUND')
  digest=hashlib.sha256(payload).digest();count=(len(payload)+DIAGNOSTIC_CHUNK-1)//DIAGNOSTIC_CHUNK;frames=[]
  for index in range(count):
   chunk=payload[index*DIAGNOSTIC_CHUNK:(index+1)*DIAGNOSTIC_CHUNK]
-  frames.append(DIAGNOSTIC_FRAME.pack(b'SC9\0',nonce,index,count,len(payload),digest,len(chunk))+chunk)
+  frames.append(DIAGNOSTIC_FRAME.pack(DIAGNOSTIC_KINDS[kind][0],nonce,index,count,len(payload),digest,len(chunk))+chunk)
  return frames
 
 def unframe_canonical_frames(frames,manifest):
  require(len(frames)==manifest['chunkCount'] and manifest['publicKeySha256']==DIAGNOSTIC_PUBLIC_KEY_SHA,'DIAGNOSTIC_FRAME_INVENTORY_MISMATCH')
+ kind=manifest.get('packetKind');require(kind in DIAGNOSTIC_KINDS,'DIAGNOSTIC_PACKET_KIND_INVALID')
  parts=[]
  for index,frame in enumerate(frames):
   require(len(frame)>=DIAGNOSTIC_FRAME.size,'DIAGNOSTIC_FRAME_INVALID')
   magic,nonce,seq,count,total,digest,length=DIAGNOSTIC_FRAME.unpack(frame[:DIAGNOSTIC_FRAME.size])
-  require(magic==b'SC9\0' and nonce.hex()==manifest['packetNonce'] and seq==index and count==manifest['chunkCount']
+  require(magic==DIAGNOSTIC_KINDS[kind][0] and nonce.hex()==manifest['packetNonce'] and seq==index and count==manifest['chunkCount']
    and total==manifest['plaintextBytes'] and digest.hex()==manifest['plaintextSha256'] and 0<length<=DIAGNOSTIC_CHUNK
    and len(frame)==DIAGNOSTIC_FRAME.size+length,'DIAGNOSTIC_FRAME_BINDING_MISMATCH')
   parts.append(frame[DIAGNOSTIC_FRAME.size:])
@@ -138,30 +141,47 @@ def unframe_canonical_frames(frames,manifest):
  require(len(payload)==manifest['plaintextBytes'] and hashlib.sha256(payload).hexdigest()==manifest['plaintextSha256'],'DIAGNOSTIC_RECONSTRUCTION_MISMATCH')
  return payload
 
-def encrypt_canonical_log(payload,output,children,environment):
+def encrypt_diagnostic_packet(payload,output,children,environment,kind,openssl='/usr/bin/openssl'):
+ require(kind in DIAGNOSTIC_KINDS,'DIAGNOSTIC_PACKET_KIND_INVALID')
  public=Path(__file__).with_name('seven-ios-debug-log-public.pem')
  require(not public.is_symlink() and public.is_file(),'DIAGNOSTIC_PUBLIC_KEY_MISSING')
  key=public.read_bytes();require(len(key)<=4096 and key.startswith(b'-----BEGIN PUBLIC KEY-----') and b'PRIVATE KEY' not in key
   and hashlib.sha256(key).hexdigest()==DIAGNOSTIC_PUBLIC_KEY_SHA,'DIAGNOSTIC_PUBLIC_KEY_PIN_MISMATCH')
- nonce=uuid.uuid4().bytes;frames=canonical_frames(payload,nonce);cipher=[];chunks=[];start=time.monotonic()
+ nonce=uuid.uuid4().bytes;frames=canonical_frames(payload,nonce,kind);cipher=[];chunks=[];start=time.monotonic()
  for index,frame in enumerate(frames):
   remaining=15-(time.monotonic()-start);require(remaining>0,'DIAGNOSTIC_ENCRYPT_BUDGET_EXCEEDED')
-  argv=['/usr/bin/openssl','pkeyutl','-encrypt','-pubin','-inkey',str(public),'-pkeyopt','rsa_padding_mode:oaep','-pkeyopt','rsa_oaep_md:sha256','-pkeyopt','rsa_mgf1_md:sha256']
+  argv=[openssl,'pkeyutl','-encrypt','-pubin','-inkey',str(public),'-pkeyopt','rsa_padding_mode:oaep','-pkeyopt','rsa_oaep_md:sha256','-pkeyopt','rsa_mgf1_md:sha256']
   process=subprocess.Popen(argv,stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,env=environment,start_new_session=True);children.add(process)
   encrypted,_=process.communicate(input=frame,timeout=min(15,remaining))
   require(process.returncode==0 and len(encrypted)==DIAGNOSTIC_RSA_BYTES,'DIAGNOSTIC_ENCRYPT_UNCONFIRMED')
   children.discard(process);cipher.append(encrypted)
   chunks.append({'index':index,'plaintextChunkBytes':len(frame)-DIAGNOSTIC_FRAME.size,'ciphertextBytes':len(encrypted),'ciphertextSha256':hashlib.sha256(encrypted).hexdigest()})
- blob=b''.join(cipher);manifest={'format':'SEVEN_CANONICAL_RSA4096_OAEP_SHA256_V1','packetNonce':nonce.hex(),'publicKeySha256':DIAGNOSTIC_PUBLIC_KEY_SHA,
+ blob=b''.join(cipher);manifest={'format':'SEVEN_PRIVATE_DIAGNOSTIC_RSA4096_OAEP_SHA256_V2','packetKind':kind,'packetNonce':nonce.hex(),'publicKeySha256':DIAGNOSTIC_PUBLIC_KEY_SHA,
   'plaintextBytes':len(payload),'plaintextSha256':hashlib.sha256(payload).hexdigest(),'chunkBytes':DIAGNOSTIC_CHUNK,'frameHeaderBytes':DIAGNOSTIC_FRAME.size,
   'chunkCount':len(frames),'ciphertextBlockBytes':DIAGNOSTIC_RSA_BYTES,'ciphertextBytes':len(blob),'ciphertextSha256':hashlib.sha256(blob).hexdigest(),
-  'ciphertextFile':'canonical-log-rsa4096-oaep.bin','chunks':chunks,'privateKeyInCI':False,'plaintextPubliclyStored':False}
- file=output/manifest['ciphertextFile'];meta=output/'canonical-log-encryption.json'
+  'ciphertextFile':DIAGNOSTIC_KINDS[kind][1]+'-rsa4096-oaep.bin','chunks':chunks,'privateKeyInCI':False,'plaintextPubliclyStored':False}
+ file=output/manifest['ciphertextFile'];meta=output/(DIAGNOSTIC_KINDS[kind][1]+'-encryption.json')
  require(not file.exists() and not meta.exists() and not file.is_symlink() and not meta.is_symlink(),'DIAGNOSTIC_FRESH_CIPHERTEXT_OUTPUT_REQUIRED')
  file.write_bytes(blob);meta.write_text(json.dumps(manifest,indent=2)+'\n')
- return {'status':'ENCRYPTED_CANONICAL_PREFIX_VERIFIED','publicKeySha256':DIAGNOSTIC_PUBLIC_KEY_SHA,'plaintextBytes':len(payload),
+ return {'status':'ENCRYPTED_PRIVATE_PACKET_VERIFIED','packetKind':kind,'publicKeySha256':DIAGNOSTIC_PUBLIC_KEY_SHA,'plaintextBytes':len(payload),
   'plaintextSha256':manifest['plaintextSha256'],'ciphertextBytes':len(blob),'ciphertextSha256':manifest['ciphertextSha256'],'chunkCount':len(frames),
   'ciphertextFile':file.name,'manifestFile':meta.name,'noPrivateKeyUsed':True}
+
+def encrypt_canonical_log(payload,output,children,environment):
+ return encrypt_diagnostic_packet(payload,output,children,environment,'CANONICAL_LOG')
+
+def safe_exception_context(error,report):
+ labels={'tool-find-simctl','tool-xcode-version','log-stream-help','log-show-help','log-manual','source-verify','sim-build','sim-verify','source-after-link','inventory','create','own-inventory','boot','bootstatus','install','launch','owned-info-stream','owned-info-history','container'}
+ active=report.get('activeCommand',{}).get('label')
+ location='UNKNOWN';tb=error.__traceback__
+ while tb:
+  function=tb.tb_frame.f_code.co_name
+  if function=='command':location='OWNED_COMMAND'
+  elif function=='encrypt_diagnostic_packet':location='DIAGNOSTIC_ENCRYPTION'
+  elif function=='run_probe' and location=='UNKNOWN':location='OWNED_PROBE'
+  tb=tb.tb_next
+ errno=getattr(error,'errno',None)
+ return {'activeCommand':active if active in labels else 'NONE_OR_UNKNOWN','exceptionKind':type(error).__name__,'errno':errno if type(errno) is int and 0<=errno<=65535 else None,'location':location}
 
 def owned_identity(inventory,udid,name,runtime,model):
  rows=[d for d in inventory.get('devices',{}).get(runtime,[]) if d.get('udid','').lower()==udid.lower()]
@@ -283,6 +303,13 @@ def run_probe(source,metadata,verifier,output):
    report['failureCode']=canonical_failure or next((x['failureCode'] for x in [stream_evidence,history_evidence] if x.get('failureCode')),'CAPABILITY_JSON_SCHEMA_NOT_OBSERVED')
  except (ProbeStop,OSError,ValueError,KeyError,TypeError,subprocess.SubprocessError) as error:
   report['status']='CAPABILITY_UNAVAILABLE_OR_FAILED';report['failureCode']=str(error) if isinstance(error,ProbeStop) else type(error).__name__
+  report['failureContext']=safe_exception_context(error,report)
+  try:
+   private_trace=''.join(traceback.format_exception(type(error),error,error.__traceback__,limit=12)).encode('utf-8')[:16384]
+   report['encryptedCollectorException']=encrypt_diagnostic_packet(private_trace,output,children,environment,'COLLECTOR_EXCEPTION')
+  except (ProbeStop,OSError,ValueError,KeyError,TypeError,subprocess.SubprocessError) as diagnostic_error:
+   report['exceptionEncryptionFailure']=safe_exception_context(diagnostic_error,{})
+
  finally:
   if owner:
    try:

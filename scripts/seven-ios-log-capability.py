@@ -83,6 +83,36 @@ def parse_unified(payload,pid):
   if len(values)<MAX_RECORDS:values.append(v);counts['typedAccepted']+=1
   else:counts['recordLimitDropped']+=1
  return values,counts
+def collect_unified_source(payload,pid,source,stats):
+ require(source in {'STREAM','HISTORY'},'UNIFIED_SOURCE_ENUM_UNRECOGNIZED')
+ evidence={'source':source,'schemaVerified':False,'inputBytes':len(payload),'privateInputSha256':hashlib.sha256(payload).hexdigest(),
+  'commandBytesReceived':stats['bytesReceived'],'commandBytesDropped':stats['bytesDropped'],'typedAccepted':0}
+ try:values,counts=parse_unified(payload,pid)
+ except ProbeStop as error:
+  code=str(error)
+  if code not in {'LOG_JSON_SCHEMA_UNRECOGNIZED','LOG_JSON_UTF8_UNRECOGNIZED','LOG_JSON_RECORD_BOUND'}:raise
+  evidence['failureCode']=code;return [],{},evidence
+ evidence['schemaVerified']=counts['knownSchemaRows']>0;evidence['typedAccepted']=len(values)
+ if not evidence['schemaVerified']:evidence['failureCode']='CAPABILITY_JSON_SCHEMA_NOT_OBSERVED'
+ return values,counts,evidence
+
+def parse_canonical_log(payload):
+ require(len(payload)<=MAX_BYTES,'CANONICAL_LOG_INPUT_BOUND')
+ try:text=payload.decode('utf-8')
+ except UnicodeError:raise ProbeStop('CANONICAL_LOG_UTF8_UNRECOGNIZED') from None
+ values=[];counts={'linesReceived':0,'typedCandidates':0,'typedAccepted':0,'typedRejected':0,'recordLimitDropped':0,
+  'errorCategories':{'SCRIPT_ERROR':0,'ERROR':0}}
+ for line in text.splitlines():
+  counts['linesReceived']+=1
+  if line.startswith('SCRIPT ERROR:'):counts['errorCategories']['SCRIPT_ERROR']+=1
+  elif line.startswith('ERROR:'):counts['errorCategories']['ERROR']+=1
+  if not line.startswith('SEVEN_STARTUP '):continue
+  counts['typedCandidates']+=1;value=typed_marker(line)
+  if value is None:counts['typedRejected']+=1;continue
+  if len(values)<MAX_RECORDS:values.append(value);counts['typedAccepted']+=1
+  else:counts['recordLimitDropped']+=1
+ return values,counts
+
 def owned_identity(inventory,udid,name,runtime,model):
  rows=[d for d in inventory.get('devices',{}).get(runtime,[]) if d.get('udid','').lower()==udid.lower()]
  return len(rows)==1 and rows[0].get('name')==name and rows[0].get('deviceTypeIdentifier')==model and rows[0].get('isAvailable') is True
@@ -157,33 +187,46 @@ def run_probe(source,metadata,verifier,output):
   name='Mars-Seven-Log-'+uuid.uuid4().hex;raw,_=command('create',['xcrun','simctl','create',name,models[0]['identifier'],runtimes[0]['identifier']]);udid=raw.decode().strip();require(re.fullmatch(r'[A-Fa-f0-9]{8}(?:-[A-Fa-f0-9]{4}){3}-[A-Fa-f0-9]{12}',udid) and udid.lower() not in old,'FRESH_OWNED_UDID_REQUIRED')
   owner={'udid':udid,'name':name,'runtime':runtimes[0]['identifier'],'model':models[0]['identifier']};confirm()
   command('boot',['xcrun','simctl','boot',udid],seconds=180);command('bootstatus',['xcrun','simctl','bootstatus',udid,'-b'],seconds=600);confirm()
-  command('install',['xcrun','simctl','install',udid,app],seconds=360);raw,_=command('launch',['xcrun','simctl','launch',udid,APP],seconds=360);pid=parse_pid(raw.decode('utf-8','replace'));os.kill(pid,0);report['ownedAppPidConfirmed']=True
+  command('install',['xcrun','simctl','install',udid,app],seconds=360);raw,_=command('launch',['xcrun','simctl','launch',udid,APP,'--log-file','user://logs/godot.log'],seconds=360);pid=parse_pid(raw.decode('utf-8','replace'));os.kill(pid,0);report['ownedAppPidConfirmed']=True
   predicate=f'processID == {pid} AND subsystem == "{APP}" AND category == "engine" AND messageType == 1 AND eventMessage BEGINSWITH "SEVEN_STARTUP "'
   raw,stats=command('owned-info-stream',['/usr/bin/log','stream','--level','info','--style','ndjson','--predicate',predicate],seconds=60,limit=MAX_BYTES,allow_failure=True,stdout_only=True)
   require(stats['timedOut'] or stats['exitCode']==0,'CAPABILITY_LOG_STREAM_REJECTED')
-  raw_values,counts=parse_unified(raw,pid)
+  raw_values,counts,stream_evidence=collect_unified_source(raw,pid,'STREAM',stats)
   values=[]
   for value in raw_values:
    if value not in values and len(values)<MAX_RECORDS:values.append(value)
-  # One predeclared, supported same-PID query covers early launch markers if INFO
-  # was persisted; this is not an alternate-argument retry of a rejected command.
+  # This original single same-PID history query remains fixed even after a known
+  # schema rejection; never guess a format, change flags, or repeat a rejected query.
   history,history_stats=command('owned-info-history',['/usr/bin/log','show','--last','2m','--info','--style','ndjson','--predicate',predicate],seconds=30,limit=MAX_BYTES,stdout_only=True)
-  early,early_counts=parse_unified(history,pid);require(counts['knownSchemaRows']+early_counts['knownSchemaRows']>0,'CAPABILITY_JSON_SCHEMA_NOT_OBSERVED')
+  early,early_counts,history_evidence=collect_unified_source(history,pid,'HISTORY',history_stats)
   for value in early:
    if value not in values and len(values)<MAX_RECORDS:values.append(value)
   report['earlyHistoryCoverage']=early_counts;report['earlyInfoPersistenceNotGuaranteed']=True
-  report.update(actualCapabilitiesVerified=True,phaseEvents=values,coverage={**counts,**{k:stats[k] for k in ['bytesReceived','bytesRetained','bytesDropped']}},evidenceStatus='TYPED_PHASE_MARKERS_OBSERVED' if values else 'MISSING_PHASE_EVIDENCE')
-  # Optional single canonical file only, never recurse or inspect saves.
+  unified_verified=stream_evidence['schemaVerified'] and history_evidence['schemaVerified']
+  report.update(actualCapabilitiesVerified=unified_verified,unifiedLogVerified=unified_verified,phaseEvents=values,
+   unifiedLogDiagnostics=[stream_evidence,history_evidence],coverage=counts,canonicalFileLoggingRequested=True)
+  # Read only the existing exact owned canonical path; no recursive userdata.
   raw,_=command('container',['xcrun','simctl','get_app_container',udid,APP,'data']);file=safe_file(raw.decode().strip(),udid)
-  report['canonicalGodotLogExists']=file.is_file()
+  report['canonicalGodotLogExists']=file.is_file();canonical_failure=None
   if file.is_file():
    with file.open('rb') as stream:data=stream.read(MAX_BYTES)
-   rows=[typed_marker(x) for x in data.decode('utf-8','replace').splitlines()];added=0
-   for value in rows:
-    if value is not None and value not in report['phaseEvents'] and len(report['phaseEvents'])<MAX_RECORDS:report['phaseEvents'].append(value);added+=1
-   report['canonicalFileCoverage']={'bytesRetained':len(data),'additionalTypedRecords':added,'readBoundBytes':MAX_BYTES}
-  report['evidenceStatus']='TYPED_PHASE_MARKERS_OBSERVED' if report['phaseEvents'] else 'MISSING_PHASE_EVIDENCE'
-  report['status']='CAPABILITY_PROBE_COMPLETED_DIAGNOSTIC_ONLY'
+   coverage={'bytesRetained':len(data),'atReadBound':len(data)==MAX_BYTES,'readBoundBytes':MAX_BYTES,'privateInputSha256':hashlib.sha256(data).hexdigest(),'typedEvidenceParsed':False}
+   try:rows,file_counts=parse_canonical_log(data)
+   except ProbeStop as error:
+    if str(error)!='CANONICAL_LOG_UTF8_UNRECOGNIZED':raise
+    canonical_failure=str(error);coverage['failureCode']=canonical_failure
+   else:
+    added=0
+    for value in rows:
+     if value not in report['phaseEvents'] and len(report['phaseEvents'])<MAX_RECORDS:report['phaseEvents'].append(value);added+=1
+    coverage.update(file_counts,typedEvidenceParsed=True,additionalTypedRecords=added)
+   report['canonicalFileCoverage']=coverage
+  report['gameTypedEvidenceVerified']=bool(report['phaseEvents'])
+  report['evidenceStatus']='TYPED_PHASE_MARKERS_OBSERVED' if report['gameTypedEvidenceVerified'] else 'MISSING_PHASE_EVIDENCE'
+  if unified_verified and not canonical_failure:report['status']='CAPABILITY_PROBE_COMPLETED_DIAGNOSTIC_ONLY'
+  else:
+   report['status']='DIAGNOSTIC_EVIDENCE_COLLECTED_UNIFIED_OR_FILE_UNVERIFIED'
+   report['failureCode']=canonical_failure or next((x['failureCode'] for x in [stream_evidence,history_evidence] if x.get('failureCode')),'CAPABILITY_JSON_SCHEMA_NOT_OBSERVED')
  except (ProbeStop,OSError,ValueError,KeyError,TypeError,subprocess.SubprocessError) as error:
   report['status']='CAPABILITY_UNAVAILABLE_OR_FAILED';report['failureCode']=str(error) if isinstance(error,ProbeStop) else type(error).__name__
  finally:

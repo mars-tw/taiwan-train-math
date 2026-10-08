@@ -123,7 +123,7 @@ def run_probe(source,metadata,verifier,output):
   return bytes(stdout if stdout_only else retained),row
  def json_command(label,args,seconds=15):return json.loads(command(label,args,seconds=seconds,limit=MAX_BYTES)[0])
  def confirm():
-  require(owner and owned_identity(json_command('own-inventory',['xcrun','simctl','list','--json']),**owner),'OWNED_SIM_IDENTITY_UNCONFIRMED')
+  require(owner and owned_identity(json_command('own-inventory',['xcrun','simctl','list','--json'],seconds=90),**owner),'OWNED_SIM_IDENTITY_UNCONFIRMED')
  try:
   report['toolPreflight']={'simctlFound':False,'xcodeVersionExact':False,'supportState':'UNKNOWN'}
   raw,find_stats=command('tool-find-simctl',['xcrun','--find','simctl'],seconds=90)

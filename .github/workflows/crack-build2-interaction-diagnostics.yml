@@ -1,0 +1,205 @@
+name: Crack build2 simulator interaction failure diagnostics only
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: crack-build2-native
+  cancel-in-progress: false
+env:
+  CRACK_BUILD2_RELEASE_TAG: all-games-godot-crack-build2-continuity-20261009
+  # Exact Root-created PRIVATE DRAFT; this candidate does not dispatch it.
+  CRACK_BUILD2_RELEASE_ID: '407985925'
+jobs:
+  fetch:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    steps:
+      - name: Fetch only Root-pinned new Crack build2 PRIVATE DRAFT inputs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import hashlib,json,os,pathlib,re,subprocess
+          repo='mars-tw/taiwan-train-math';tag=os.environ['CRACK_BUILD2_RELEASE_TAG'];release_id=int(os.environ['CRACK_BUILD2_RELEASE_ID'])
+          if release_id<=0:raise SystemExit('ROOT_DRAFT_ID_NOT_PINNED; no remote request')
+          if os.environ['GITHUB_REPOSITORY']!=repo or os.environ['GITHUB_REF']!='refs/heads/main':raise SystemExit('Trusted repository/main required')
+          expected={'CrackveilVanguard-1.0.0-build2-continuity-game-source-manifest.json': '975871052ae1a04944b009957b09afc0db74ced44bcbcfbd66b48bb3a01cdb0a', 'CrackveilVanguard-1.0.0-build2-continuity-game-source.zip': 'a6039633079fbccc42b3bd16ebda0ee1321276cd90ea4fe1d10bc439a1eaf910', 'CrackveilVanguard-1.0.0-build2-continuity-unsigned-source.zip': 'e582f31c045372869338cc11cf0be4e302eaae5b0b3171ab6684198027e82821', 'crackveil-vanguard-build2-continuity-source-verification.json': 'e48263485bf4967617d33f6a6fbfac6236c35a7645a0e04de61758586bd315bd', 'ci_verify_crack_build2.py': 'b1e1db726328489adaf1b2ffe68cbd53e5990b0a1983d58366f7b00a4be318bb', 'ci_verify_crack_build2_continuity_inputs.py': '10a9aa93366e8c15e8a451b88610a29db707788a4bf8962cd7254a2a7edecc58', 'ci_crack_build2_ios_export.sh': '259e58bf10c006c0a8f78fd6dd04e8fac708306d1655efedc7e1d07b24c74492', 'build2-continuity-source-revision.json': '93805fddfe62b05e3dde37b8c94215daaba2f2733f76501523d99f37ffde67c0', 'crack-native-interaction.mjs': '50303c19c9ce704fb8f212898f586145884866907ccea8d1efe8564a70264db0', 'create-crack-interaction-project.py': '953c4206aa915d23b85315298bdb2e9ab0fab8c45ce9725ddc2f5fe2a4136b04', 'crack-interaction-proof.mjs': '84d1f93db1e41fd1bb1a036ea764ef32bfa865695eadbc0026d13c6903a85075', 'crack-build2-interaction-authority.json': 'b0a0232743c03da5e45754c5550497837cad12d9453f34fa4c23b60fccade1dc', 'SHA256SUMS': '155f697ae7e8c1c3b8db88ecce61e7ff7b9cce46ecdd61673bb392ae081f83ca'}
+          if any(not re.fullmatch(r'[0-9a-f]{64}',h) for h in expected.values()):raise SystemExit('ROOT_FINAL_INPUT_PINS_NOT_FROZEN; no remote request')
+          def gh(args,timeout=60):
+              p=subprocess.run(['gh',*args],capture_output=True,timeout=timeout)
+              if p.returncode:raise SystemExit('Private draft read failed; raw output withheld')
+              return p.stdout
+          pages=json.loads(gh(['api','--paginate','--slurp','repos/'+repo+'/releases?per_page=100']))
+          matches=[r for page in pages for r in page if r.get('tag_name')==tag and r.get('draft') is True and r.get('id')==release_id]
+          if len(matches)!=1:raise SystemExit('One exact new PRIVATE Crack draft required')
+          release=matches[0]
+          if not set(expected).issubset({a['name'] for a in release.get('assets',[])}):raise SystemExit('Missing pinned Crack inputs')
+          base=pathlib.Path(os.environ['RUNNER_TEMP'])/'crack-build2-native-input';base.mkdir(mode=0o700)
+          for name in expected:gh(['release','download',tag,'--repo',repo,'--pattern',name,'--dir',str(base)],300)
+          for name,pin in expected.items():
+              if hashlib.sha256((base/name).read_bytes()).hexdigest()!=pin:raise SystemExit('Frozen Crack input differs')
+          entries={}
+          for line in (base/'SHA256SUMS').read_text().splitlines():
+              m=re.fullmatch(r'([0-9a-f]{64})  ([A-Za-z0-9._-]+)',line)
+              if not m or m[2] in entries:raise SystemExit('Invalid immutable checksum manifest')
+              entries[m[2]]=m[1]
+          if entries!={n:h for n,h in expected.items() if n!='SHA256SUMS'}:raise SystemExit('Checksum tuple differs')
+          proof={'repository':repo,'releaseTag':tag,'releaseId':release_id,'releaseDraft':True,'projectId':'crackveil-vanguard','version':'1.0.0','build':2,'inputSha256':expected,'storeMutation':False}
+          (base/'input-provenance.json').write_text(json.dumps(proof,indent=2)+'\n')
+          PY
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: crack-build2-native-input-${{ github.run_id }}
+          path: ${{ runner.temp }}/crack-build2-native-input
+          retention-days: 1
+          if-no-files-found: error
+      - name: Always remove only this fetched input
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import os,pathlib,shutil
+          parent=pathlib.Path(os.environ['RUNNER_TEMP']).resolve();target=parent/'crack-build2-native-input'
+          if not target.is_symlink() and target.resolve()!=parent and target.resolve().is_relative_to(parent):shutil.rmtree(target,ignore_errors=True)
+          PY
+  native:
+    needs: fetch
+    runs-on: macos-26-intel
+    timeout-minutes: 100
+    permissions:
+      contents: read
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: crack-build2-native-input-${{ github.run_id }}
+          path: ${{ runner.temp }}/crack-build2-native-input
+      - name: Verify raw634 and exact native47 before any signing secrets
+        id: verify_source
+        run: |
+          python3 - <<'PY'
+          import hashlib,json,os,pathlib,subprocess
+          parent=pathlib.Path(os.environ['RUNNER_TEMP']).resolve();base=parent/'crack-build2-native-input';source=parent/'crack-build2-native-source'
+          out=pathlib.Path(os.environ['GITHUB_WORKSPACE'])/'output/crack-build2-native'
+          expected={'CrackveilVanguard-1.0.0-build2-continuity-game-source-manifest.json': '975871052ae1a04944b009957b09afc0db74ced44bcbcfbd66b48bb3a01cdb0a', 'CrackveilVanguard-1.0.0-build2-continuity-game-source.zip': 'a6039633079fbccc42b3bd16ebda0ee1321276cd90ea4fe1d10bc439a1eaf910', 'CrackveilVanguard-1.0.0-build2-continuity-unsigned-source.zip': 'e582f31c045372869338cc11cf0be4e302eaae5b0b3171ab6684198027e82821', 'crackveil-vanguard-build2-continuity-source-verification.json': 'e48263485bf4967617d33f6a6fbfac6236c35a7645a0e04de61758586bd315bd', 'ci_verify_crack_build2.py': 'b1e1db726328489adaf1b2ffe68cbd53e5990b0a1983d58366f7b00a4be318bb', 'ci_verify_crack_build2_continuity_inputs.py': '10a9aa93366e8c15e8a451b88610a29db707788a4bf8962cd7254a2a7edecc58', 'ci_crack_build2_ios_export.sh': '259e58bf10c006c0a8f78fd6dd04e8fac708306d1655efedc7e1d07b24c74492', 'build2-continuity-source-revision.json': '93805fddfe62b05e3dde37b8c94215daaba2f2733f76501523d99f37ffde67c0', 'crack-native-interaction.mjs': '50303c19c9ce704fb8f212898f586145884866907ccea8d1efe8564a70264db0', 'create-crack-interaction-project.py': '953c4206aa915d23b85315298bdb2e9ab0fab8c45ce9725ddc2f5fe2a4136b04', 'crack-interaction-proof.mjs': '84d1f93db1e41fd1bb1a036ea764ef32bfa865695eadbc0026d13c6903a85075', 'crack-build2-interaction-authority.json': 'b0a0232743c03da5e45754c5550497837cad12d9453f34fa4c23b60fccade1dc', 'SHA256SUMS': '155f697ae7e8c1c3b8db88ecce61e7ff7b9cce46ecdd61673bb392ae081f83ca'}
+          if os.environ['GITHUB_REPOSITORY']!='mars-tw/taiwan-train-math' or os.environ['GITHUB_REF']!='refs/heads/main':raise SystemExit('Trusted Crack main required')
+          for name,pin in expected.items():
+              f=base/name
+              if f.is_symlink() or hashlib.sha256(f.read_bytes()).hexdigest()!=pin:raise SystemExit('Frozen Crack input differs')
+          proof=json.loads((base/'input-provenance.json').read_text())
+          if proof.get('releaseId')!=int(os.environ['CRACK_BUILD2_RELEASE_ID']) or proof.get('releaseTag')!=os.environ['CRACK_BUILD2_RELEASE_TAG'] or proof.get('releaseDraft') is not True or proof.get('inputSha256')!=expected:raise SystemExit('Private source relay provenance differs')
+          metadata=base/'crackveil-vanguard-build2-continuity-source-verification.json';m=json.loads(metadata.read_text())
+          if (m.get('appId'),m.get('nativeVersion'),m.get('nativeBuild'),m.get('sourceFiles'),m.get('rawGameSourceFiles'),m.get('pckSha256'),m.get('sourceInputManifestSha256'))!=('tw.mars.crackveilvanguard','1.0.0',2,47,634,'a6676ef12cf8badb262ebdd475db0e6eafb2c74369666f7c8ca56d4d5c1e17d0','975871052ae1a04944b009957b09afc0db74ced44bcbcfbd66b48bb3a01cdb0a'):raise SystemExit('Exact new Crack full source tuple required')
+          export_file=base/'build2-continuity-source-revision.json';export=json.loads(export_file.read_text())
+          if m.get('actualRootExportReceipt',{}).get('sha256')!=hashlib.sha256(export_file.read_bytes()).hexdigest() or export.get('status')!='OBSERVED_SOURCE_PACK_AND_NO_QA_HEADLESS_STARTUP_PASSED' or export.get('sourceBeforeAfterPackEqual') is not True or export.get('sourceBeforeAfterAllPhasesEqual') is not True or export.get('sourceFiles')!=634 or export.get('qaArgumentEnabledThisUnit') is not False or export.get('sourceManifestSha256')!=m['sourceInputManifestSha256'] or export.get('pckSha256')!=m['pckSha256'] or not any(x.get('role')=='pck-export' and x.get('status')=='PASSED' and x.get('exitCode')==0 and x.get('errorCount')==0 for x in export.get('phaseResults',[])):raise SystemExit('Actual observed export linkage differs')
+          if source.exists() or source.is_symlink() or out.exists():raise SystemExit('Fresh owned source/output required')
+          out.mkdir(parents=True)
+          # The 13 original release assets above remain byte-pinned. Derive only this owned execution copy.
+          raw_helper=base/'ci_crack_build2_ios_export.sh';lf_helper=base/'ci_crack_build2_ios_export_lf.sh'
+          raw=raw_helper.read_bytes();raw_sha=hashlib.sha256(raw).hexdigest()
+          if raw_sha!='259e58bf10c006c0a8f78fd6dd04e8fac708306d1655efedc7e1d07b24c74492' or b'\r' in raw.replace(b'\r\n',b''):raise SystemExit('Pinned assembler bytes or bare CR differs')
+          normalized=raw.replace(b'\r\n',b'\n');normalized_sha=hashlib.sha256(normalized).hexdigest()
+          if normalized_sha!='d148a09149141f6b45d99a0df0c38b3ceebdfa9f2553285af5879488c8348252' or b'\r' in normalized:raise SystemExit('Deterministic LF assembler differs')
+          if lf_helper.exists() or lf_helper.is_symlink():raise SystemExit('Fresh owned LF execution copy required')
+          with lf_helper.open('xb') as stream:stream.write(normalized);stream.flush();os.fsync(stream.fileno())
+          if hashlib.sha256(lf_helper.read_bytes()).hexdigest()!=normalized_sha:raise SystemExit('Written LF execution copy differs')
+          (out/'helper-line-endings-verification.json').write_text(json.dumps({'status':'ORIGINAL_PINNED_DETERMINISTIC_LF_COPY_VERIFIED','originalFile':raw_helper.name,'originalSha256':raw_sha,'originalBytes':len(raw),'originalCrlfCount':raw.count(b'\r\n'),'bareCrCount':0,'normalizedFile':lf_helper.name,'normalizedSha256':normalized_sha,'normalizedBytes':len(normalized),'normalizedCrCount':0,'method':'bytes.replace(CRLF,LF)','originalReleaseInputsChanged':False},indent=2)+'\n')
+          original_producer=base/'crack-native-interaction.mjs';derived_producer=base/'crack-native-interaction-diagnostics.mjs'
+          original_bytes=original_producer.read_bytes();original_sha=hashlib.sha256(original_bytes).hexdigest()
+          if original_sha!='50303c19c9ce704fb8f212898f586145884866907ccea8d1efe8564a70264db0':raise SystemExit('Pinned original interaction producer differs')
+          failure_patch="--- a/crack-native-interaction.mjs\n+++ b/crack-native-interaction.mjs\n@@ -129,7 +129,19 @@\n     const passive=await feed.stop();\n     const passiveFile=path.join(output,kind+'-session-passive-evidence.json');\n     await fs.writeFile(passiveFile,JSON.stringify({projectId:project,appId,version:'1.0.0',build:2,pckSha256:authority.pckSha256,kind,...passive},null,2));\n-    if(test.code!==0||test.timedOut||passive.error)throw new Error('Actual interaction failed; no warm fallback or second Start');\n+    if(test.code!==0||test.timedOut||passive.error){\n+      const safePassiveCode=typeof passive.error==='string'&&/^[A-Z0-9_]{1,100}$/.test(passive.error)?passive.error:passive.error?'PASSIVE_FAILURE_UNKNOWN':null;\n+      const failure={status:'NATIVE_INTERACTION_TEST_FAILED',projectId:project,appId,version:'1.0.0',build:2,pckSha256:authority.pckSha256,device:kind,\n+        command:kind+'-xctest',exitCode:Number.isInteger(test.code)?test.code:null,timedOut:test.timedOut===true,\n+        reason:test.timedOut?'XCTEST_TIMED_OUT':test.code!==0?'XCTEST_EXIT_NONZERO':'PASSIVE_SAMPLE_FAILURE',\n+        passiveFailureCode:safePassiveCode,passiveFileRead:passive.fileRead===true,\n+        passiveSampleCount:Number.isSafeInteger(passive.total)&&passive.total>=0&&passive.total<=30000?passive.total:null,\n+        safeTestDiagnostics:typeof test.text==='string'?safeLines(test.text):[],rawLogsIncluded:false,\n+        interactiveGameplayTested:false,nativeRuntimeReady:false,uiReleaseReady:false,physicalDeviceTested:false,storeQualified:false};\n+      try{await fs.writeFile(path.join(output,'capture-command-failure.json'),JSON.stringify(failure,null,2));}\n+      catch{console.error('SAFE_INTERACTION_FAILURE_RECEIPT_WRITE_FAILED');}\n+      throw new Error('Actual interaction failed; no warm fallback or second Start');\n+    }\n     const warmPath=path.join(scratch,kind+'-warm.xcresult');\n     const warm=await command(kind+'-warm-xctest',['xcodebuild','-project',path.join(runner,'Capture.xcodeproj'),'-scheme','Capture',\n       '-destination','platform=iOS Simulator,id='+device,'-derivedDataPath',path.join(scratch,kind+'-derived-tests'),\n"
+          if hashlib.sha256(failure_patch.encode('utf-8')).hexdigest()!='013a45774465f6f3efba9860a1cf13299ba3c1139ecaa2302e7eb421b7e5021d':raise SystemExit('Reviewed failure-only patch differs')
+          diff_lines=failure_patch.splitlines(keepends=True);headers=[i for i,line in enumerate(diff_lines) if line.startswith('@@ ')]
+          if len(headers)!=1 or not diff_lines[0].startswith('--- a/crack-native-interaction.mjs') or not diff_lines[1].startswith('+++ b/crack-native-interaction.mjs'):raise SystemExit('One scoped producer patch required')
+          body=diff_lines[headers[0]+1:]
+          if any(line[:1] not in [' ','-','+'] for line in body):raise SystemExit('Unexpected patch structure')
+          before=''.join(line[1:] for line in body if line[:1] in [' ','-']);after=''.join(line[1:] for line in body if line[:1] in [' ','+'])
+          newline='\r\n' if b'\r\n' in original_bytes else '\n';before_bytes=before.replace('\n',newline).encode('utf-8');after_bytes=after.replace('\n',newline).encode('utf-8')
+          if original_bytes.count(before_bytes)!=1:raise SystemExit('Single original failed-test site required')
+          derived=original_bytes.replace(before_bytes,after_bytes);derived_sha=hashlib.sha256(derived).hexdigest()
+          if derived_sha!='cc0ab72aa02a82adb7cfbb90ac0599e655520655474be9f3b78529c68215616a':raise SystemExit('Derived failure-evidence producer differs')
+          if derived_producer.exists() or derived_producer.is_symlink():raise SystemExit('Fresh owned derived producer required')
+          with derived_producer.open('xb') as stream:stream.write(derived);stream.flush();os.fsync(stream.fileno())
+          if hashlib.sha256(derived_producer.read_bytes()).hexdigest()!=derived_sha:raise SystemExit('Written derived producer differs')
+          (out/'failure-evidence-derivation.json').write_text(json.dumps({'status':'REVIEWED_FAILURE_ONLY_PRODUCER_DERIVED','rawFile':original_producer.name,'rawSha256':original_sha,'rawBytes':len(original_bytes),'reviewedPatchSha256':'013a45774465f6f3efba9860a1cf13299ba3c1139ecaa2302e7eb421b7e5021d','derivedFile':derived_producer.name,'derivedSha256':derived_sha,'derivedBytes':len(derived),'originalInputsChanged':False,'gameSourceOrPckChanged':False,'runtimeReady':False,'physicalDeviceTested':False},indent=2)+'\n')
+          subprocess.run(['python3',str(base/'ci_verify_crack_build2_continuity_inputs.py'),'--raw-zip',str(base/'CrackveilVanguard-1.0.0-build2-continuity-game-source.zip'),'--manifest',str(base/'CrackveilVanguard-1.0.0-build2-continuity-game-source-manifest.json'),'--native-metadata',str(metadata),'--output',str(out/'raw-input-verification.json')],check=True,timeout=300)
+          subprocess.run(['python3',str(base/'ci_verify_crack_build2.py'),'source','--zip',str(base/'CrackveilVanguard-1.0.0-build2-continuity-unsigned-source.zip'),'--metadata',str(metadata),'--project','crackveil-vanguard','--root',str(source),'--output',str(out/'source-verification.json')],check=True,timeout=300)
+          subprocess.run(['bash',str(base/'ci_crack_build2_ios_export_lf.sh'),'prepare',str(source),'crackveil-vanguard',str(out/'prepare'),str(metadata)],check=True,timeout=600)
+          (out/'input-provenance.json').write_text(json.dumps(proof,indent=2)+'\n')
+          PY
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 22.14.0
+      - name: One source-bound real iPhone and iPad interaction producer
+        id: simulator_observations
+        if: ${{ !cancelled() && steps.verify_source.outcome == 'success' }}
+        continue-on-error: false
+        run: |
+          test "$(node -p 'process.versions.node')" = 22.14.0
+          node "$RUNNER_TEMP/crack-build2-native-input/crack-native-interaction-diagnostics.mjs" crackveil-vanguard "$RUNNER_TEMP/crack-build2-native-source" "$RUNNER_TEMP/crack-build2-native-input/crackveil-vanguard-build2-continuity-source-verification.json" "$RUNNER_TEMP/crack-build2-native-input/ci_verify_crack_build2.py" "$GITHUB_WORKSPACE/output/crack-build2-native/interaction" "$RUNNER_TEMP/crack-build2-native-input/crack-build2-interaction-authority.json"
+      - name: Record actual two-device Start HUD warm interaction independently
+        id: interaction
+        if: ${{ !cancelled() && steps.verify_source.outcome == 'success' }}
+        continue-on-error: false
+        run: |
+          python3 - <<'PY'
+          import json,os,pathlib,subprocess
+          base=pathlib.Path(os.environ['RUNNER_TEMP'])/'crack-build2-native-input';source=pathlib.Path(os.environ['RUNNER_TEMP'])/'crack-build2-native-source';out=pathlib.Path(os.environ['GITHUB_WORKSPACE'])/'output/crack-build2-native'
+          subprocess.run(['python3',str(base/'ci_verify_crack_build2.py'),'source','--root',str(source),'--metadata',str(base/'crackveil-vanguard-build2-continuity-source-verification.json'),'--project','crackveil-vanguard','--output',str(out/'source-verification-after-sim.json')],check=True,timeout=300)
+          receipt=out/'interaction/interaction-proof.json'
+          def hold(reason):
+              (out/'interaction-gate.json').write_text(json.dumps({'status':reason,'interactiveGameplayTested':False,'nativeRuntimeReady':False,'uiReleaseReady':False,'physicalDeviceTested':False,'storeQualified':False},indent=2)+'\n')
+              raise SystemExit(reason)
+          if not receipt.is_file() or receipt.is_symlink():hold('ACTUAL_TWO_DEVICE_INTERACTION_HOOK_MISSING')
+          r=json.loads(receipt.read_text())
+          if (r.get('projectId'),r.get('appId'),r.get('version'),r.get('build'),r.get('pckSha256'))!=('crackveil-vanguard','tw.mars.crackveilvanguard','1.0.0',2,'a6676ef12cf8badb262ebdd475db0e6eafb2c74369666f7c8ca56d4d5c1e17d0'):hold('INTERACTION_SOURCE_IDENTITY_UNCONFIRMED')
+          if r.get('status')!='TWO_SIMULATOR_REAL_INPUT_AND_STATE_VERIFIED' or r.get('sourceInputManifestSha256')!='975871052ae1a04944b009957b09afc0db74ced44bcbcfbd66b48bb3a01cdb0a' or r.get('nativeSimulatorInteractionVerified') is not True or set(r.get('devices',{}))!={'iphone','ipad'}:hold('FORMAL_SCOPED_INTERACTION_PROOF_UNCONFIRMED')
+          capture_file=out/'interaction/runtime-capture.json'
+          if not capture_file.is_file() or capture_file.is_symlink():hold('ACTUAL_NATIVE_CAPTURE_RECEIPT_MISSING')
+          capture=json.loads(capture_file.read_text())
+          if capture.get('sameVerifiedBuild2SourceUnchanged') is not True or capture.get('sourceAfterVerificationPending') is not False:hold('INTERACTION_SOURCE_AFTER_GUARD_UNCONFIRMED')
+          for role in ['iphone','ipad']:
+              d=r.get('devices',{}).get(role,{})
+              if any(d.get(k) is not True for k in ['actualNativeForegroundVerified','menuVisible','hudVisibleAfterStart','warmSceneVisible','touchMoveVerified','pauseResumeVerified']) or type(d.get('startActionCount')) is not int or d['startActionCount']!=1:hold('ACTUAL_TWO_DEVICE_INTERACTION_UNCONFIRMED')
+              if d.get('movementContinuity')!='SAME_NONZERO_PLAYER_SCENE_SEED_CONTINUOUS_INTERVAL':hold('CONTINUOUS_ACTOR_IDENTITY_UNCONFIRMED')
+          (out/'interaction-gate.json').write_text(json.dumps({'status':'TWO_SIMULATOR_INTERACTION_VERIFIED','interactiveGameplayTested':True,'nativeRuntimeReady':False,'uiReleaseReady':False,'physicalDeviceTested':False,'storeQualified':False},indent=2)+'\n')
+          PY
+      - name: Always cleanup only owned source and input
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import os,pathlib,shutil
+          parent=pathlib.Path(os.environ['RUNNER_TEMP']).resolve()
+          for name in ['crack-build2-native-input','crack-build2-native-source']:
+              target=parent/name
+              if not target.is_symlink() and target.resolve()!=parent and target.resolve().is_relative_to(parent):shutil.rmtree(target,ignore_errors=True)
+          PY
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: crack-build2-interaction-diagnostics-${{ github.run_id }}
+          path: |
+            output/crack-build2-native/input-provenance.json
+            output/crack-build2-native/helper-line-endings-verification.json
+            output/crack-build2-native/failure-evidence-derivation.json
+            output/crack-build2-native/raw-input-verification.json
+            output/crack-build2-native/source-verification.json
+            output/crack-build2-native/source-verification-after-sim.json
+            output/crack-build2-native/interaction-gate.json
+            output/crack-build2-native/interaction/source-verification.json
+            output/crack-build2-native/interaction/source-verification-after-interaction.json
+            output/crack-build2-native/interaction/simulator-verification.json
+            output/crack-build2-native/interaction/runtime-capture.json
+            output/crack-build2-native/interaction/interaction-proof.json
+            output/crack-build2-native/interaction/interaction-observed.json
+            output/crack-build2-native/interaction/interaction-hold.json
+            output/crack-build2-native/interaction/capture-command-failure.json
+            output/crack-build2-native/interaction/iphone-session-passive-evidence.json
+            output/crack-build2-native/interaction/ipad-session-passive-evidence.json
+            output/crack-build2-native/interaction/screenshots/*.png
+            output/crack-build2-native/interaction/raw-screenshots/*.png
+          retention-days: 14
+          if-no-files-found: error

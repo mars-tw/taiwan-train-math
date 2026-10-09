@@ -1,0 +1,68 @@
+name: Crack neutral CaptureHost XCTest environment probe
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: crack-xctest-environment-probe
+  cancel-in-progress: false
+jobs:
+  neutral_environment:
+    runs-on: macos-26-intel
+    permissions:
+      contents: write
+    timeout-minutes: 100
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          sparse-checkout: |
+            scripts/crack_xctest_environment_probe.py
+          sparse-checkout-cone-mode: false
+      - name: Read only the existing pinned UIKit Runner generator
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import hashlib,json,os,pathlib,subprocess
+          repo='mars-tw/taiwan-train-math';tag='all-games-godot-crack-build2-continuity-20261009';release_id=407985925
+          if os.environ['GITHUB_REPOSITORY']!=repo or os.environ['GITHUB_REF']!='refs/heads/main':raise SystemExit('Exact trusted repository/main required')
+          r=subprocess.run(['gh','api','--method','GET','repos/'+repo+'/releases/'+str(release_id)],capture_output=True,timeout=60)
+          if r.returncode or len(r.stdout)>2*1024*1024:raise SystemExit('Pinned draft metadata unavailable')
+          d=json.loads(r.stdout);name='create-crack-interaction-project.py'
+          if d.get('id')!=release_id or d.get('draft') is not True or d.get('tag_name')!=tag or len([a for a in d.get('assets',[]) if a.get('name')==name])!=1:raise SystemExit('Pinned draft/generator identity differs')
+          root=pathlib.Path(os.environ['RUNNER_TEMP']);target=root/'crack-env-probe-input'
+          if target.exists() or target.is_symlink():raise SystemExit('Fresh owned input required')
+          target.mkdir(mode=0o700)
+          r=subprocess.run(['gh','release','download',tag,'--repo',repo,'--pattern',name,'--dir',str(target)],capture_output=True,timeout=300)
+          f=target/name
+          if r.returncode or f.is_symlink() or not f.is_file() or f.stat().st_size>128*1024 or hashlib.sha256(f.read_bytes()).hexdigest()!='953c4206aa915d23b85315298bdb2e9ab0fab8c45ce9725ddc2f5fe2a4136b04':raise SystemExit('Pinned original generator differs')
+          PY
+      - name: One neutral Runner initialization without Godot
+        run: |
+          python3 - <<'PY'
+          import hashlib,pathlib
+          p=pathlib.Path('scripts/crack_xctest_environment_probe.py')
+          if p.is_symlink() or hashlib.sha256(p.read_bytes()).hexdigest()!='1008e2bf457f751cb8d0bea4abc36d0f5c8a3d38dc78874db482b997c91b5bde':raise SystemExit('Frozen environment helper differs')
+          PY
+          python3 scripts/crack_xctest_environment_probe.py
+      - name: Always remove only this probe input
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import os,pathlib,shutil
+          root=pathlib.Path(os.environ['RUNNER_TEMP']).resolve();target=root/'crack-env-probe-input'
+          if target.exists() and not target.is_symlink() and target.resolve()!=root and target.resolve().is_relative_to(root):shutil.rmtree(target)
+          PY
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: crack-xctest-environment-probe-${{ github.run_id }}
+          path: |
+            output/crack-xctest-environment-probe/environment-probe.json
+            output/crack-xctest-environment-probe/generated-xctestrun-summary.json
+          retention-days: 14
+          if-no-files-found: error

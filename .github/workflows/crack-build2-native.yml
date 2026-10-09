@@ -98,9 +98,19 @@ jobs:
           if m.get('actualRootExportReceipt',{}).get('sha256')!=hashlib.sha256(export_file.read_bytes()).hexdigest() or export.get('status')!='OBSERVED_SOURCE_PACK_AND_NO_QA_HEADLESS_STARTUP_PASSED' or export.get('sourceBeforeAfterPackEqual') is not True or export.get('sourceBeforeAfterAllPhasesEqual') is not True or export.get('sourceFiles')!=634 or export.get('qaArgumentEnabledThisUnit') is not False or export.get('sourceManifestSha256')!=m['sourceInputManifestSha256'] or export.get('pckSha256')!=m['pckSha256'] or not any(x.get('role')=='pck-export' and x.get('status')=='PASSED' and x.get('exitCode')==0 and x.get('errorCount')==0 for x in export.get('phaseResults',[])):raise SystemExit('Actual observed export linkage differs')
           if source.exists() or source.is_symlink() or out.exists():raise SystemExit('Fresh owned source/output required')
           out.mkdir(parents=True)
+          # The 13 original release assets above remain byte-pinned. Derive only this owned execution copy.
+          raw_helper=base/'ci_crack_build2_ios_export.sh';lf_helper=base/'ci_crack_build2_ios_export_lf.sh'
+          raw=raw_helper.read_bytes();raw_sha=hashlib.sha256(raw).hexdigest()
+          if raw_sha!='259e58bf10c006c0a8f78fd6dd04e8fac708306d1655efedc7e1d07b24c74492' or b'\r' in raw.replace(b'\r\n',b''):raise SystemExit('Pinned assembler bytes or bare CR differs')
+          normalized=raw.replace(b'\r\n',b'\n');normalized_sha=hashlib.sha256(normalized).hexdigest()
+          if normalized_sha!='d148a09149141f6b45d99a0df0c38b3ceebdfa9f2553285af5879488c8348252' or b'\r' in normalized:raise SystemExit('Deterministic LF assembler differs')
+          if lf_helper.exists() or lf_helper.is_symlink():raise SystemExit('Fresh owned LF execution copy required')
+          with lf_helper.open('xb') as stream:stream.write(normalized);stream.flush();os.fsync(stream.fileno())
+          if hashlib.sha256(lf_helper.read_bytes()).hexdigest()!=normalized_sha:raise SystemExit('Written LF execution copy differs')
+          (out/'helper-line-endings-verification.json').write_text(json.dumps({'status':'ORIGINAL_PINNED_DETERMINISTIC_LF_COPY_VERIFIED','originalFile':raw_helper.name,'originalSha256':raw_sha,'originalBytes':len(raw),'originalCrlfCount':raw.count(b'\r\n'),'bareCrCount':0,'normalizedFile':lf_helper.name,'normalizedSha256':normalized_sha,'normalizedBytes':len(normalized),'normalizedCrCount':0,'method':'bytes.replace(CRLF,LF)','originalReleaseInputsChanged':False},indent=2)+'\n')
           subprocess.run(['python3',str(base/'ci_verify_crack_build2_continuity_inputs.py'),'--raw-zip',str(base/'CrackveilVanguard-1.0.0-build2-continuity-game-source.zip'),'--manifest',str(base/'CrackveilVanguard-1.0.0-build2-continuity-game-source-manifest.json'),'--native-metadata',str(metadata),'--output',str(out/'raw-input-verification.json')],check=True,timeout=300)
           subprocess.run(['python3',str(base/'ci_verify_crack_build2.py'),'source','--zip',str(base/'CrackveilVanguard-1.0.0-build2-continuity-unsigned-source.zip'),'--metadata',str(metadata),'--project','crackveil-vanguard','--root',str(source),'--output',str(out/'source-verification.json')],check=True,timeout=300)
-          subprocess.run(['bash',str(base/'ci_crack_build2_ios_export.sh'),'prepare',str(source),'crackveil-vanguard',str(out/'prepare'),str(metadata)],check=True,timeout=600)
+          subprocess.run(['bash',str(base/'ci_crack_build2_ios_export_lf.sh'),'prepare',str(source),'crackveil-vanguard',str(out/'prepare'),str(metadata)],check=True,timeout=600)
           (out/'input-provenance.json').write_text(json.dumps(proof,indent=2)+'\n')
           PY
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
@@ -149,7 +159,7 @@ jobs:
           APPLE_APPSTORE_PROFILE_BASE64: ${{ secrets.APPLE_APPSTORE_PROFILE_BASE64 }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
-          bash "$RUNNER_TEMP/crack-build2-native-input/ci_crack_build2_ios_export.sh" sign "$RUNNER_TEMP/crack-build2-native-source" crackveil-vanguard "$GITHUB_WORKSPACE/output/crack-build2-native/signed" "$RUNNER_TEMP/crack-build2-native-input/crackveil-vanguard-build2-continuity-source-verification.json"
+          bash "$RUNNER_TEMP/crack-build2-native-input/ci_crack_build2_ios_export_lf.sh" sign "$RUNNER_TEMP/crack-build2-native-source" crackveil-vanguard "$GITHUB_WORKSPACE/output/crack-build2-native/signed" "$RUNNER_TEMP/crack-build2-native-input/crackveil-vanguard-build2-continuity-source-verification.json"
       - name: Verify same source47 and actual ARM64 IPA after sign; no physical or store qualification
         if: ${{ !cancelled() && steps.sign_private.outcome == 'success' }}
         env:
@@ -184,6 +194,7 @@ jobs:
           name: crack-build2-native-${{ github.run_id }}
           path: |
             output/crack-build2-native/input-provenance.json
+            output/crack-build2-native/helper-line-endings-verification.json
             output/crack-build2-native/raw-input-verification.json
             output/crack-build2-native/source-verification.json
             output/crack-build2-native/source-verification-after-sim.json

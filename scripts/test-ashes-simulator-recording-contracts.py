@@ -320,6 +320,45 @@ class EvidenceTests(unittest.TestCase):
             with self.assertRaises(driver.CaptureFailure):
                 driver.parse_cold_launch_pid(invalid)
 
+    def test_host_pid_liveness_accepts_one_exact_non_zombie_observation(self):
+        for state in (b"R", b"S+", b"T", b"U", b"I", b"Ss"):
+            self.assertEqual(driver.parse_host_pid_liveness(b" 12345 " + state + b"\n", 12345, 0), state.decode())
+
+    def test_host_pid_liveness_rejects_pid_mismatch_zombie_empty_multiline_and_command_errors(self):
+        for raw in (b"12346 S", b"12345 Z", b"12345 Z+", b"12345 SZ", b"", b"12345 ", b"12345 S\n12346 S", b"PID STATE\n12345 S", b"12345 secret-state"):
+            with self.assertRaises(driver.CaptureFailure):
+                driver.parse_host_pid_liveness(raw, 12345, 0)
+        for code in (1, -15, None, False):
+            with self.assertRaises(driver.CaptureFailure):
+                driver.parse_host_pid_liveness(b"12345 S", 12345, code)
+        for timed_out in (True, None, 0):
+            with self.assertRaises(driver.CaptureFailure):
+                driver.parse_host_pid_liveness(b"12345 S", 12345, 0, timed_out)
+        for pid in (0, -1, True, 2147483648):
+            with self.assertRaises(driver.CaptureFailure):
+                driver.parse_host_pid_liveness(b"12345 S", pid, 0)
+
+    def test_liveness_queries_only_returned_host_pid_and_preserves_pending_launch_facts(self):
+        text = pathlib.Path(driver.__file__).read_text(encoding="utf-8")
+        launch = text.index('pid = parse_cold_launch_pid(launch_raw)')
+        evidence = text.index('facts["normalRecordedColdLaunch"] =', launch)
+        query = text.index('commands.run("cold-launch-process-liveness"', evidence)
+        verify = text.index('live_state = parse_host_pid_liveness(', query)
+        ui = text.index('commands.run("real-continuous-ui-flow"', verify)
+        self.assertLess(launch, evidence)
+        self.assertLess(evidence, query)
+        self.assertLess(query, verify)
+        self.assertLess(verify, ui)
+        self.assertIn('["/bin/ps", "-p", str(pid), "-o", "pid=", "-o", "state="], 10, check=False)', text)
+        self.assertIn('"processLivenessVerified": False', text[evidence:query])
+        self.assertIn('"processLivenessVerifiedAtLaunchOnly": False', text[evidence:query])
+        self.assertIn('processLivenessVerifiedAtLaunchOnly=True', text[verify:ui])
+        self.assertIn('"processLivenessStatus": "pending"', text[evidence:query])
+        self.assertIn('DarwinHost.psExactPidAndNonZombieState', text[evidence:query])
+        self.assertNotIn('"procinfo"', text)
+        self.assertNotIn('"launchctl"', text)
+        self.assertIn('"test-without-building"], 480', text)
+
     def test_launcher_provenance_not_running_or_automatic_relaunch_cannot_pass(self):
         for changes in (dict(appStateBeforeActivationRaw=1), dict(automaticRelaunchAllowed=True), dict(inputMethod="XCUIApplication.launch")):
             actions = copy.deepcopy(self.actions)

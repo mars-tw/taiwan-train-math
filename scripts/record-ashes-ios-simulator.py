@@ -215,6 +215,20 @@ def parse_cold_launch_pid(raw):
     return int(match[1])
 
 
+def parse_host_pid_liveness(raw, pid, exit_code, timed_out=False):
+    """Require one matching Darwin host PID/state observation, not an interval proof."""
+    if (type(pid) is not int or not 0 < pid <= 2147483647 or type(exit_code) is not int
+            or exit_code != 0 or timed_out is not False):
+        raise CaptureFailure("Exact cold-launch host PID liveness command failed")
+    rows = [line.strip() for line in raw.splitlines() if line.strip()]
+    if len(rows) != 1:
+        raise CaptureFailure("Exact cold-launch host PID liveness row is unverified")
+    match = re.fullmatch(rb"([1-9][0-9]{0,9})[ \t]+([IRSTUZ][A-Za-z+<>-]{0,15})", rows[0])
+    if not match or int(match[1]) != pid or b"Z" in match[2]:
+        raise CaptureFailure("Exact cold-launch host PID is missing or zombie")
+    return match[2].decode("ascii")
+
+
 def safe_framework_failure_summaries(raw):
     try:
         document = json.loads(raw)
@@ -678,13 +692,24 @@ def record(args):
         launch_epoch = time.time()
         launch_raw, _ = commands.run("normal-recorded-cold-launch", ["xcrun", "simctl", "launch", device["udid"], APP_ID], 120)
         pid = parse_cold_launch_pid(launch_raw)
-        commands.run("cold-launch-process-liveness", ["xcrun", "simctl", "spawn", device["udid"], "launchctl", "procinfo", str(pid)], 60)
         facts["normalRecordedColdLaunch"] = {"appId": APP_ID, "ownedSimulatorId": device["udid"], "pid": pid,
-            "positivePidReturnedByOfficialSimctl": True, "processLivenessCommandExitCode": 0,
+            "positivePidReturnedByOfficialSimctl": True, "launchCommandExitCode": 0,
+            "processLivenessCommandExitCode": None, "processLivenessStatus": "pending",
+            "processLivenessVerified": False, "observedProcessState": None,
+            "verificationMethod": "DarwinHost.psExactPidAndNonZombieState",
             "recordingAckUtcUnixSeconds": ack_epoch, "launchCommandRequestedUtcUnixSeconds": launch_epoch,
-            "processLivenessVerifiedUtcUnixSeconds": time.time(), "recordingAckBeforeColdLaunch": True,
+            "processLivenessVerifiedUtcUnixSeconds": None, "recordingAckBeforeColdLaunch": True,
             "argumentsOrEnvironmentInjected": False, "automaticRetryUsed": False,
-            "processLivenessVerifiedAtLaunchOnly": True, "wholeFlowSamePidVerified": False}
+            "processLivenessVerifiedAtLaunchOnly": False, "wholeFlowSamePidVerified": False}
+        live_raw, live_exit = commands.run("cold-launch-process-liveness",
+            ["/bin/ps", "-p", str(pid), "-o", "pid=", "-o", "state="], 10, check=False)
+        live_timed_out = commands.facts[-1]["timedOut"]
+        facts["normalRecordedColdLaunch"]["processLivenessCommandExitCode"] = live_exit
+        facts["normalRecordedColdLaunch"]["processLivenessCommandTimedOut"] = live_timed_out
+        facts["normalRecordedColdLaunch"]["processLivenessStatus"] = "output-unverified" if live_exit == 0 and not live_timed_out else "command-failed"
+        live_state = parse_host_pid_liveness(live_raw, pid, live_exit, live_timed_out)
+        facts["normalRecordedColdLaunch"].update(processLivenessStatus="verified", processLivenessVerified=True,
+            observedProcessState=live_state, processLivenessVerifiedAtLaunchOnly=True, processLivenessVerifiedUtcUnixSeconds=time.time())
         # One normal cold launch is recorded before the XCTest proxy constructor.
         # The test activates only after a running-state observation. This does
         # not prove a single PID over the whole flow; no state injection occurs.

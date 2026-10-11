@@ -35,7 +35,7 @@ TYPE_RE = re.compile(r"^com\.apple\.CoreSimulator\.SimDeviceType\.[A-Za-z0-9.-]+
 RUNTIME_RE = re.compile(r"^com\.apple\.CoreSimulator\.SimRuntime\.iOS-\d+(?:-\d+)*$")
 FIXED_XCTEST_ASSERTION = re.compile(
     r"\b(?:FROZEN_VISIBLE_CONTROL_MISSING_[A-Za-z]+|FROZEN_APP_NOT_FOREGROUND|PAUSED_BEFORE_GAMEPLAY|"
-    r"PAUSED_BEFORE_BATTLEFIELD_INPUT|FROZEN_NATIVE_PLAYING_WEBVIEW_FRAME_UNVERIFIED|"
+    r"PAUSED_BEFORE_BATTLEFIELD_INPUT|FROZEN_NATIVE_PLAYING_WEBVIEW_FRAME_UNVERIFIED|FROZEN_NATIVE_PLAYING_APP_VIEWPORT_UNVERIFIED|"
     r"FROZEN_BATTLEFIELD_INPUT_COORDINATE_CONTRACT_FAILED|RESUME_PANEL_STILL_VISIBLE|"
     r"SETTLEMENT_DID_NOT_REPLACE_PAUSE|SETTLEMENT_STILL_VISIBLE_AFTER_RETURN|"
     r"INPUT_START_OUTSIDE_VISIBLE_CONTROL|INPUT_END_OUTSIDE_VISIBLE_CONTROL)\b")
@@ -348,6 +348,31 @@ def parse_actions(raw, contract):
     return actions
 
 
+def parse_native_geometry(raw):
+    records = []
+    for line in raw.decode("utf-8", errors="replace").splitlines():
+        marker = "ASHES_GEOMETRY_JSON="
+        if marker not in line:
+            continue
+        try:
+            value, _ = json.JSONDecoder().raw_decode(line.split(marker, 1)[1])
+        except (ValueError, TypeError):
+            continue
+        if not isinstance(value, dict) or set(value) != {"nativeAppFrame", "pauseFrame", "screenshotPointSize", "orientationRaw"}:
+            continue
+        valid = type(value["orientationRaw"]) is int and 0 <= value["orientationRaw"] <= 10
+        for field, count in (("nativeAppFrame", 4), ("pauseFrame", 4), ("screenshotPointSize", 2)):
+            items = value[field]
+            valid = valid and isinstance(items, list) and len(items) == count
+            if isinstance(items, list):
+                valid = valid and all(item is None or type(item) in (int, float) and math.isfinite(item) and abs(item) <= 1000000 for item in items)
+        if valid:
+            records.append(value)
+        if len(records) == 8:
+            break
+    return records
+
+
 def result_counts(raw):
     try:
         data = json.loads(raw)
@@ -527,6 +552,9 @@ def record(args):
                 except ValueError:
                     pass
         write_json(public / "observed-actions.json", partial)
+        geometry = parse_native_geometry(test_raw)
+        write_json(public / "native-geometry-diagnostics.json", geometry)
+        facts["nativeGeometryDiagnosticCount"] = len(geometry)
         facts["fixedXCTestFailureAssertions"] = observed_runtime_assertions(test_raw)
         summary_raw, summary_exit = commands.run("xcresult-summary", ["xcrun", "xcresulttool", "get", "test-results", "summary", "--path", public / "capture.xcresult"], 120, check=False)
         if summary_exit == 0:

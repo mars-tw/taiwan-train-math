@@ -155,23 +155,31 @@ class ProjectTests(unittest.TestCase):
         for forbidden in ("evaluateJavaScript", "__test", "launchArguments", "launchEnvironment", "app.activate()", "setState("):
             self.assertNotIn(forbidden, swift)
 
-    def test_canvas_input_uses_native_view_and_pinned_css_not_generic_html_ax(self):
+    def test_canvas_input_uses_native_app_viewport_and_actual_screenshot_not_generic_ax(self):
         project = self.base / "tests"
         contract = generator.generate(project, self.source)
         swift = (project / "AshesCaptureUITests.swift").read_text(encoding="utf-8")
         self.assertNotIn('visible(app, "gameCanvas")', swift)
         self.assertNotIn('visible(app, "virtualJoystick")', swift)
-        self.assertIn("app.webViews.allElementsBoundByIndex", swift)
-        self.assertIn("$0.frame.contains(pause.frame)", swift)
-        self.assertIn("stage.contains(first.screenPoint)", swift)
-        self.assertIn("web.frame == frame", swift)
-        self.assertLess(swift.index('checkpoint("playing-visible", app: app)'), swift.index("try dragBattlefield(app)"))
+        self.assertNotIn("app.webViews", swift)
+        self.assertIn("let frame = app.frame", swift)
+        self.assertIn("let pauseFrame = pause.frame", swift)
+        self.assertIn("frame.contains(pauseFrame)", swift)
+        self.assertIn("stage.contains(actualFirstPoint)", swift)
+        self.assertIn("abs(frame.width - size.width) < 1", swift)
+        self.assertIn("abs(frame.height - size.height) < 1", swift)
+        self.assertIn("frame.width > 200, frame.width < 640, frame.height > 500", swift)
+        self.assertNotIn("XCUIDevice.shared.orientation == .portrait", swift)
+        self.assertIn("ASHES_GEOMETRY_JSON=", swift)
+        self.assertLess(swift.index('checkpoint("playing-visible", app: app)'), swift.index("try dragBattlefield(app, pause: playingPause)"))
         self.assertEqual(contract["inputCoordinateContract"]["portraitSourceCssAspect"], [390, 844])
         self.assertEqual(contract["inputCoordinateContract"]["fromNormalizedExpectedCanvas"], [0.5, 0.55])
         self.assertEqual(contract["inputCoordinateContract"]["toNormalizedExpectedCanvas"], [0.72, 0.60])
         self.assertIn("stage.minY + stage.height * 0.60", swift)
         self.assertNotIn("stage.height * 0.38", swift)
         self.assertFalse(contract["inputCoordinateContract"]["canvasAXLabelRequired"])
+        self.assertFalse(contract["inputCoordinateContract"]["webViewAXTreeRequired"])
+        self.assertFalse(contract["inputCoordinateContract"]["orientationEnumEqualityRequired"])
         self.assertFalse(contract["inputCoordinateContract"]["genericJoystickAXStepUsed"])
         self.assertFalse(contract["inputCoordinateContract"]["gameInputEffectVerified"])
 
@@ -287,6 +295,24 @@ class EvidenceTests(unittest.TestCase):
         for changed in ({}, dict(data, passedTests=0), dict(data, failedTests=1), dict(data, skippedTests=1), dict(data, totalTestCount=2)):
             with self.assertRaises(driver.CaptureFailure):
                 driver.result_counts(json.dumps(changed).encode())
+
+    def test_native_geometry_is_separate_numeric_diagnostic_not_an_action(self):
+        geometry = {"nativeAppFrame": [0, 0, 440, 956], "pauseFrame": [380, 60, 40, 40],
+                    "screenshotPointSize": [440, 956], "orientationRaw": 1}
+        raw = b"ASHES_GEOMETRY_JSON=" + json.dumps(geometry).encode() + b"\n" + self.encode(self.actions)
+        self.assertEqual(driver.parse_native_geometry(raw), [geometry])
+        self.assertEqual(len(driver.parse_actions(raw, self.contract)), 15)
+
+    def test_native_geometry_discards_secret_strings_unknown_fields_and_unbounded_rows(self):
+        geometry = {"nativeAppFrame": [0, 0, 440, 956], "pauseFrame": [380, 60, 40, 40],
+                    "screenshotPointSize": [440, 956], "orientationRaw": 1}
+        for invalid in (dict(geometry, privateKey="DO-NOT-PUBLISH"), dict(geometry, nativeAppFrame=["DO-NOT-PUBLISH", 0, 440, 956]),
+                        dict(geometry, orientationRaw="DO-NOT-PUBLISH")):
+            self.assertEqual(driver.parse_native_geometry(b"ASHES_GEOMETRY_JSON=" + json.dumps(invalid).encode()), [])
+        raw = (b"ASHES_GEOMETRY_JSON=" + json.dumps(geometry).encode() + b"\n") * 20
+        self.assertEqual(len(driver.parse_native_geometry(raw)), 8)
+        diagnostic_with_null = dict(geometry, nativeAppFrame=[None, None, 0, 0])
+        self.assertEqual(driver.parse_native_geometry(b"ASHES_GEOMETRY_JSON=" + json.dumps(diagnostic_with_null).encode()), [diagnostic_with_null])
 
     def test_device_ipa_platform_is_rejected(self):
         info = {"CFBundleIdentifier": driver.APP_ID, "CFBundleShortVersionString": "1.0.1", "CFBundleVersion": "2",

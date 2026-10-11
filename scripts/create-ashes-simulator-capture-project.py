@@ -101,6 +101,7 @@ final class AshesCaptureUITests: XCTestCase {
     private let labels: [String:String] = LABELS_JSON
     private var ordinal = 0
     private var origin = Date()
+    private var lastScreenshotPointSize: CGSize = .zero
 
     private func event(_ action: String, _ facts: [String:Any] = [:]) {
         ordinal += 1
@@ -137,6 +138,7 @@ final class AshesCaptureUITests: XCTestCase {
     private func checkpoint(_ name: String, app: XCUIApplication) {
         XCTAssertEqual(app.state, .runningForeground, "FROZEN_APP_NOT_FOREGROUND")
         let shot = XCUIScreen.main.screenshot()
+        lastScreenshotPointSize = shot.image.size
         let attachment = XCTAttachment(screenshot: shot)
         attachment.name = "SIMULATOR-" + name
         attachment.lifetime = .keepAlways
@@ -154,50 +156,58 @@ final class AshesCaptureUITests: XCTestCase {
         event(action, ["frozenControl": key, "label": labels[key]!, "inputMethod": "XCUITest.tap"])
     }
 
-    private func dragBattlefield(_ app: XCUIApplication) throws {
-        let pause = try visible(app, "pauseBtn")
-        XCTAssertTrue(absent(app, "resumeBtn"), "PAUSED_BEFORE_BATTLEFIELD_INPUT")
-        // Canvas/generic HTML div labels are not exposed reliably in WKWebView
-        // accessibility. Anchor genuine native touch coordinates to its actual
-        // frame, while the frozen visible pause button proves the playing UI.
-        let candidates = app.webViews.allElementsBoundByIndex.filter {
-            $0.exists && $0.frame.width > 200 && $0.frame.height > 500 && $0.frame.width < 640
-            && $0.frame.height > $0.frame.width && app.frame.contains($0.frame)
-            && $0.frame.contains(pause.frame)
-        }
-        guard candidates.count == 1, app.state == .runningForeground,
-              XCUIDevice.shared.orientation == .portrait else {
-            XCTFail("FROZEN_NATIVE_PLAYING_WEBVIEW_FRAME_UNVERIFIED")
+    private func dragBattlefield(_ app: XCUIApplication, pause: XCUIElement) throws {
+        // The app frame already grounds every successfully found visible
+        // control. Avoid querying the unreliable generic WebView AX subtree.
+        let frame = app.frame
+        let pauseFrame = pause.frame
+        let size = lastScreenshotPointSize
+        func number(_ value: CGFloat) -> Any { value.isFinite ? Double(value) as Any : NSNull() as Any }
+        let geometry: [String:Any] = [
+            "nativeAppFrame": [number(frame.minX), number(frame.minY), number(frame.width), number(frame.height)],
+            "pauseFrame": [number(pauseFrame.minX), number(pauseFrame.minY), number(pauseFrame.width), number(pauseFrame.height)],
+            "screenshotPointSize": [number(size.width), number(size.height)],
+            "orientationRaw": XCUIDevice.shared.orientation.rawValue]
+        if let raw = try? JSONSerialization.data(withJSONObject: geometry, options: [.sortedKeys]),
+           let text = String(data: raw, encoding: .utf8) { print("ASHES_GEOMETRY_JSON=" + text) }
+        guard app.state == .runningForeground, frame.width.isFinite, frame.height.isFinite,
+              frame.width > 200, frame.width < 640, frame.height > 500, frame.height > frame.width,
+              size.width > 0, size.height > size.width,
+              abs(frame.width - size.width) < 1, abs(frame.height - size.height) < 1,
+              pauseFrame.width > 0, pauseFrame.height > 0, frame.contains(pauseFrame) else {
+            XCTFail("FROZEN_NATIVE_PLAYING_APP_VIEWPORT_UNVERIFIED")
             throw NSError(domain: "AshesCapture", code: 3)
         }
-        let web = candidates[0]
-        let frame = web.frame
         // Pinned index.html: viewport initial-scale=1; body grid/center;
         // .app min(100vw,100svh*390/844) x min(100svh,100vw*844/390);
         // .battle-stage fills .app; #gameCanvas is absolute inset:0,100%/100%.
-        // The frame guards exclude the >=640px landscape/desktop layouts.
+        // Native frame and actual screenshot sizes both prove portrait. These
+        // source-derived expected bounds are not a claim to read DOM geometry.
         let width = min(frame.width, frame.height * 390.0 / 844.0)
         let height = min(frame.height, frame.width * 844.0 / 390.0)
         let stage = CGRect(x: frame.midX - width / 2, y: frame.midY - height / 2, width: width, height: height)
         let firstPoint = CGPoint(x: stage.minX + stage.width * 0.5, y: stage.minY + stage.height * 0.55)
         let lastPoint = CGPoint(x: stage.minX + stage.width * 0.72, y: stage.minY + stage.height * 0.60)
-        let first = web.coordinate(withNormalizedOffset: CGVector(dx: (firstPoint.x - frame.minX) / frame.width, dy: (firstPoint.y - frame.minY) / frame.height))
-        let last = web.coordinate(withNormalizedOffset: CGVector(dx: (lastPoint.x - frame.minX) / frame.width, dy: (lastPoint.y - frame.minY) / frame.height))
-        guard web.frame == frame, stage.contains(first.screenPoint), stage.contains(last.screenPoint),
-              abs(first.screenPoint.x - firstPoint.x) < 1, abs(first.screenPoint.y - firstPoint.y) < 1,
-              abs(last.screenPoint.x - lastPoint.x) < 1, abs(last.screenPoint.y - lastPoint.y) < 1,
-              !pause.frame.contains(first.screenPoint), !pause.frame.contains(last.screenPoint) else {
+        let first = app.coordinate(withNormalizedOffset: CGVector(dx: (firstPoint.x - frame.minX) / frame.width, dy: (firstPoint.y - frame.minY) / frame.height))
+        let last = app.coordinate(withNormalizedOffset: CGVector(dx: (lastPoint.x - frame.minX) / frame.width, dy: (lastPoint.y - frame.minY) / frame.height))
+        let actualFirstPoint = first.screenPoint
+        let actualLastPoint = last.screenPoint
+        guard frame.contains(actualFirstPoint), frame.contains(actualLastPoint),
+              stage.contains(actualFirstPoint), stage.contains(actualLastPoint),
+              abs(actualFirstPoint.x - firstPoint.x) < 1, abs(actualFirstPoint.y - firstPoint.y) < 1,
+              abs(actualLastPoint.x - lastPoint.x) < 1, abs(actualLastPoint.y - lastPoint.y) < 1,
+              !pauseFrame.contains(actualFirstPoint), !pauseFrame.contains(actualLastPoint) else {
             XCTFail("FROZEN_BATTLEFIELD_INPUT_COORDINATE_CONTRACT_FAILED")
             throw NSError(domain: "AshesCapture", code: 4)
         }
         first.press(forDuration: 0.15, thenDragTo: last, withVelocity: .slow, thenHoldForDuration: 0.5)
         event("aim-drag", ["frozenControl": "gameCanvas", "label": labels["gameCanvas"]!,
-            "inputMethod": "XCUITest.nativeWebViewFrameAnchoredPressAndDrag",
-            "coordinateGrounding": "native-webview-frame;frozen-portrait-centered-390-by-844-CSS;visible-playing-pause",
-            "webViewFrame": [Double(frame.minX), Double(frame.minY), Double(frame.width), Double(frame.height)],
+            "inputMethod": "XCUITest.nativeAppViewportAnchoredPressAndDrag",
+            "coordinateGrounding": "native-app-frame;actual-portrait-screenshot-size;frozen-centered-390-by-844-CSS;visible-playing-pause",
+            "nativeAppFrame": [Double(frame.minX), Double(frame.minY), Double(frame.width), Double(frame.height)],
             "sourceDerivedExpectedCanvasFrame": [Double(stage.minX), Double(stage.minY), Double(stage.width), Double(stage.height)],
-            "fromScreenPoint": [Double(first.screenPoint.x), Double(first.screenPoint.y)],
-            "toScreenPoint": [Double(last.screenPoint.x), Double(last.screenPoint.y)],
+            "fromScreenPoint": [Double(actualFirstPoint.x), Double(actualFirstPoint.y)],
+            "toScreenPoint": [Double(actualLastPoint.x), Double(actualLastPoint.y)],
             "canvasAccessibleLabelRequired": false, "actualDOMCanvasBoundsRead": false, "gameEffectVerified": false])
     }
 
@@ -213,10 +223,10 @@ final class AshesCaptureUITests: XCTestCase {
         _ = try visible(app, "sortieBtn", seconds: 90)
         checkpoint("garage-visible", app: app)
         try tap(app, "sortieBtn", action: "sortie-tap")
-        _ = try visible(app, "pauseBtn", seconds: 30)
+        let playingPause = try visible(app, "pauseBtn", seconds: 30)
         XCTAssertTrue(absent(app, "resumeBtn"), "PAUSED_BEFORE_GAMEPLAY")
         checkpoint("playing-visible", app: app)
-        try dragBattlefield(app)
+        try dragBattlefield(app, pause: playingPause)
         try tap(app, "touchSkillBtn", action: "skill-tap")
         // Source action focuses an existing supply object; its effect may be
         // unavailable early in a run. This log proves input, not an effect.
@@ -331,8 +341,11 @@ def generate(root, source):
     ET.ElementTree(scheme).write(schemes / "AshesCapture.xcscheme", encoding="utf-8", xml_declaration=True)
     record = {"appId": APP_ID, "version": "1.0.1", "build": 2, "manifestSha256": MANIFEST_SHA256,
               "controls": labels, "actionSequence": ACTION_SEQUENCE, "independentTestHost": True,
-              "inputCoordinateContract": {"anchor": "unique-native-WKWebView-frame", "portraitSourceCssAspect": [390, 844],
-                  "nativeFrameMinimumHeightExclusive": 500, "nativeFrameMaximumWidthExclusive": 640,
+              "inputCoordinateContract": {"anchor": "native-XCUIApplication-frame-matching-actual-screenshot-points", "portraitSourceCssAspect": [390, 844],
+                  "portraitProvedByFrameAndScreenshotAspect": True, "nativeAppAndScreenshotSizeMustMatchWithinPoints": 1,
+                  "nativeAppWidthMinimumExclusive": 200, "nativeAppWidthMaximumExclusive": 640,
+                  "nativeAppHeightMinimumExclusive": 500,
+                  "webViewAXTreeRequired": False, "orientationEnumEqualityRequired": False,
                   "pauseVisibleRequired": True, "resumeAbsentRequired": True, "playingCheckpointBeforeInput": True,
                   "canvasAXLabelRequired": False, "genericJoystickAXStepUsed": False, "actualDOMCanvasBoundsRead": False,
                   "fromNormalizedExpectedCanvas": [0.5, 0.55], "toNormalizedExpectedCanvas": [0.72, 0.60],

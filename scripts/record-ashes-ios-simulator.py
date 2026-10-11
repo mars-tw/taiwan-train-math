@@ -573,8 +573,8 @@ def record(args):
     started_at = datetime.datetime.now(datetime.timezone.utc).isoformat()
     try:
         xcode, _ = commands.run("xcode-version", ["xcodebuild", "-version"], 60)
-        if not re.search(rb"^Xcode 26\.3\s*$", xcode, re.MULTILINE):
-            raise CaptureFailure("Pinned Xcode 26.3 is required")
+        if not re.search(rb"^Xcode 26\.6\s*$", xcode, re.MULTILINE):
+            raise CaptureFailure("Pinned recording Xcode 26.6 is required")
         commands.run("verify-source-before", ["python3", verifier, "source", "--root", source, "--project", "ashes-convoy", "--output", public / "source-verification-before.json"])
         # Read the independent generated project before paying for a game build
         # or creating/booting/installing any Simulator. No device is required.

@@ -503,6 +503,21 @@ class BoundedCommandTests(unittest.TestCase):
 
 
 class NativeFailureDiagnosticsTests(unittest.TestCase):
+    def test_frozen_prepare_stays_on_263_while_only_record_uses_266(self):
+        workflow = pathlib.Path(__file__).parent.parent / ".github/workflows/web-runtime-probe.yml"
+        text = workflow.read_text(encoding="utf-8")
+        self.assertIn("runs-on: macos-26-intel", text)
+        job = text.split("  record:\n", 1)[1]
+        self.assertIn("DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer", job.split("    steps:", 1)[0])
+        prepare = job.split("      - name: Prepare frozen native source", 1)[1].split("      - name: Record a continuous", 1)[0]
+        self.assertIn('bash "$CI_TOOLS/ci_ios_export.sh" prepare', prepare)
+        self.assertNotIn("Xcode_26.6", prepare)
+        recording = job.split("      - name: Record a continuous", 1)[1].split("      - uses:", 1)[0]
+        self.assertIn("DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer", recording)
+        source = pathlib.Path(driver.__file__).read_text(encoding="utf-8")
+        self.assertIn('rb"^Xcode 26\\.6\\s*$"', source)
+        self.assertNotIn('rb"^Xcode 26\\.3\\s*$"', source)
+
     def test_project_schema_read_precedes_expensive_native_operations(self):
         text = pathlib.Path(driver.__file__).read_text(encoding="utf-8")
         schema = text.index('commands.run("ui-project-schema"')

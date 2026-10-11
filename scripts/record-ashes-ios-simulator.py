@@ -717,7 +717,7 @@ def record(args):
             "-resultBundlePath", public / "capture.xcresult", "-parallel-testing-enabled", "NO",
             "-maximum-concurrent-test-simulator-destinations", "1", "-test-timeouts-enabled", "YES",
             "-default-test-execution-time-allowance", "180", "-maximum-test-execution-time-allowance", "240",
-            "-only-testing:AshesCaptureUITests/AshesCaptureUITests/testContinuousLaunchSortieAndReturn", "test-without-building"], 480, check=False, stop_on_fixed_assertion=True)
+            "-only-testing:AshesCaptureUITests/AshesCaptureUITests/testContinuousLaunchSortieAndReturn", "test-without-building"], 1500, check=False, stop_on_fixed_assertion=True)
         # End the original continuous recording immediately after the test
         # command returns. Result inspection never extends the gameplay video.
         recorder_finalized, code, warning = finish_owned_recording(recorder, recorder_started)

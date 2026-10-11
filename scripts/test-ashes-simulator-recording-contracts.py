@@ -6,6 +6,7 @@ import json
 import os
 import pathlib
 import plistlib
+import re
 import tempfile
 import subprocess
 import unittest
@@ -357,7 +358,7 @@ class EvidenceTests(unittest.TestCase):
         self.assertIn('DarwinHost.psExactPidAndNonZombieState', text[evidence:query])
         self.assertNotIn('"procinfo"', text)
         self.assertNotIn('"launchctl"', text)
-        self.assertIn('"test-without-building"], 480', text)
+        self.assertIn('"test-without-building"], 1500', text)
 
     def test_launcher_provenance_not_running_or_automatic_relaunch_cannot_pass(self):
         for changes in (dict(appStateBeforeActivationRaw=1), dict(automaticRelaunchAllowed=True), dict(inputMethod="XCUIApplication.launch")):
@@ -556,6 +557,26 @@ class BoundedCommandTests(unittest.TestCase):
 
 
 class NativeFailureDiagnosticsTests(unittest.TestCase):
+    def test_measured_startup_reserves_existing_test_allowance_and_finite_job_budget(self):
+        source = pathlib.Path(driver.__file__).read_text(encoding="utf-8")
+        outer = int(re.search(r'"test-without-building"\], (\d+), check=False', source)[1])
+        default = int(re.search(r'"-default-test-execution-time-allowance", "(\d+)"', source)[1])
+        maximum = int(re.search(r'"-maximum-test-execution-time-allowance", "(\d+)"', source)[1])
+        workflow = pathlib.Path(__file__).parent.parent / ".github/workflows/web-runtime-probe.yml"
+        record_job = workflow.read_text(encoding="utf-8").split("  record:\n", 1)[1]
+        job_seconds = int(re.search(r"timeout-minutes: (\d+)", record_job)[1]) * 60
+        # Independently audited run11 approximation: ps observation to runner
+        # launch. Actual UI-start epoch was not recorded; this is a budget
+        # regression, not proof that timeout was the root cause or UI passed.
+        approximate_startup = 305.806
+        self.assertEqual((outer, default, maximum, job_seconds), (1500, 180, 240, 3600))
+        self.assertLess(480 - approximate_startup, default)
+        self.assertGreaterEqual(outer - approximate_startup, maximum)
+        counterfactual_capture_step = 1454.226 - 480.191 + outer
+        self.assertAlmostEqual(counterfactual_capture_step, 2474.035)
+        self.assertGreater(job_seconds, counterfactual_capture_step + 120)
+
+
     def test_fixed_test_stages_and_progress_discard_untrusted_log_content(self):
         stage = {"stage": "before-proxy", "utcUnixSeconds": 1791742605.0}
         raw = ("ASHES_TEST_STAGE_JSON=" + json.dumps(stage) + "\n"
@@ -608,7 +629,7 @@ class NativeFailureDiagnosticsTests(unittest.TestCase):
         text = pathlib.Path(driver.__file__).read_text(encoding="utf-8")
         self.assertIn('self.facts[-1]["safeXCTestProgress"]', text)
         self.assertIn('self.facts[-1]["safeSummaryError"]', text)
-        self.assertIn('"test-without-building"], 480', text)
+        self.assertIn('"test-without-building"], 1500', text)
 
     def test_frozen_prepare_and_record_use_explicit_263_known_baseline(self):
         workflow = pathlib.Path(__file__).parent.parent / ".github/workflows/web-runtime-probe.yml"

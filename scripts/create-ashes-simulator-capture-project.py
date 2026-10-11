@@ -103,6 +103,17 @@ final class AshesCaptureUITests: XCTestCase {
     private var origin = Date()
     private var lastScreenshotPointSize: CGSize = .zero
 
+    private func diagnosticStage(_ stage: String) {
+        let record: [String:Any] = ["stage": stage, "utcUnixSeconds": Date().timeIntervalSince1970]
+        if let raw = try? JSONSerialization.data(withJSONObject: record, options: [.sortedKeys]) {
+            var output = Data("ASHES_TEST_STAGE_JSON=".utf8)
+            output.append(raw)
+            output.append(10)
+            // Write directly to the existing test stderr; no UI/state operation.
+            FileHandle.standardError.write(output)
+        }
+    }
+
     private func event(_ action: String, _ facts: [String:Any] = [:]) {
         ordinal += 1
         var record = facts
@@ -215,11 +226,18 @@ final class AshesCaptureUITests: XCTestCase {
     @MainActor func testContinuousLaunchSortieAndReturn() throws {
         continueAfterFailure = false
         origin = Date()
+        diagnosticStage("method-entry")
         // The test runner is independent. No launch arguments/environment,
         // JS evaluation, game state injection, test API or debug flag is used.
+        diagnosticStage("before-orientation")
         XCUIDevice.shared.orientation = .portrait
+        diagnosticStage("after-orientation")
+        diagnosticStage("before-proxy")
         let app = XCUIApplication(bundleIdentifier: bundle)
+        diagnosticStage("after-proxy")
+        diagnosticStage("before-state")
         let beforeActivation = app.state
+        diagnosticStage("after-state")
         let phase: [String:Any] = ["phase": "before-activate", "appStateRaw": beforeActivation.rawValue,
                                   "utcUnixSeconds": Date().timeIntervalSince1970]
         if let data = try? JSONSerialization.data(withJSONObject: phase, options: [.sortedKeys]),
@@ -231,7 +249,9 @@ final class AshesCaptureUITests: XCTestCase {
         // The driver already performed one normal, recorded simctl cold launch
         // with a verified live PID at that time. Only a running-state proxy
         // may be activated; this is not a whole-flow same-PID verification.
+        diagnosticStage("before-activate")
         app.activate()
+        diagnosticStage("after-activate")
         XCTAssertEqual(app.state, .runningForeground, "FROZEN_EXISTING_APP_ACTIVATION_NOT_FOREGROUND")
         event("launch", ["bundleIdentifier": bundle, "inputMethod": "driver.simctlColdLaunchThenXCTestActivate",
                          "appStateBeforeActivationRaw": beforeActivation.rawValue,

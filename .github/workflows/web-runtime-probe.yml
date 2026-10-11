@@ -69,7 +69,7 @@ jobs:
         run: bash "$CI_TOOLS/ci_ios_export.sh" prepare "$APP_SOURCE" ashes-convoy "$PUBLIC_OUTPUT"
       - name: Record a continuous real Simulator launch and normal native XCTest controls
         env:
-          DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
+          DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
         run: python3 scripts/record-ashes-ios-simulator.py --app-source "$APP_SOURCE" --output "$PUBLIC_OUTPUT" --source-zip "$CI_TOOLS/ashes-convoy-ios-source.zip"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()

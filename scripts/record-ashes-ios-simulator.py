@@ -76,7 +76,8 @@ def select_plan(inventory):
     runtimes = [item for item in inventory.get("runtimes", [])
                 if item.get("isAvailable") is True and not item.get("availabilityError")
                 and RUNTIME_RE.fullmatch(str(item.get("identifier", "")))
-                and version_parts(item.get("version", ""))[0] >= 26]
+                and item.get("identifier") == "com.apple.CoreSimulator.SimRuntime.iOS-26-2"
+                and item.get("version") == "26.2"]
     runtimes.sort(key=lambda item: version_parts(item["version"]), reverse=True)
     for runtime in runtimes:
         parts = (*version_parts(runtime["version"]), 0, 0)[:3]
@@ -91,8 +92,8 @@ def select_plan(inventory):
         if choices:
             return {"runtime": {key: runtime[key] for key in ("identifier", "name", "version")},
                     "deviceType": {key: choices[0][key] for key in ("identifier", "name")},
-                    "selection": "newest-available-compatible-iOS-at-least-26; prefer-iPhone-17-Pro-Max"}
-    raise CaptureFailure("Available iOS 26+ runtime and compatible iPhone Pro Max are required")
+                    "selection": "pinned-known-successful-Xcode26.3-iOS26.2-neutral-XCTest-baseline; prefer-iPhone-17-Pro-Max"}
+    raise CaptureFailure("Pinned baseline iOS 26.2 runtime and compatible iPhone Pro Max are required")
 
 
 def fresh_device(udid, name, plan, inventory_before, inventory_after):
@@ -289,6 +290,42 @@ def safe_xcode_diagnostics(raw):
             "rawCommandAndOutputWithheld": True, "rootCauseConfirmed": False}
 
 
+def safe_xctest_progress(raw):
+    """Export only fixed own-test progress and numeric instrumentation records.
+
+    Missing markers do not prove a method was never entered: test-output
+    forwarding itself can fail. This is diagnosis evidence, never a pass gate.
+    """
+    stages, progress = [], []
+    allowed = {"method-entry", "before-orientation", "after-orientation", "before-proxy", "after-proxy",
+               "before-state", "after-state", "before-activate", "after-activate"}
+    for original in raw.decode("utf-8", errors="replace").splitlines():
+        if "ASHES_TEST_STAGE_JSON=" in original and len(stages) < 12:
+            try:
+                item, _ = json.JSONDecoder().raw_decode(original.split("ASHES_TEST_STAGE_JSON=", 1)[1])
+                stamp = item.get("utcUnixSeconds") if isinstance(item, dict) else None
+                if (isinstance(item, dict) and set(item) == {"stage", "utcUnixSeconds"}
+                        and item.get("stage") in allowed and type(stamp) in (int, float)
+                        and math.isfinite(stamp) and 0 < stamp < 4102444800):
+                    stages.append({"stage": item["stage"], "utcUnixSeconds": stamp})
+            except (ValueError, TypeError):
+                pass
+        line = original.strip()
+        match = re.fullmatch(r"Test Suite '(All tests|AshesCaptureUITests(?:\.xctest)?)' (started|passed|failed)(?: at .{1,100})?\.?", line)
+        if match:
+            progress.append("suite:" + match[1] + ":" + match[2])
+        elif re.fullmatch(r"Test Case '-\[AshesCaptureUITests(?:\.AshesCaptureUITests)? testContinuousLaunchSortieAndReturn\]' (started|passed|failed)(?: \([0-9.]+ seconds\))?\.", line):
+            status = re.search(r"\]'+ (started|passed|failed)", line)[1]
+            progress.append("own-testcase:" + status)
+        elif line in ("Testing started", "** TEST EXECUTE SUCCEEDED **", "** TEST EXECUTE FAILED **"):
+            progress.append({"Testing started": "testing-started", "** TEST EXECUTE SUCCEEDED **": "test-execute-succeeded",
+                             "** TEST EXECUTE FAILED **": "test-execute-failed"}[line])
+    return {"stageRecords": stages, "lastObservedStage": stages[-1]["stage"] if stages else None,
+            "fixedProgress": progress[-12:], "privateLogBytes": len(raw), "privateLogSha256": hashlib.sha256(raw).hexdigest(),
+            "maximumStageRecords": 12, "maximumProgressRecords": 12, "rawCommandAndOutputWithheld": True,
+            "absentMarkerProvesMethodNotEntered": False, "rootCauseConfirmed": False}
+
+
 def project_schema_facts(raw):
     try:
         data = json.loads(raw)
@@ -399,6 +436,11 @@ class Commands:
             self.facts[-1]["generatedSwiftCompilerErrors"] = diagnostics[:20]
         if pathlib.Path(str(args[0])).name == "xcodebuild" and (timed_out or code != 0):
             self.facts[-1]["safeXcodeDiagnostics"] = safe_xcode_diagnostics(log.read_bytes())
+        if stage == "real-continuous-ui-flow":
+            self.facts[-1]["safeXCTestProgress"] = safe_xctest_progress(log.read_bytes())
+        if stage == "xcresult-summary" and (timed_out or code != 0):
+            self.facts[-1]["safeSummaryError"] = safe_xcode_diagnostics(log.read_bytes())
+            self.facts[-1]["privateLogBytes"] = log.stat().st_size
         if interruption:
             raise interruption
         if check and (timed_out or code != 0):
@@ -573,8 +615,8 @@ def record(args):
     started_at = datetime.datetime.now(datetime.timezone.utc).isoformat()
     try:
         xcode, _ = commands.run("xcode-version", ["xcodebuild", "-version"], 60)
-        if not re.search(rb"^Xcode 26\.6\s*$", xcode, re.MULTILINE):
-            raise CaptureFailure("Pinned recording Xcode 26.6 is required")
+        if not re.search(rb"^Xcode 26\.3\s*$", xcode, re.MULTILINE):
+            raise CaptureFailure("Pinned baseline recording Xcode 26.3 is required")
         commands.run("verify-source-before", ["python3", verifier, "source", "--root", source, "--project", "ashes-convoy", "--output", public / "source-verification-before.json"])
         # Read the independent generated project before paying for a game build
         # or creating/booting/installing any Simulator. No device is required.

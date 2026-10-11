@@ -35,12 +35,26 @@ def inventory():
 
 
 class SimulatorPlanTests(unittest.TestCase):
-    def test_prefer_newest_available_compatible_runtime(self):
+    def test_exact_baseline_262_selected_even_when_newer_available(self):
         data = inventory()
         data["runtimes"].extend([
             {"identifier": "com.apple.CoreSimulator.SimRuntime.iOS-26-3", "name": "iOS 26.3", "version": "26.3", "isAvailable": True},
             {"identifier": "com.apple.CoreSimulator.SimRuntime.iOS-27-0", "name": "iOS 27", "version": "27.0", "isAvailable": False}])
-        self.assertEqual(driver.select_plan(data)["runtime"]["version"], "26.3")
+        self.assertEqual(driver.select_plan(data)["runtime"]["version"], "26.2")
+        self.assertIn("pinned-known-successful", driver.select_plan(data)["selection"])
+
+    def test_missing_exact_baseline_does_not_fall_back_to_265(self):
+        data = inventory()
+        data["runtimes"] = [{"identifier": "com.apple.CoreSimulator.SimRuntime.iOS-26-5", "name": "iOS 26.5", "version": "26.5", "isAvailable": True}]
+        with self.assertRaisesRegex(driver.CaptureFailure, "Pinned baseline iOS 26.2"):
+            driver.select_plan(data)
+
+    def test_baseline_version_and_identifier_must_both_match(self):
+        for version, identifier in (("26.5", RUNTIME), ("26.2", "com.apple.CoreSimulator.SimRuntime.iOS-26-5"), ("26.2.0", RUNTIME)):
+            data = inventory()
+            data["runtimes"][0].update(version=version, identifier=identifier)
+            with self.assertRaises(driver.CaptureFailure):
+                driver.select_plan(data)
 
     def test_no_obsolete_runtime_or_unavailable_runtime(self):
         data = inventory()
@@ -503,7 +517,61 @@ class BoundedCommandTests(unittest.TestCase):
 
 
 class NativeFailureDiagnosticsTests(unittest.TestCase):
-    def test_frozen_prepare_stays_on_263_while_only_record_uses_266(self):
+    def test_fixed_test_stages_and_progress_discard_untrusted_log_content(self):
+        stage = {"stage": "before-proxy", "utcUnixSeconds": 1791742605.0}
+        raw = ("ASHES_TEST_STAGE_JSON=" + json.dumps(stage) + "\n"
+               "Test Suite 'All tests' started at private-clock-data\n"
+               "Test Case '-[AshesCaptureUITests.AshesCaptureUITests testContinuousLaunchSortieAndReturn]' started.\n"
+               "Testing started\n"
+               "Test Case '-[UnrelatedTests publishSecret]' passed (1.0 seconds).\n"
+               "Command line invocation: /Users/private-owner password=DO-NOT-PUBLISH\n").encode()
+        result = driver.safe_xctest_progress(raw)
+        self.assertEqual(result["stageRecords"], [stage])
+        self.assertEqual(result["lastObservedStage"], "before-proxy")
+        self.assertEqual(result["fixedProgress"], ["suite:All tests:started", "own-testcase:started", "testing-started"])
+        self.assertEqual(result["privateLogSha256"], hashlib.sha256(raw).hexdigest())
+        self.assertEqual(result["privateLogBytes"], len(raw))
+        for secret in ("private-clock", "private-owner", "DO-NOT-PUBLISH", "publishSecret", "Command line"):
+            self.assertNotIn(secret, json.dumps(result))
+        self.assertFalse(result["absentMarkerProvesMethodNotEntered"])
+        self.assertFalse(result["rootCauseConfirmed"])
+
+    def test_stage_diagnostic_rejects_invalid_payloads_and_is_bounded(self):
+        invalid = [{"stage": "secret-path", "utcUnixSeconds": 1791742605},
+                   {"stage": "method-entry", "utcUnixSeconds": True},
+                   {"stage": "method-entry", "utcUnixSeconds": float("nan")},
+                   {"stage": "method-entry", "utcUnixSeconds": 1791742605, "extra": "private"},
+                   {"stage": ["method-entry"], "utcUnixSeconds": 1791742605}]
+        raw = ("\n".join("ASHES_TEST_STAGE_JSON=" + json.dumps(x) for x in invalid) + "\n").encode()
+        self.assertEqual(driver.safe_xctest_progress(raw)["stageRecords"], [])
+        valid = {"stage": "method-entry", "utcUnixSeconds": 1791742605}
+        raw += (("ASHES_TEST_STAGE_JSON=" + json.dumps(valid) + "\nTesting started\n") * 40).encode()
+        result = driver.safe_xctest_progress(raw)
+        self.assertEqual(len(result["stageRecords"]), 12)
+        self.assertEqual(len(result["fixedProgress"]), 12)
+        self.assertFalse(driver.safe_xctest_progress(b"")["absentMarkerProvesMethodNotEntered"])
+        self.assertIsNone(driver.safe_xctest_progress(b"")["lastObservedStage"])
+
+    def test_method_diagnostics_bracket_existing_operations_without_actions(self):
+        source = generator.SWIFT_TEST
+        method = source.split("@MainActor func testContinuousLaunchSortieAndReturn() throws {", 1)[1]
+        self.assertLess(method.index('diagnosticStage("method-entry")'), method.index("XCUIDevice.shared.orientation"))
+        for before, operation, after in (("before-orientation", "XCUIDevice.shared.orientation = .portrait", "after-orientation"),
+                ("before-proxy", "let app = XCUIApplication(bundleIdentifier: bundle)", "after-proxy"),
+                ("before-state", "let beforeActivation = app.state", "after-state"),
+                ("before-activate", "app.activate()", "after-activate")):
+            self.assertLess(method.index('diagnosticStage("' + before + '")'), method.index(operation))
+            self.assertLess(method.index(operation), method.index('diagnosticStage("' + after + '")'))
+        diagnostic = source.split("private func diagnosticStage", 1)[1].split("private func event", 1)[0]
+        self.assertIn("FileHandle.standardError.write(output)", diagnostic)
+        self.assertNotIn("ordinal", diagnostic)
+        self.assertNotIn("ASHES_ACTION_JSON", diagnostic)
+        text = pathlib.Path(driver.__file__).read_text(encoding="utf-8")
+        self.assertIn('self.facts[-1]["safeXCTestProgress"]', text)
+        self.assertIn('self.facts[-1]["safeSummaryError"]', text)
+        self.assertIn('"test-without-building"], 480', text)
+
+    def test_frozen_prepare_and_record_use_explicit_263_known_baseline(self):
         workflow = pathlib.Path(__file__).parent.parent / ".github/workflows/web-runtime-probe.yml"
         text = workflow.read_text(encoding="utf-8")
         self.assertIn("runs-on: macos-26-intel", text)
@@ -513,10 +581,10 @@ class NativeFailureDiagnosticsTests(unittest.TestCase):
         self.assertIn('bash "$CI_TOOLS/ci_ios_export.sh" prepare', prepare)
         self.assertNotIn("Xcode_26.6", prepare)
         recording = job.split("      - name: Record a continuous", 1)[1].split("      - uses:", 1)[0]
-        self.assertIn("DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer", recording)
+        self.assertIn("DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer", recording)
         source = pathlib.Path(driver.__file__).read_text(encoding="utf-8")
-        self.assertIn('rb"^Xcode 26\\.6\\s*$"', source)
-        self.assertNotIn('rb"^Xcode 26\\.3\\s*$"', source)
+        self.assertIn('rb"^Xcode 26\\.3\\s*$"', source)
+        self.assertNotIn('rb"^Xcode 26\\.6\\s*$"', source)
 
     def test_project_schema_read_precedes_expensive_native_operations(self):
         text = pathlib.Path(driver.__file__).read_text(encoding="utf-8")

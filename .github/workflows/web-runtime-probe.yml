@@ -37,9 +37,6 @@ jobs:
       contents: read
     env:
       DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
-      CI_TOOLS: ${{ runner.temp }}/ashes-recording-input
-      APP_SOURCE: ${{ runner.temp }}/ashes-recording-source
-      PUBLIC_OUTPUT: ${{ github.workspace }}/output/ashes-simulator-recording
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
@@ -56,6 +53,11 @@ jobs:
         with:
           name: ashes-recording-input-${{ github.run_id }}
           path: ${{ runner.temp }}/ashes-recording-input
+      - name: Set paths from the actual runner environment
+        run: |
+          echo "CI_TOOLS=$RUNNER_TEMP/ashes-recording-input" >> "$GITHUB_ENV"
+          echo "APP_SOURCE=$RUNNER_TEMP/ashes-recording-source" >> "$GITHUB_ENV"
+          echo "PUBLIC_OUTPUT=$GITHUB_WORKSPACE/output/ashes-simulator-recording" >> "$GITHUB_ENV"
       - name: Verify exact same-run source and safely extract it
         run: |
           python3 scripts/fetch-ashes-recording-source.py verify --directory "$CI_TOOLS"

@@ -411,6 +411,17 @@ def record(args):
         if not re.search(rb"^Xcode 26\.3\s*$", xcode, re.MULTILINE):
             raise CaptureFailure("Pinned Xcode 26.3 is required")
         commands.run("verify-source-before", ["python3", verifier, "source", "--root", source, "--project", "ashes-convoy", "--output", public / "source-verification-before.json"])
+        # Read the independent generated project before paying for a game build
+        # or creating/booting/installing any Simulator. No device is required.
+        test_root = public / "generated-ui-test-project"
+        contract = generator.generate(test_root, source)
+        facts["generatedUIProject"] = {"relativeDirectory": "generated-ui-test-project", "gameSourceIncluded": False,
+            "files": [{"path": item.relative_to(test_root).as_posix(), "sha256": sha256(item), "bytes": item.stat().st_size}
+                      for item in sorted(test_root.rglob("*")) if item.is_file()]}
+        write_json(public / "capture-contract.json", contract)
+        facts["uiRunnerPreflight"] = {}
+        raw, _ = commands.run("ui-project-schema", ["xcodebuild", "-list", "-json", "-project", test_root / "AshesCapture.xcodeproj"], 120)
+        facts["uiRunnerPreflight"]["schema"] = project_schema_facts(raw)
         raw, _ = commands.run("inventory-before", ["xcrun", "simctl", "list", "--json"])
         before = json.loads(raw)
         plan = select_plan(before)
@@ -437,21 +448,10 @@ def record(args):
         commands.run("boot-owned-simulator", ["xcrun", "simctl", "boot", device["udid"]])
         commands.run("bootstatus-owned-simulator", ["xcrun", "simctl", "bootstatus", device["udid"], "-b"], 300)
         commands.run("install-frozen-app", ["xcrun", "simctl", "install", device["udid"], app], 180)
-        # Fixed, non-secret independent generated files are retained so a
-        # native build failure is inspectable after private logs are cleaned.
-        test_root = public / "generated-ui-test-project"
-        contract = generator.generate(test_root, source)
-        facts["generatedUIProject"] = {"relativeDirectory": "generated-ui-test-project", "gameSourceIncluded": False,
-            "files": [{"path": item.relative_to(test_root).as_posix(), "sha256": sha256(item), "bytes": item.stat().st_size}
-                      for item in sorted(test_root.rglob("*")) if item.is_file()]}
-        write_json(public / "capture-contract.json", contract)
         runner_derived = scratch / "test-derived"
         xcode_args = ["xcodebuild", "-project", test_root / "AshesCapture.xcodeproj", "-scheme", "AshesCapture",
             "-configuration", "Debug", "-sdk", "iphonesimulator", "-destination", "platform=iOS Simulator,id=" + device["udid"],
             "-derivedDataPath", runner_derived, "CODE_SIGNING_ALLOWED=NO", "CODE_SIGNING_REQUIRED=NO"]
-        facts["uiRunnerPreflight"] = {}
-        raw, _ = commands.run("ui-project-schema", ["xcodebuild", "-list", "-json", "-project", test_root / "AshesCapture.xcodeproj"], 120)
-        facts["uiRunnerPreflight"]["schema"] = project_schema_facts(raw)
         raw, _ = commands.run("ui-build-settings", [*xcode_args, "-showBuildSettings", "-json"], 180)
         facts["uiRunnerPreflight"]["settings"] = ui_build_settings_facts(raw)
         raw, _ = commands.run("ui-destination-eligibility", ["xcodebuild", "-project", test_root / "AshesCapture.xcodeproj", "-scheme", "AshesCapture", "-showdestinations"], 120)

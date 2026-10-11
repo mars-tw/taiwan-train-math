@@ -172,6 +172,32 @@ class ProjectTests(unittest.TestCase):
         tree = ET.parse(project / "AshesCapture.xcodeproj/xcshareddata/xcschemes/AshesCapture.xcscheme")
         self.assertEqual(tree.find("TestAction").get("shouldUseLaunchSchemeArgsEnv"), "NO")
 
+    def test_source_file_and_source_phase_never_share_identity(self):
+        project = self.base / "tests"
+        generator.generate(project, self.source)
+        data = plistlib.loads((project / "AshesCapture.xcodeproj/project.pbxproj").read_bytes())
+        objects = data["objects"]
+        generator.validate_object_references(objects)
+        source_files = {key: item for key, item in objects.items() if item["isa"] == "PBXFileReference" and item.get("path", "").endswith(".swift")}
+        self.assertEqual({item["path"] for item in source_files.values()}, {"CaptureHost.swift", "AshesCaptureUITests.swift"})
+        referenced = [objects[item["fileRef"]]["path"] for item in objects.values() if item["isa"] == "PBXBuildFile"]
+        self.assertEqual(set(referenced), {"CaptureHost.swift", "AshesCaptureUITests.swift"})
+        host_source = next(key for key, item in source_files.items() if item["path"] == "CaptureHost.swift")
+        damaged = copy.deepcopy(objects)
+        # Reproduce the exact observed native failure: a source phase overwrote
+        # the host file identity, leaving a group child/build-file non-file ref.
+        damaged[host_source] = {"isa": "PBXSourcesBuildPhase", "files": []}
+        with self.assertRaisesRegex(ValueError, "not a file|non-file"):
+            generator.validate_object_references(damaged)
+
+    def test_duplicate_pbx_identity_rejected_instead_of_silent_overwrite(self):
+        objects = {}
+        identity = "3AD83B4745A2471882C93942"
+        generator.add_object(objects, identity, "PBXFileReference", path="CaptureHost.swift")
+        with self.assertRaisesRegex(ValueError, "Duplicate"):
+            generator.add_object(objects, identity, "PBXSourcesBuildPhase", files=[])
+        self.assertEqual(objects[identity]["isa"], "PBXFileReference")
+
     def test_generator_cannot_write_inside_frozen_source_or_reuse_target(self):
         with self.assertRaises(ValueError):
             generator.generate(self.source / "injected-tests", self.source)
@@ -313,6 +339,12 @@ class BoundedCommandTests(unittest.TestCase):
 
 
 class NativeFailureDiagnosticsTests(unittest.TestCase):
+    def test_project_schema_read_precedes_expensive_native_operations(self):
+        text = pathlib.Path(driver.__file__).read_text(encoding="utf-8")
+        schema = text.index('commands.run("ui-project-schema"')
+        for stage in ("inventory-before", "create-owned-simulator", "unsigned-game-build", "boot-owned-simulator", "install-frozen-app"):
+            self.assertLess(schema, text.index('commands.run("' + stage + '"'))
+
     def test_error_excerpt_redacts_paths_urls_and_secrets(self):
         raw = ("Command line invocation: do-not-publish-this\n"
                "xcodebuild: error: Unable to read project /Users/private-owner/owned/AshesCapture.xcodeproj\n"

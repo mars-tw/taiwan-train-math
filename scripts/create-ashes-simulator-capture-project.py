@@ -33,6 +33,26 @@ ACTION_SEQUENCE = (
 )
 
 
+def add_object(objects, identity, isa, **values):
+    if identity in objects:
+        raise ValueError("Duplicate generated PBX object identity")
+    objects[identity] = {"isa": isa, **values}
+    return identity
+
+
+def validate_object_references(objects):
+    for value in objects.values():
+        if value["isa"] == "PBXBuildFile":
+            if objects.get(value.get("fileRef"), {}).get("isa") != "PBXFileReference":
+                raise ValueError("Generated PBX build-file reference is not a file")
+        elif value["isa"] == "PBXGroup":
+            if any(objects.get(child, {}).get("isa") not in ("PBXGroup", "PBXFileReference") for child in value["children"]):
+                raise ValueError("Generated PBX group contains a non-file/non-group reference")
+        elif value["isa"] == "PBXSourcesBuildPhase":
+            if any(objects.get(child, {}).get("isa") != "PBXBuildFile" for child in value["files"]):
+                raise ValueError("Generated PBX source phase contains a non-build-file reference")
+
+
 class Controls(HTMLParser):
     def __init__(self):
         super().__init__()
@@ -222,8 +242,7 @@ def generate(root, source):
 
     def obj(label, isa, **values):
         identity = ident(label)
-        objects[identity] = {"isa": isa, **values}
-        return identity
+        return add_object(objects, identity, isa, **values)
 
     host_source = obj("host-source", "PBXFileReference", lastKnownFileType="sourcecode.swift", path="CaptureHost.swift", sourceTree="<group>")
     tests_source = obj("test-source", "PBXFileReference", lastKnownFileType="sourcecode.swift", path="AshesCaptureUITests.swift", sourceTree="<group>")
@@ -245,7 +264,7 @@ def generate(root, source):
 
     def phase(label, file):
         ref = obj(label + "-build", "PBXBuildFile", fileRef=file)
-        return obj(label + "-source", "PBXSourcesBuildPhase", buildActionMask="2147483647", files=[ref], runOnlyForDeploymentPostprocessing="0")
+        return obj(label + "-source-phase", "PBXSourcesBuildPhase", buildActionMask="2147483647", files=[ref], runOnlyForDeploymentPostprocessing="0")
 
     host_id, test_id = ident("host-target"), ident("test-target")
     proxy = obj("target-proxy", "PBXContainerItemProxy", containerPortal=ident("project"), proxyType="1", remoteGlobalIDString=host_id, remoteInfo="AshesCaptureHost")
@@ -257,6 +276,7 @@ def generate(root, source):
     project_id = obj("project", "PBXProject", attributes={"LastUpgradeCheck": "2630", "TargetAttributes": {test_id: {"TestTargetID": host_id}}},
         buildConfigurationList=project_config, compatibilityVersion="Xcode 14.0", developmentRegion="en", hasScannedForEncodings="0",
         knownRegions=["en", "Base"], mainGroup=group, productRefGroup=products, projectDirPath="", projectRoot="", targets=[host_id, test_id])
+    validate_object_references(objects)
     bundle = root / "AshesCapture.xcodeproj"
     bundle.mkdir()
     (bundle / "project.pbxproj").write_bytes(plistlib.dumps({"archiveVersion": "1", "classes": {}, "objectVersion": "56", "objects": objects, "rootObject": project_id}))

@@ -155,6 +155,26 @@ class ProjectTests(unittest.TestCase):
         for forbidden in ("evaluateJavaScript", "__test", "launchArguments", "launchEnvironment", "app.activate()", "setState("):
             self.assertNotIn(forbidden, swift)
 
+    def test_canvas_input_uses_native_view_and_pinned_css_not_generic_html_ax(self):
+        project = self.base / "tests"
+        contract = generator.generate(project, self.source)
+        swift = (project / "AshesCaptureUITests.swift").read_text(encoding="utf-8")
+        self.assertNotIn('visible(app, "gameCanvas")', swift)
+        self.assertNotIn('visible(app, "virtualJoystick")', swift)
+        self.assertIn("app.webViews.allElementsBoundByIndex", swift)
+        self.assertIn("$0.frame.contains(pause.frame)", swift)
+        self.assertIn("stage.contains(first.screenPoint)", swift)
+        self.assertIn("web.frame == frame", swift)
+        self.assertLess(swift.index('checkpoint("playing-visible", app: app)'), swift.index("try dragBattlefield(app)"))
+        self.assertEqual(contract["inputCoordinateContract"]["portraitSourceCssAspect"], [390, 844])
+        self.assertEqual(contract["inputCoordinateContract"]["fromNormalizedExpectedCanvas"], [0.5, 0.55])
+        self.assertEqual(contract["inputCoordinateContract"]["toNormalizedExpectedCanvas"], [0.72, 0.60])
+        self.assertIn("stage.minY + stage.height * 0.60", swift)
+        self.assertNotIn("stage.height * 0.38", swift)
+        self.assertFalse(contract["inputCoordinateContract"]["canvasAXLabelRequired"])
+        self.assertFalse(contract["inputCoordinateContract"]["genericJoystickAXStepUsed"])
+        self.assertFalse(contract["inputCoordinateContract"]["gameInputEffectVerified"])
+
     def test_project_contains_no_game_or_signing_target(self):
         project = self.base / "tests"
         generator.generate(project, self.source)
@@ -240,7 +260,7 @@ class EvidenceTests(unittest.TestCase):
         return ("\n".join("ASHES_ACTION_JSON=" + json.dumps(item) for item in actions)).encode()
 
     def test_full_ordered_flow_accepted_and_partial_flow_rejected(self):
-        self.assertEqual(len(driver.parse_actions(self.encode(self.actions), self.contract)), 16)
+        self.assertEqual(len(driver.parse_actions(self.encode(self.actions), self.contract)), 15)
         with self.assertRaises(driver.CaptureFailure):
             driver.parse_actions(self.encode(self.actions[:-1]), self.contract)
 
@@ -303,6 +323,47 @@ class EvidenceTests(unittest.TestCase):
 
 
 class BoundedCommandTests(unittest.TestCase):
+    def test_observed_runtime_assertion_stops_only_owned_command_after_cleanup_grace(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            runner = driver.Commands(temporary)
+            process = mock.Mock(pid=65432, returncode=-15)
+            process.poll.return_value = None
+            process.wait.side_effect = [subprocess.TimeoutExpired(["xcodebuild"], 1),
+                subprocess.TimeoutExpired(["xcodebuild"], 10), -15]
+            def launch(*args, **kwargs):
+                kwargs["stdout"].write(b"AshesCaptureUITests.swift:50: error: testFlow: failed - FROZEN_VISIBLE_CONTROL_MISSING_gameCanvas\n")
+                kwargs["stdout"].flush()
+                return process
+            with mock.patch.object(driver.subprocess, "Popen", side_effect=launch), mock.patch.object(driver.os, "killpg", create=True) as kill:
+                raw, code = runner.run("real-continuous-ui-flow", ["xcodebuild", "test-without-building"], timeout=480,
+                    check=False, stop_on_fixed_assertion=True)
+            self.assertEqual(code, -15)
+            self.assertEqual(kill.call_args.args[0], 65432)
+            self.assertTrue(runner.facts[0]["stoppedEarlyAfterObservedAssertion"])
+            self.assertFalse(runner.facts[0]["timedOut"])
+            self.assertEqual(runner.facts[0]["observedFixedXCTestAssertions"], ["FROZEN_VISIBLE_CONTROL_MISSING_gameCanvas"])
+            self.assertEqual([call.kwargs["timeout"] for call in process.wait.call_args_list], [1.0, 10, 10])
+
+    def test_source_literal_or_unrelated_error_cannot_trigger_early_stop(self):
+        self.assertEqual(driver.observed_runtime_assertions(b'XCTFail("FROZEN_VISIBLE_CONTROL_MISSING_gameCanvas")\n'), [])
+        self.assertEqual(driver.observed_runtime_assertions(b"error: some unrelated non-fixed failure\n"), [])
+        self.assertEqual(driver.observed_runtime_assertions(b"error: XCTAssertTrue failed - FROZEN_NATIVE_PLAYING_WEBVIEW_FRAME_UNVERIFIED\n"),
+            ["FROZEN_NATIVE_PLAYING_WEBVIEW_FRAME_UNVERIFIED"])
+
+    def test_owned_recorder_finalizes_by_sigint_and_never_claims_killed_video_success(self):
+        recorder = mock.Mock()
+        recorder.poll.return_value = None
+        recorder.wait.return_value = 0
+        finalized, code, warning = driver.finish_owned_recording(recorder, True)
+        self.assertTrue(finalized)
+        self.assertEqual(code, 0)
+        self.assertIsNone(warning)
+        recorder.send_signal.assert_called_once_with(driver.signal.SIGINT)
+        recorder.wait.side_effect = [subprocess.TimeoutExpired(["simctl"], 30), -15]
+        finalized, code, warning = driver.finish_owned_recording(recorder, True)
+        self.assertFalse(finalized)
+        self.assertIsNotNone(warning)
+
     def test_timeout_terminates_only_own_process_group(self):
         with tempfile.TemporaryDirectory() as temporary:
             runner = driver.Commands(temporary)
@@ -336,6 +397,12 @@ class BoundedCommandTests(unittest.TestCase):
             with self.assertRaises(driver.CaptureFailure):
                 runner.run("invalid", ["xcodebuild"], timeout=0)
             launch.assert_not_called()
+
+    def test_original_recorder_stops_before_xcresult_queries(self):
+        text = pathlib.Path(driver.__file__).read_text(encoding="utf-8")
+        after_test = text.index('test_raw, test_exit = commands.run("real-continuous-ui-flow"')
+        finish = text.index("finish_owned_recording(recorder, recorder_started)", after_test)
+        self.assertLess(finish, text.index('commands.run("xcresult-summary"', after_test))
 
 
 class NativeFailureDiagnosticsTests(unittest.TestCase):

@@ -33,6 +33,12 @@ OWNER_PREFIX = "Mars-Ashes-SIMULATOR-"
 UUID_RE = re.compile(r"^[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$")
 TYPE_RE = re.compile(r"^com\.apple\.CoreSimulator\.SimDeviceType\.[A-Za-z0-9.-]+$")
 RUNTIME_RE = re.compile(r"^com\.apple\.CoreSimulator\.SimRuntime\.iOS-\d+(?:-\d+)*$")
+FIXED_XCTEST_ASSERTION = re.compile(
+    r"\b(?:FROZEN_VISIBLE_CONTROL_MISSING_[A-Za-z]+|FROZEN_APP_NOT_FOREGROUND|PAUSED_BEFORE_GAMEPLAY|"
+    r"PAUSED_BEFORE_BATTLEFIELD_INPUT|FROZEN_NATIVE_PLAYING_WEBVIEW_FRAME_UNVERIFIED|"
+    r"FROZEN_BATTLEFIELD_INPUT_COORDINATE_CONTRACT_FAILED|RESUME_PANEL_STILL_VISIBLE|"
+    r"SETTLEMENT_DID_NOT_REPLACE_PAUSE|SETTLEMENT_STILL_VISIBLE_AFTER_RETURN|"
+    r"INPUT_START_OUTSIDE_VISIBLE_CONTROL|INPUT_END_OUTSIDE_VISIBLE_CONTROL)\b")
 
 
 class CaptureFailure(Exception):
@@ -127,6 +133,35 @@ def child_environment():
     return {key: value for key, value in os.environ.items() if key in allowed}
 
 
+def observed_runtime_assertions(raw):
+    result = set()
+    for line in raw.decode("utf-8", errors="replace").splitlines():
+        # Match an actual XCTest error/failure line, never a Swift source
+        # literal, command line, or a text mention of an expected assertion.
+        if re.search(r"error:|\bfailed\s*[-:]|Assertion Failure", line, re.IGNORECASE):
+            result.update(FIXED_XCTEST_ASSERTION.findall(line))
+    return sorted(result)
+
+
+def finish_owned_recording(recorder, started):
+    try:
+        if recorder.poll() is None:
+            recorder.send_signal(signal.SIGINT)
+        code = recorder.wait(timeout=30)
+        return started and code == 0, code, None
+    except (OSError, subprocess.TimeoutExpired):
+        try:
+            recorder.terminate()
+            code = recorder.wait(timeout=10)
+        except (OSError, subprocess.TimeoutExpired):
+            try:
+                recorder.kill()
+                code = recorder.wait(timeout=10)
+            except (OSError, subprocess.TimeoutExpired):
+                code = recorder.poll()
+        return False, code, "Owned recorder did not finalize after SIGINT"
+
+
 def safe_xcode_diagnostics(raw):
     """Retain bounded tool error messages, never the command/source/log body.
 
@@ -197,13 +232,14 @@ class Commands:
         self.environment = child_environment()
         self.counter = 0
 
-    def run(self, stage, args, timeout=120, cwd=None, check=True):
+    def run(self, stage, args, timeout=120, cwd=None, check=True, stop_on_fixed_assertion=False):
         if not re.fullmatch(r"[a-z0-9-]+", stage) or not isinstance(timeout, (int, float)) or timeout <= 0:
             raise CaptureFailure("Invalid bounded command contract")
         self.counter += 1
         log = self.scratch / (str(self.counter) + "-" + stage + ".log")
         start, code, timed_out = time.monotonic(), None, False
         interruption = None
+        observed_assertions, early_stopped = [], False
 
         def stop_owned_command(process):
             if process is None or process.poll() is not None:
@@ -226,7 +262,30 @@ class Commands:
             try:
                 process = subprocess.Popen(list(map(str, args)), stdout=output, stderr=subprocess.STDOUT,
                     cwd=cwd, env=self.environment, start_new_session=True)
-                code = process.wait(timeout=timeout)
+                if not stop_on_fixed_assertion:
+                    code = process.wait(timeout=timeout)
+                else:
+                    deadline = start + timeout
+                    while True:
+                        remaining = deadline - time.monotonic()
+                        if remaining <= 0:
+                            raise subprocess.TimeoutExpired(list(map(str, args)), timeout)
+                        try:
+                            code = process.wait(timeout=min(1.0, remaining))
+                            break
+                        except subprocess.TimeoutExpired:
+                            with log.open("rb") as tail:
+                                tail.seek(max(0, log.stat().st_size - 128 * 1024))
+                                observed_assertions = observed_runtime_assertions(tail.read(128 * 1024))
+                            if observed_assertions:
+                                # Give xcodebuild normal failure cleanup time;
+                                # then stop only this owned command group.
+                                try:
+                                    code = process.wait(timeout=10)
+                                except subprocess.TimeoutExpired:
+                                    early_stopped = True
+                                    code = stop_owned_command(process)
+                                break
             except subprocess.TimeoutExpired:
                 timed_out = True
                 # Only this owned command/process group; no killall/pkill.
@@ -239,6 +298,10 @@ class Commands:
         self.facts.append({"stage": stage, "tool": pathlib.Path(str(args[0])).name, "exitCode": code,
             "timedOut": timed_out, "elapsedSeconds": round(time.monotonic() - start, 3),
             "privateLogSha256": sha256(log), "rawCommandAndOutputWithheld": True})
+        if stop_on_fixed_assertion:
+            self.facts[-1]["observedFixedXCTestAssertions"] = observed_assertions or observed_runtime_assertions(log.read_bytes())
+            self.facts[-1]["stoppedEarlyAfterObservedAssertion"] = early_stopped
+            self.facts[-1]["assertionFailureCleanupGraceSeconds"] = 10
         diagnostics = []
         for line in log.read_text(encoding="utf-8", errors="replace").splitlines():
             match = re.search(r"(AshesCaptureUITests\.swift|CaptureHost\.swift):(\d+):(\d+): error: (.{1,500})$", line)
@@ -369,7 +432,7 @@ def record(args):
     (scratch / ".owned-capture-scratch").write_text(token, encoding="ascii")
     commands = Commands(scratch)
     device, recorder, recorder_log = None, None, None
-    recorder_started, recorder_finalized, capture_passed = False, False, False
+    recorder_started, recorder_finalized, recorder_finished, capture_passed = False, False, False, False
     failed_stage, errors, facts, actions = None, [], {}, []
     video = public / "SIMULATOR-ashes-convoy-1.0.1-build2-continuous-original.mp4"
     started_at = datetime.datetime.now(datetime.timezone.utc).isoformat()
@@ -445,7 +508,14 @@ def record(args):
             "-resultBundlePath", public / "capture.xcresult", "-parallel-testing-enabled", "NO",
             "-maximum-concurrent-test-simulator-destinations", "1", "-test-timeouts-enabled", "YES",
             "-default-test-execution-time-allowance", "180", "-maximum-test-execution-time-allowance", "240",
-            "-only-testing:AshesCaptureUITests/AshesCaptureUITests/testContinuousLaunchSortieAndReturn", "test-without-building"], 480, check=False)
+            "-only-testing:AshesCaptureUITests/AshesCaptureUITests/testContinuousLaunchSortieAndReturn", "test-without-building"], 480, check=False, stop_on_fixed_assertion=True)
+        # End the original continuous recording immediately after the test
+        # command returns. Result inspection never extends the gameplay video.
+        recorder_finalized, code, warning = finish_owned_recording(recorder, recorder_started)
+        recorder_finished = True
+        facts["recorderExitCode"] = code
+        if warning:
+            errors.append(warning)
         # Keep real partial action evidence on failure. Never turn it into a pass.
         partial = []
         for line in test_raw.decode("utf-8", errors="replace").splitlines():
@@ -457,11 +527,7 @@ def record(args):
                 except ValueError:
                     pass
         write_json(public / "observed-actions.json", partial)
-        facts["fixedXCTestFailureAssertions"] = sorted(set(re.findall(
-            r"FROZEN_VISIBLE_CONTROL_MISSING_[A-Za-z]+|FROZEN_APP_NOT_FOREGROUND|PAUSED_BEFORE_GAMEPLAY|"
-            r"RESUME_PANEL_STILL_VISIBLE|SETTLEMENT_DID_NOT_REPLACE_PAUSE|SETTLEMENT_STILL_VISIBLE_AFTER_RETURN|"
-            r"INPUT_START_OUTSIDE_VISIBLE_CONTROL|INPUT_END_OUTSIDE_VISIBLE_CONTROL",
-            test_raw.decode("utf-8", errors="replace"))))
+        facts["fixedXCTestFailureAssertions"] = observed_runtime_assertions(test_raw)
         summary_raw, summary_exit = commands.run("xcresult-summary", ["xcrun", "xcresulttool", "get", "test-results", "summary", "--path", public / "capture.xcresult"], 120, check=False)
         if summary_exit == 0:
             # Failure summaries only retain fixed counts; detailed attachments
@@ -474,6 +540,8 @@ def record(args):
                 pass
         if test_exit != 0:
             raise CaptureFailure("Real UI flow xcodebuild failed; partial action evidence retained")
+        if facts["fixedXCTestFailureAssertions"]:
+            raise CaptureFailure("Actual fixed XCTest assertion failed; capture cannot pass")
         if summary_exit != 0:
             raise CaptureFailure("xcresult summary command failed")
         facts["tests"] = result_counts(summary_raw)
@@ -485,21 +553,12 @@ def record(args):
     finally:
         facts["uiTestBuildResultBundlePresent"] = (public / "ui-test-build.xcresult").is_dir()
         # Finalize only the exact recorder Popen handle owned by this invocation.
-        if recorder is not None:
-            try:
-                if recorder.poll() is None:
-                    recorder.send_signal(signal.SIGINT)
-                code = recorder.wait(timeout=30)
-                recorder_finalized = recorder_started and code == 0
-                facts["recorderExitCode"] = code
-            except (OSError, subprocess.TimeoutExpired):
-                errors.append("Owned recorder did not finalize after SIGINT")
-                try:
-                    recorder.terminate()
-                    recorder.wait(timeout=10)
-                except (OSError, subprocess.TimeoutExpired):
-                    recorder.kill()
-                    recorder.wait(timeout=10)
+        if recorder is not None and not recorder_finished:
+            recorder_finalized, code, warning = finish_owned_recording(recorder, recorder_started)
+            recorder_finished = True
+            facts["recorderExitCode"] = code
+            if warning:
+                errors.append(warning)
         if recorder_log is not None:
             recorder_log.close()
         if recorder_finalized and video.is_file() and video.stat().st_size > 0:

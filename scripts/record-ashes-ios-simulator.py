@@ -181,46 +181,13 @@ def project_schema_facts(raw):
             "listJsonSha256": hashlib.sha256(raw).hexdigest()}
 
 
-def ui_build_settings_facts(raw):
-    try:
-        data = json.loads(raw)
-    except (ValueError, TypeError):
-        raise CaptureFailure("Generated UI build settings were not JSON") from None
-    if not isinstance(data, list):
-        raise CaptureFailure("Generated UI build settings schema is unexpected")
-    targets = {}
-    for item in data:
-        if not isinstance(item, dict) or item.get("target") not in ("AshesCaptureHost", "AshesCaptureUITests"):
-            continue
-        settings = item.get("buildSettings", {})
-        if not isinstance(settings, dict):
-            raise CaptureFailure("Generated UI target build settings schema is unexpected")
-        if (settings.get("PLATFORM_NAME") != "iphonesimulator"
-                or settings.get("SUPPORTED_PLATFORMS", "").split() != ["iphonesimulator"]
-                or settings.get("CODE_SIGNING_ALLOWED") != "NO" or settings.get("CODE_SIGNING_REQUIRED") != "NO"):
-            raise CaptureFailure("Generated UI targets are not explicitly unsigned Simulator builds")
-        sdk_name = pathlib.PurePosixPath(settings.get("SDKROOT", "")).name
-        if not re.fullmatch(r"(?:iPhoneSimulator\d+(?:\.\d+)*\.sdk|iphonesimulator\d*(?:\.\d+)*)", sdk_name):
-            raise CaptureFailure("Generated UI target SDK root is not a Simulator SDK")
-        targets[item["target"]] = {"platform": "iphonesimulator", "supportedPlatforms": ["iphonesimulator"],
-            "codeSigningAllowed": "NO", "codeSigningRequired": "NO", "sdkName": sdk_name}
-    if set(targets) != {"AshesCaptureHost", "AshesCaptureUITests"}:
-        raise CaptureFailure("Generated UI build settings did not include both independent targets")
-    return {"targets": targets, "rawBuildSettingsJsonWithheld": True,
-            "buildSettingsJsonSha256": hashlib.sha256(raw).hexdigest()}
-
-
-def destination_facts(raw, owned_udid):
-    if not UUID_RE.fullmatch(owned_udid):
-        raise CaptureFailure("Destination check requires the owned Simulator UUID")
-    text = raw.decode("utf-8", errors="replace")
-    available = text.split("Available destinations for", 1)
-    eligible = available[1].split("Ineligible destinations", 1)[0] if len(available) == 2 else ""
-    matches = re.findall(r"\bid:\s*([0-9a-fA-F-]{36})\b", eligible)
-    if owned_udid.lower() not in [item.lower() for item in matches]:
-        raise CaptureFailure("Owned Simulator was not an eligible UI-test scheme destination")
-    return {"ownedSimulatorEligible": True, "ownedSimulatorId": owned_udid, "rawDestinationListingWithheld": True,
-            "destinationListingSha256": hashlib.sha256(raw).hexdigest()}
+def ui_xcode_args(test_root, derived, device):
+    if (not isinstance(device, dict) or not UUID_RE.fullmatch(device.get("udid", ""))
+            or not device.get("name", "").startswith(OWNER_PREFIX)):
+        raise CaptureFailure("UI-test build requires the verified owned Simulator identity")
+    return ["xcodebuild", "-project", pathlib.Path(test_root) / "AshesCapture.xcodeproj", "-scheme", "AshesCapture",
+        "-configuration", "Debug", "-sdk", "iphonesimulator", "-destination", "platform=iOS Simulator,id=" + device["udid"],
+        "-derivedDataPath", pathlib.Path(derived), "CODE_SIGNING_ALLOWED=NO", "CODE_SIGNING_REQUIRED=NO"]
 
 
 class Commands:
@@ -432,6 +399,16 @@ def record(args):
         raw, _ = commands.run("inventory-after-create", ["xcrun", "simctl", "list", "--json"])
         device = fresh_device(created_udid, name, plan, before, json.loads(raw))
         write_json(public / "owned-simulator.json", device)
+        runner_derived = scratch / "test-derived"
+        xcode_args = ui_xcode_args(test_root, runner_derived, device)
+        # This scheme has testing entries only. The real explicit test build
+        # resolves its owned destination/SDK before game build/boot/install.
+        commands.run("unsigned-ui-test-build", [*xcode_args, "-resultBundlePath", public / "ui-test-build.xcresult", "build-for-testing"], 900)
+        facts["uiRunnerPreflight"]["testBuild"] = {"action": "build-for-testing", "exitCode": 0,
+            "ownedSimulatorId": device["udid"], "sdk": "iphonesimulator", "codeSigningAllowed": "NO", "codeSigningRequired": "NO",
+            "actualTestBuildPassed": True, "defaultBuildQueryUsed": False,
+            "descriptors": [{"filename": item.name, "bytes": item.stat().st_size, "sha256": sha256(item)}
+                            for item in sorted((runner_derived / "Build/Products").glob("*.xctestrun"))[:20]]}
         derived = scratch / "game-derived"
         commands.run("unsigned-game-build", ["xcodebuild", "-project", source / "ios/App/App.xcodeproj", "-scheme", "App",
             "-configuration", "Debug", "-sdk", "iphonesimulator", "-destination", "generic/platform=iOS Simulator",
@@ -448,15 +425,6 @@ def record(args):
         commands.run("boot-owned-simulator", ["xcrun", "simctl", "boot", device["udid"]])
         commands.run("bootstatus-owned-simulator", ["xcrun", "simctl", "bootstatus", device["udid"], "-b"], 300)
         commands.run("install-frozen-app", ["xcrun", "simctl", "install", device["udid"], app], 180)
-        runner_derived = scratch / "test-derived"
-        xcode_args = ["xcodebuild", "-project", test_root / "AshesCapture.xcodeproj", "-scheme", "AshesCapture",
-            "-configuration", "Debug", "-sdk", "iphonesimulator", "-destination", "platform=iOS Simulator,id=" + device["udid"],
-            "-derivedDataPath", runner_derived, "CODE_SIGNING_ALLOWED=NO", "CODE_SIGNING_REQUIRED=NO"]
-        raw, _ = commands.run("ui-build-settings", [*xcode_args, "-showBuildSettings", "-json"], 180)
-        facts["uiRunnerPreflight"]["settings"] = ui_build_settings_facts(raw)
-        raw, _ = commands.run("ui-destination-eligibility", ["xcodebuild", "-project", test_root / "AshesCapture.xcodeproj", "-scheme", "AshesCapture", "-showdestinations"], 120)
-        facts["uiRunnerPreflight"]["destination"] = destination_facts(raw, device["udid"])
-        commands.run("unsigned-ui-test-build", [*xcode_args, "-resultBundlePath", public / "ui-test-build.xcresult", "build-for-testing"], 900)
         recorder_path = scratch / "owned-recorder.log"
         recorder_log = recorder_path.open("wb")
         recorder = subprocess.Popen(["xcrun", "simctl", "io", device["udid"], "recordVideo", "--codec=h264", str(video)],

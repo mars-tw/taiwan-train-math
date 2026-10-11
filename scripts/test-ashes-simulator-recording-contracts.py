@@ -376,26 +376,27 @@ class NativeFailureDiagnosticsTests(unittest.TestCase):
         with self.assertRaises(driver.CaptureFailure):
             driver.project_schema_facts(json.dumps(data).encode())
 
-    def test_settings_preserve_only_fixed_target_platform_and_sdk_facts(self):
-        data = [{"target": target, "buildSettings": {"PLATFORM_NAME": "iphonesimulator", "SUPPORTED_PLATFORMS": "iphonesimulator",
-                 "CODE_SIGNING_ALLOWED": "NO", "CODE_SIGNING_REQUIRED": "NO", "SDKROOT": "/Applications/Private/Xcode/iPhoneSimulator26.2.sdk",
-                 "UNRELATED_PRIVATE_SETTING": "DO-NOT-PUBLISH"}} for target in ("AshesCaptureHost", "AshesCaptureUITests")]
-        result = driver.ui_build_settings_facts(json.dumps(data).encode())
-        self.assertNotIn("Private", json.dumps(result))
-        self.assertNotIn("DO-NOT-PUBLISH", json.dumps(result))
-        data[0]["buildSettings"]["CODE_SIGNING_ALLOWED"] = "YES"
-        with self.assertRaises(driver.CaptureFailure):
-            driver.ui_build_settings_facts(json.dumps(data).encode())
+    def test_actual_ui_build_binds_unsigned_simulator_sdk_and_owned_destination(self):
+        device = {"udid": UDID, "name": driver.OWNER_PREFIX + "test-token"}
+        args = driver.ui_xcode_args(pathlib.Path("generated"), pathlib.Path("derived"), device)
+        self.assertEqual(args[args.index("-sdk") + 1], "iphonesimulator")
+        self.assertEqual(args[args.index("-destination") + 1], "platform=iOS Simulator,id=" + UDID)
+        self.assertIn("CODE_SIGNING_ALLOWED=NO", args)
+        self.assertIn("CODE_SIGNING_REQUIRED=NO", args)
+        for invalid in ({"udid": "all", "name": device["name"]}, {"udid": "booted", "name": device["name"]},
+                        {"udid": UDID, "name": "Unrelated user device"}):
+            with self.assertRaises(driver.CaptureFailure):
+                driver.ui_xcode_args(pathlib.Path("generated"), pathlib.Path("derived"), invalid)
 
-    def test_destination_must_be_owned_and_eligible_without_listing_other_devices(self):
-        raw = ("Available destinations for the scheme:\n{ platform:iOS Simulator, id:" + UDID + ", name:Owned }\n"
-               "Ineligible destinations for the scheme:\n{ platform:iOS Simulator, id:" + OTHER_UDID + ", name:OtherPersonPhone }\n").encode()
-        result = driver.destination_facts(raw, UDID)
-        self.assertTrue(result["ownedSimulatorEligible"])
-        self.assertNotIn("OtherPersonPhone", json.dumps(result))
-        self.assertNotIn(OTHER_UDID, json.dumps(result))
-        with self.assertRaises(driver.CaptureFailure):
-            driver.destination_facts(raw, OTHER_UDID)
+    def test_real_test_build_precedes_game_build_and_no_default_action_queries_remain(self):
+        text = pathlib.Path(driver.__file__).read_text(encoding="utf-8")
+        ui = text.index('commands.run("unsigned-ui-test-build"')
+        self.assertIn('"build-for-testing"], 900)', text)
+        self.assertLess(text.index('device = fresh_device('), ui)
+        for stage in ("unsigned-game-build", "boot-owned-simulator", "install-frozen-app"):
+            self.assertLess(ui, text.index('commands.run("' + stage + '"'))
+        self.assertNotIn('"-showBuildSettings"', text)
+        self.assertNotIn('"-showdestinations"', text)
 
 
 if __name__ == "__main__":

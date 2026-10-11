@@ -36,6 +36,7 @@ RUNTIME_RE = re.compile(r"^com\.apple\.CoreSimulator\.SimRuntime\.iOS-\d+(?:-\d+
 FIXED_XCTEST_ASSERTION = re.compile(
     r"\b(?:FROZEN_VISIBLE_CONTROL_MISSING_[A-Za-z]+|FROZEN_APP_NOT_FOREGROUND|PAUSED_BEFORE_GAMEPLAY|"
     r"PAUSED_BEFORE_BATTLEFIELD_INPUT|FROZEN_NATIVE_PLAYING_WEBVIEW_FRAME_UNVERIFIED|FROZEN_NATIVE_PLAYING_APP_VIEWPORT_UNVERIFIED|"
+    r"FROZEN_DRIVER_LAUNCHED_PROCESS_NOT_RUNNING_BEFORE_ACTIVATE|FROZEN_EXISTING_APP_ACTIVATION_NOT_FOREGROUND|"
     r"FROZEN_BATTLEFIELD_INPUT_COORDINATE_CONTRACT_FAILED|RESUME_PANEL_STILL_VISIBLE|"
     r"SETTLEMENT_DID_NOT_REPLACE_PAUSE|SETTLEMENT_STILL_VISIBLE_AFTER_RETURN|"
     r"INPUT_START_OUTSIDE_VISIBLE_CONTROL|INPUT_END_OUTSIDE_VISIBLE_CONTROL)\b")
@@ -204,6 +205,48 @@ def wait_for_recorder_ack(recorder, path, timeout=90):
             "recordingStartedAckObserved": ack, "processAliveAtObservation": code is None,
             "exitCodeAtObservation": code, "ackWaitTimedOut": not ack and code is None,
             **log_facts}
+
+
+def parse_cold_launch_pid(raw):
+    match = re.fullmatch(rb"tw\.mars\.ashesconvoy:\s*([1-9][0-9]{0,9})\s*", raw.strip())
+    if not match or int(match[1]) > 2147483647:
+        raise CaptureFailure("Official own-bundle cold launch did not return a positive PID")
+    return int(match[1])
+
+
+def safe_framework_failure_summaries(raw):
+    try:
+        document = json.loads(raw)
+    except (ValueError, TypeError):
+        return []
+    failures = document.get("testFailures", []) if isinstance(document, dict) else []
+    if not isinstance(failures, list):
+        return []
+    result = []
+    for item in failures[:10]:
+        if not isinstance(item, dict):
+            continue
+        message = next((item[key] for key in ("failureText", "message", "failureDescription") if isinstance(item.get(key), str)), "")
+        if not message:
+            continue
+        if re.search(r"authorization|bearer\s|password|private.?key|secret|token\s*[:=]|-----BEGIN|gh[pousr]_|\.p8\b|\.p12\b", message, re.IGNORECASE):
+            message = "<sensitive-diagnostic-withheld>"
+        else:
+            message = re.sub(r"https?://[^\s\"']+", "<url-withheld>", message, flags=re.IGNORECASE)
+            message = re.sub(r"(?<!\w)/(?:[^\s\"':]+/?)+", "<absolute-path-withheld>", message)
+        record = {"message": "".join(char if char.isprintable() else " " for char in message)[:512],
+                  "summarySha256": hashlib.sha256(raw).hexdigest()}
+        testcase = next((item[key] for key in ("testIdentifier", "testName", "testCaseName") if isinstance(item.get(key), str)), "")
+        if re.fullmatch(r"[A-Za-z0-9_()./: -]{1,160}", testcase):
+            record["testcase"] = testcase
+        filename = pathlib.PurePosixPath(str(item.get("fileName", item.get("filePath", "")))).name
+        line = item.get("lineNumber", item.get("line"))
+        if filename in ("AshesCaptureUITests.swift", "CaptureHost.swift"):
+            record["generatedFile"] = filename
+            if type(line) is int and 0 < line <= 10000:
+                record["line"] = line
+        result.append(record)
+    return result
 
 
 def safe_xcode_diagnostics(raw):
@@ -389,6 +432,11 @@ def parse_actions(raw, contract):
                 raise CaptureFailure("Foreground screenshot checkpoint is missing")
         if "frozenControl" in item and contract["controls"].get(item["frozenControl"]) != item.get("label"):
             raise CaptureFailure("Action did not target the frozen visible label")
+        if item["action"] == "launch" and (item.get("inputMethod") != "driver.simctlColdLaunchThenXCTestActivate"
+                or item.get("driverColdLaunchEvidenceRequired") is not True or item.get("automaticRelaunchAllowed") is not False
+                or item.get("appStateBeforeActivationRaw") not in (2, 3, 4)
+                or item.get("automaticRelaunchFlagIsPolicyOnly") is not True or item.get("wholeFlowSamePidVerified") is not False):
+            raise CaptureFailure("Launch action did not prove activation while the bundle was already running")
     return actions
 
 
@@ -411,6 +459,24 @@ def parse_native_geometry(raw):
             if isinstance(items, list):
                 valid = valid and all(item is None or type(item) in (int, float) and math.isfinite(item) and abs(item) <= 1000000 for item in items)
         if valid:
+            records.append(value)
+        if len(records) == 8:
+            break
+    return records
+
+
+def parse_launch_phase(raw):
+    records = []
+    for line in raw.decode("utf-8", errors="replace").splitlines():
+        if "ASHES_LAUNCH_STATE_JSON=" not in line:
+            continue
+        try:
+            value, _ = json.JSONDecoder().raw_decode(line.split("ASHES_LAUNCH_STATE_JSON=", 1)[1])
+        except ValueError:
+            continue
+        if (isinstance(value, dict) and set(value) == {"phase", "appStateRaw", "utcUnixSeconds"}
+                and value["phase"] == "before-activate" and type(value["appStateRaw"]) is int and 0 <= value["appStateRaw"] <= 4
+                and type(value["utcUnixSeconds"]) in (int, float) and math.isfinite(value["utcUnixSeconds"])):
             records.append(value)
         if len(records) == 8:
             break
@@ -566,8 +632,20 @@ def record(args):
                             and facts["recorderStartup"]["processAliveAtObservation"])
         if not recorder_started:
             raise CaptureFailure("Owned recorder did not confirm live recording started")
-        # Recording starts before normal app.launch() in the test. No restarting,
-        # trimming, concatenating, screenshot-video creation or render injection.
+        ack_epoch = time.time()
+        launch_epoch = time.time()
+        launch_raw, _ = commands.run("normal-recorded-cold-launch", ["xcrun", "simctl", "launch", device["udid"], APP_ID], 120)
+        pid = parse_cold_launch_pid(launch_raw)
+        commands.run("cold-launch-process-liveness", ["xcrun", "simctl", "spawn", device["udid"], "launchctl", "procinfo", str(pid)], 60)
+        facts["normalRecordedColdLaunch"] = {"appId": APP_ID, "ownedSimulatorId": device["udid"], "pid": pid,
+            "positivePidReturnedByOfficialSimctl": True, "processLivenessCommandExitCode": 0,
+            "recordingAckUtcUnixSeconds": ack_epoch, "launchCommandRequestedUtcUnixSeconds": launch_epoch,
+            "processLivenessVerifiedUtcUnixSeconds": time.time(), "recordingAckBeforeColdLaunch": True,
+            "argumentsOrEnvironmentInjected": False, "automaticRetryUsed": False,
+            "processLivenessVerifiedAtLaunchOnly": True, "wholeFlowSamePidVerified": False}
+        # One normal cold launch is recorded before the XCTest proxy constructor.
+        # The test activates only after a running-state observation. This does
+        # not prove a single PID over the whole flow; no state injection occurs.
         test_raw, test_exit = commands.run("real-continuous-ui-flow", [*xcode_args,
             "-resultBundlePath", public / "capture.xcresult", "-parallel-testing-enabled", "NO",
             "-maximum-concurrent-test-simulator-destinations", "1", "-test-timeouts-enabled", "YES",
@@ -594,6 +672,9 @@ def record(args):
         geometry = parse_native_geometry(test_raw)
         write_json(public / "native-geometry-diagnostics.json", geometry)
         facts["nativeGeometryDiagnosticCount"] = len(geometry)
+        phase = parse_launch_phase(test_raw)
+        write_json(public / "native-launch-phase-diagnostics.json", phase)
+        facts["nativeLaunchPhaseDiagnostics"] = phase
         facts["fixedXCTestFailureAssertions"] = observed_runtime_assertions(test_raw)
         summary_raw, summary_exit = commands.run("xcresult-summary", ["xcrun", "xcresulttool", "get", "test-results", "summary", "--path", public / "capture.xcresult"], 120, check=False)
         if summary_exit == 0:
@@ -603,6 +684,7 @@ def record(args):
                 summary = json.loads(summary_raw)
                 facts["observedTestCounts"] = {key: summary.get(key) for key in ("totalTestCount", "passedTests", "failedTests", "skippedTests")}
                 facts["xcresultSummarySha256"] = hashlib.sha256(summary_raw).hexdigest()
+                facts["safeFrameworkTestFailures"] = safe_framework_failure_summaries(summary_raw)
             except ValueError:
                 pass
         if test_exit != 0:
@@ -613,6 +695,10 @@ def record(args):
             raise CaptureFailure("xcresult summary command failed")
         facts["tests"] = result_counts(summary_raw)
         actions = parse_actions(test_raw, contract)
+        launch_action_epoch = actions[0].get("utcUnixSeconds")
+        if type(launch_action_epoch) not in (int, float) or not math.isfinite(launch_action_epoch) or launch_action_epoch < launch_epoch:
+            raise CaptureFailure("Recorded cold-launch-to-UI-action timing is not verified")
+        facts["normalRecordedColdLaunch"]["secondsFromColdLaunchRequestToUiActivationAction"] = round(launch_action_epoch - launch_epoch, 3)
         write_json(public / "verified-actions.json", actions)
         capture_passed = True
     except (CaptureFailure, ValueError, OSError, KeyError, UnicodeError) as error:

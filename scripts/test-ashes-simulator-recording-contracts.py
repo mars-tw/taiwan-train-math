@@ -149,10 +149,11 @@ class ProjectTests(unittest.TestCase):
         swift = (project / "AshesCaptureUITests.swift").read_text(encoding="utf-8")
         self.assertIn("灰燼護航戰場", swift)
         self.assertIn("開始出勤", swift)
-        self.assertIn("app.launch()", swift)
+        self.assertIn("app.activate()", swift)
+        self.assertNotIn("app.launch()", swift)
         self.assertIn("element.tap()", swift)
         self.assertIn("thenDragTo: last", swift)
-        for forbidden in ("evaluateJavaScript", "__test", "launchArguments", "launchEnvironment", "app.activate()", "setState("):
+        for forbidden in ("evaluateJavaScript", "__test", "launchArguments", "launchEnvironment", "setState("):
             self.assertNotIn(forbidden, swift)
 
     def test_canvas_input_uses_native_app_viewport_and_actual_screenshot_not_generic_ax(self):
@@ -263,6 +264,9 @@ class EvidenceTests(unittest.TestCase):
         self.actions = [{"ordinal": index, "action": name, "elapsedSeconds": float(index), "simulator": True,
             **({"foreground": True, "screenshotSha256": "a" * 64} if name.endswith("-visible") else {})}
             for index, name in enumerate(generator.ACTION_SEQUENCE, 1)]
+        self.actions[0].update(inputMethod="driver.simctlColdLaunchThenXCTestActivate", driverColdLaunchEvidenceRequired=True,
+                               automaticRelaunchAllowed=False, appStateBeforeActivationRaw=4, utcUnixSeconds=100,
+                               automaticRelaunchFlagIsPolicyOnly=True, wholeFlowSamePidVerified=False)
 
     def encode(self, actions):
         return ("\n".join("ASHES_ACTION_JSON=" + json.dumps(item) for item in actions)).encode()
@@ -295,6 +299,41 @@ class EvidenceTests(unittest.TestCase):
         for changed in ({}, dict(data, passedTests=0), dict(data, failedTests=1), dict(data, skippedTests=1), dict(data, totalTestCount=2)):
             with self.assertRaises(driver.CaptureFailure):
                 driver.result_counts(json.dumps(changed).encode())
+
+    def test_launch_pid_requires_exact_bundle_and_positive_official_return(self):
+        self.assertEqual(driver.parse_cold_launch_pid(b"tw.mars.ashesconvoy: 12345\n"), 12345)
+        for invalid in (b"tw.mars.other: 12345", b"tw.mars.ashesconvoy: 0", b"tw.mars.ashesconvoy: -1", b"tw.mars.ashesconvoy: 9999999999", b"no returned PID"):
+            with self.assertRaises(driver.CaptureFailure):
+                driver.parse_cold_launch_pid(invalid)
+
+    def test_launcher_provenance_not_running_or_automatic_relaunch_cannot_pass(self):
+        for changes in (dict(appStateBeforeActivationRaw=1), dict(automaticRelaunchAllowed=True), dict(inputMethod="XCUIApplication.launch")):
+            actions = copy.deepcopy(self.actions)
+            actions[0].update(changes)
+            with self.assertRaises(driver.CaptureFailure):
+                driver.parse_actions(self.encode(actions), self.contract)
+
+    def test_running_suspended_background_and_foreground_all_accepted_without_pid_interval_claim(self):
+        for state in (2, 3, 4):
+            actions = copy.deepcopy(self.actions)
+            actions[0]["appStateBeforeActivationRaw"] = state
+            self.assertEqual(len(driver.parse_actions(self.encode(actions), self.contract)), 15)
+        actions = copy.deepcopy(self.actions)
+        actions[0]["wholeFlowSamePidVerified"] = True
+        with self.assertRaises(driver.CaptureFailure):
+            driver.parse_actions(self.encode(actions), self.contract)
+
+    def test_failure_summary_uses_existing_data_and_masks_private_values(self):
+        data = {"testFailures": [{"failureText": "Application 'tw.mars.ashesconvoy' does not have a process ID /Users/private-owner/path https://private-token@example.test/a",
+                 "testCaseName": "AshesCaptureUITests.testContinuousLaunchSortieAndReturn()", "filePath": "/Users/private-owner/AshesCaptureUITests.swift", "lineNumber": 126},
+                {"message": "private key password=DO-NOT-PUBLISH"}]}
+        summaries = driver.safe_framework_failure_summaries(json.dumps(data).encode())
+        self.assertEqual(summaries[0]["line"], 126)
+        self.assertEqual(summaries[0]["generatedFile"], "AshesCaptureUITests.swift")
+        self.assertIn("does not have a process ID", summaries[0]["message"])
+        for private in ("private-owner", "private-token", "DO-NOT-PUBLISH"):
+            self.assertNotIn(private, json.dumps(summaries))
+        self.assertEqual(len(driver.safe_framework_failure_summaries(json.dumps({"testFailures": data["testFailures"] * 20}).encode())), 10)
 
     def test_native_geometry_is_separate_numeric_diagnostic_not_an_action(self):
         geometry = {"nativeAppFrame": [0, 0, 440, 956], "pauseFrame": [380, 60, 40, 40],

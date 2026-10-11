@@ -109,6 +109,7 @@ final class AshesCaptureUITests: XCTestCase {
         record["ordinal"] = ordinal
         record["action"] = action
         record["elapsedSeconds"] = Date().timeIntervalSince(origin)
+        record["utcUnixSeconds"] = Date().timeIntervalSince1970
         record["simulator"] = true
         if let raw = try? JSONSerialization.data(withJSONObject: record, options: [.sortedKeys]),
            let value = String(data: raw, encoding: .utf8) { print("ASHES_ACTION_JSON=" + value) }
@@ -218,8 +219,24 @@ final class AshesCaptureUITests: XCTestCase {
         // JS evaluation, game state injection, test API or debug flag is used.
         XCUIDevice.shared.orientation = .portrait
         let app = XCUIApplication(bundleIdentifier: bundle)
-        app.launch()
-        event("launch", ["bundleIdentifier": bundle, "inputMethod": "XCUIApplication.launch"])
+        let beforeActivation = app.state
+        let phase: [String:Any] = ["phase": "before-activate", "appStateRaw": beforeActivation.rawValue,
+                                  "utcUnixSeconds": Date().timeIntervalSince1970]
+        if let data = try? JSONSerialization.data(withJSONObject: phase, options: [.sortedKeys]),
+           let text = String(data: data, encoding: .utf8) { print("ASHES_LAUNCH_STATE_JSON=" + text) }
+        guard beforeActivation == .runningForeground || beforeActivation == .runningBackground || beforeActivation == .runningBackgroundSuspended else {
+            XCTFail("FROZEN_DRIVER_LAUNCHED_PROCESS_NOT_RUNNING_BEFORE_ACTIVATE")
+            throw NSError(domain: "AshesCapture", code: 5)
+        }
+        // The driver already performed one normal, recorded simctl cold launch
+        // with a verified live PID at that time. Only a running-state proxy
+        // may be activated; this is not a whole-flow same-PID verification.
+        app.activate()
+        XCTAssertEqual(app.state, .runningForeground, "FROZEN_EXISTING_APP_ACTIVATION_NOT_FOREGROUND")
+        event("launch", ["bundleIdentifier": bundle, "inputMethod": "driver.simctlColdLaunchThenXCTestActivate",
+                         "appStateBeforeActivationRaw": beforeActivation.rawValue,
+                         "driverColdLaunchEvidenceRequired": true, "automaticRelaunchAllowed": false,
+                         "automaticRelaunchFlagIsPolicyOnly": true, "wholeFlowSamePidVerified": false])
         _ = try visible(app, "sortieBtn", seconds: 90)
         checkpoint("garage-visible", app: app)
         try tap(app, "sortieBtn", action: "sortie-tap")
@@ -341,6 +358,9 @@ def generate(root, source):
     ET.ElementTree(scheme).write(schemes / "AshesCapture.xcscheme", encoding="utf-8", xml_declaration=True)
     record = {"appId": APP_ID, "version": "1.0.1", "build": 2, "manifestSha256": MANIFEST_SHA256,
               "controls": labels, "actionSequence": ACTION_SEQUENCE, "independentTestHost": True,
+              "launchContract": {"coldLaunch": "official-simctl-after-real-recording-ACK", "positiveLivePidRequired": True,
+                  "xctestActivation": "existing-running-app-only", "automaticRelaunchAllowed": False,
+                  "appLaunchArgumentsOrEnvironmentUsed": False, "gameStateInjected": False},
               "inputCoordinateContract": {"anchor": "native-XCUIApplication-frame-matching-actual-screenshot-points", "portraitSourceCssAspect": [390, 844],
                   "portraitProvedByFrameAndScreenshotAspect": True, "nativeAppAndScreenshotSizeMustMatchWithinPoints": 1,
                   "nativeAppWidthMinimumExclusive": 200, "nativeAppWidthMaximumExclusive": 640,

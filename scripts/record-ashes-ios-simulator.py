@@ -162,6 +162,50 @@ def finish_owned_recording(recorder, started):
         return False, code, "Owned recorder did not finalize after SIGINT"
 
 
+def recorder_log_facts(path):
+    path = pathlib.Path(path)
+    size = path.stat().st_size
+    with path.open("rb") as stream:
+        first = stream.read(64 * 1024)
+        if size > 64 * 1024:
+            stream.seek(max(64 * 1024, size - 64 * 1024))
+            first += stream.read(64 * 1024)
+    messages = []
+    for line in first.decode("utf-8", errors="replace").splitlines():
+        text = "".join(char if char.isprintable() else " " for char in line).strip()
+        if not re.match(r"^(?:simctl:\s*)?(?:error:|An error was encountered|Unable to\b|Failed to\b|Could not\b|Cannot\b)", text, re.IGNORECASE):
+            continue
+        if re.search(r"authorization|bearer\s|password|private.?key|secret|token\s*[:=]|-----BEGIN|gh[pousr]_|\.p8\b|\.p12\b|\.mobileprovision\b", text, re.IGNORECASE):
+            text = "<sensitive-diagnostic-withheld>"
+        else:
+            text = re.sub(r"https?://[^\s\"']+", "<url-withheld>", text, flags=re.IGNORECASE)
+            text = re.sub(r"(?<!\w)/(?:[^\s\"':]+/?)+", "<absolute-path-withheld>", text)
+        if text not in messages:
+            messages.append(text[:512])
+        if len(messages) >= 6:
+            break
+    return {"privateLogBytes": size, "privateLogSha256": sha256(path), "emptyLog": size == 0,
+            "safeFixedErrorMessages": messages, "rawLogPublished": False, "rootCauseConfirmed": False}, first
+
+
+def wait_for_recorder_ack(recorder, path, timeout=90):
+    start = time.monotonic()
+    ack = False
+    while time.monotonic() - start < timeout:
+        log_facts, raw = recorder_log_facts(path)
+        ack = b"Recording started" in raw
+        if recorder.poll() is not None or ack:
+            break
+        time.sleep(0.25)
+    log_facts, raw = recorder_log_facts(path)
+    ack = b"Recording started" in raw
+    code = recorder.poll()
+    return {"timeoutSeconds": timeout, "elapsedSeconds": round(time.monotonic() - start, 3),
+            "recordingStartedAckObserved": ack, "processAliveAtObservation": code is None,
+            "exitCodeAtObservation": code, "ackWaitTimedOut": not ack and code is None,
+            **log_facts}
+
+
 def safe_xcode_diagnostics(raw):
     """Retain bounded tool error messages, never the command/source/log body.
 
@@ -517,16 +561,11 @@ def record(args):
         recorder_log = recorder_path.open("wb")
         recorder = subprocess.Popen(["xcrun", "simctl", "io", device["udid"], "recordVideo", "--codec=h264", str(video)],
             stdout=recorder_log, stderr=subprocess.STDOUT, env=commands.environment, start_new_session=True)
-        deadline = time.monotonic() + 30
-        while time.monotonic() < deadline:
-            if recorder.poll() is not None:
-                raise CaptureFailure("Owned simctl recorder exited before launch")
-            if b"Recording started" in recorder_path.read_bytes():
-                recorder_started = True
-                break
-            time.sleep(0.25)
+        facts["recorderStartup"] = wait_for_recorder_ack(recorder, recorder_path, timeout=90)
+        recorder_started = (facts["recorderStartup"]["recordingStartedAckObserved"]
+                            and facts["recorderStartup"]["processAliveAtObservation"])
         if not recorder_started:
-            raise CaptureFailure("Owned recorder did not confirm recording started")
+            raise CaptureFailure("Owned recorder did not confirm live recording started")
         # Recording starts before normal app.launch() in the test. No restarting,
         # trimming, concatenating, screenshot-video creation or render injection.
         test_raw, test_exit = commands.run("real-continuous-ui-flow", [*xcode_args,
@@ -589,6 +628,7 @@ def record(args):
                 errors.append(warning)
         if recorder_log is not None:
             recorder_log.close()
+            facts["recorderFinalLog"], _ = recorder_log_facts(recorder_path)
         if recorder_finalized and video.is_file() and video.stat().st_size > 0:
             try:
                 metadata = scratch / "inspect-original-mp4.swift"

@@ -349,6 +349,38 @@ class EvidenceTests(unittest.TestCase):
 
 
 class BoundedCommandTests(unittest.TestCase):
+    def test_recorder_ack_after_original_thirty_seconds_can_start_within_ninety(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            log = pathlib.Path(temporary) / "recorder.log"
+            log.write_bytes(b"Recorder initialization pending\n")
+            recorder = mock.Mock()
+            recorder.poll.return_value = None
+            def publish_ack(_seconds):
+                log.write_bytes(b"Recorder initialization pending\nRecording started\n")
+            with mock.patch.object(driver.time, "monotonic", side_effect=[0, 0, 40, 41]), mock.patch.object(driver.time, "sleep", side_effect=publish_ack):
+                facts = driver.wait_for_recorder_ack(recorder, log, timeout=90)
+            self.assertTrue(facts["recordingStartedAckObserved"])
+            self.assertTrue(facts["processAliveAtObservation"])
+            self.assertFalse(facts["ackWaitTimedOut"])
+            self.assertEqual(facts["elapsedSeconds"], 41)
+
+    def test_live_recorder_and_video_file_without_ack_still_fail_with_safe_stats(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            log = pathlib.Path(temporary) / "recorder.log"
+            log.write_bytes(b"simctl: error: Unable to create output /Users/private-owner/file.mp4 from https://private-token@example.test/video\n")
+            (pathlib.Path(temporary) / "video.mp4").write_bytes(b"file-presence-is-not-start-ack")
+            recorder = mock.Mock()
+            recorder.poll.return_value = None
+            with mock.patch.object(driver.time, "monotonic", side_effect=[0, 0, 90, 90]), mock.patch.object(driver.time, "sleep"):
+                facts = driver.wait_for_recorder_ack(recorder, log, timeout=90)
+            self.assertFalse(facts["recordingStartedAckObserved"])
+            self.assertTrue(facts["ackWaitTimedOut"])
+            self.assertTrue(facts["processAliveAtObservation"])
+            self.assertEqual(facts["privateLogSha256"], hashlib.sha256(log.read_bytes()).hexdigest())
+            self.assertFalse(facts["rootCauseConfirmed"])
+            self.assertNotIn("private-owner", json.dumps(facts))
+            self.assertNotIn("private-token", json.dumps(facts))
+
     def test_observed_runtime_assertion_stops_only_owned_command_after_cleanup_grace(self):
         with tempfile.TemporaryDirectory() as temporary:
             runner = driver.Commands(temporary)

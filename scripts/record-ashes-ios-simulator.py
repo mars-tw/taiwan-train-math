@@ -127,6 +127,102 @@ def child_environment():
     return {key: value for key, value in os.environ.items() if key in allowed}
 
 
+def safe_xcode_diagnostics(raw):
+    """Retain bounded tool error messages, never the command/source/log body.
+
+    This is instrumentation, not a diagnosis inferred from a sysexits number.
+    Secret-like lines are wholly withheld; paths and URLs are always redacted.
+    """
+    messages, remaining = [], 0
+    for original in raw.decode("utf-8", errors="replace").splitlines():
+        line = "".join(char if char.isprintable() else " " for char in original).strip()
+        match = re.match(r"^(?:xcodebuild:\s*)?(?:error|fatal error):\s*(.{1,2048})$", line, re.IGNORECASE)
+        if match:
+            text, remaining = match[1], 6
+        elif remaining and line:
+            # Xcode emits a short Reason/error-description block after the
+            # fatal prefix. Do not retain ordinary build commands or source.
+            if re.match(r"^(?:Command line invocation|Build settings from command line|User defaults from command line|\*\*|CompileSwift|SwiftCompile|Ld\s|cd\s|/)", line):
+                remaining = 0
+                continue
+            if not re.match(r"^(?:Reason:|Error\b|Underlying error|Domain:|Code:|The project\b|This project\b|This workspace\b|"
+                            r"Could not\b|Unable to\b|Cannot\b|Failed to\b|The operation\b|Details:|Recovery|Exception:)", line, re.IGNORECASE):
+                remaining = 0
+                continue
+            text, remaining = line[:2048], remaining - 1
+        else:
+            remaining = 0
+            continue
+        if re.search(r"authorization|bearer\s|password|private.?key|secret|token\s*[:=]|-----BEGIN|gh[pousr]_|\.p8\b|\.p12\b|\.mobileprovision\b", text, re.IGNORECASE):
+            text = "<sensitive-diagnostic-withheld>"
+        else:
+            text = re.sub(r"https?://[^\s\"']+", "<url-withheld>", text, flags=re.IGNORECASE)
+            text = re.sub(r"(?<!\w)/(?:[^\s\"':]+/?)+", "<absolute-path-withheld>", text)
+            text = re.sub(r"[A-Za-z]:[\\/][^\s\"']+", "<absolute-path-withheld>", text)
+        if text not in messages:
+            messages.append(text[:512])
+        if len(messages) >= 12:
+            break
+    return {"messages": messages, "maximumMessages": 12, "maximumCharactersPerMessage": 512,
+            "rawCommandAndOutputWithheld": True, "rootCauseConfirmed": False}
+
+
+def project_schema_facts(raw):
+    try:
+        data = json.loads(raw)
+        project = data["project"]
+    except (ValueError, KeyError, TypeError):
+        raise CaptureFailure("Generated project list did not produce the expected JSON schema") from None
+    expected = {"AshesCaptureHost", "AshesCaptureUITests"}
+    if project.get("name") != "AshesCapture" or set(project.get("targets", [])) != expected or "AshesCapture" not in project.get("schemes", []):
+        raise CaptureFailure("Generated UI-test project/scheme/targets did not read back correctly")
+    return {"project": "AshesCapture", "requiredSchemePresent": True, "targets": sorted(expected),
+            "projectSchemaReadByXcode": True, "rawListJsonWithheld": True,
+            "listJsonSha256": hashlib.sha256(raw).hexdigest()}
+
+
+def ui_build_settings_facts(raw):
+    try:
+        data = json.loads(raw)
+    except (ValueError, TypeError):
+        raise CaptureFailure("Generated UI build settings were not JSON") from None
+    if not isinstance(data, list):
+        raise CaptureFailure("Generated UI build settings schema is unexpected")
+    targets = {}
+    for item in data:
+        if not isinstance(item, dict) or item.get("target") not in ("AshesCaptureHost", "AshesCaptureUITests"):
+            continue
+        settings = item.get("buildSettings", {})
+        if not isinstance(settings, dict):
+            raise CaptureFailure("Generated UI target build settings schema is unexpected")
+        if (settings.get("PLATFORM_NAME") != "iphonesimulator"
+                or settings.get("SUPPORTED_PLATFORMS", "").split() != ["iphonesimulator"]
+                or settings.get("CODE_SIGNING_ALLOWED") != "NO" or settings.get("CODE_SIGNING_REQUIRED") != "NO"):
+            raise CaptureFailure("Generated UI targets are not explicitly unsigned Simulator builds")
+        sdk_name = pathlib.PurePosixPath(settings.get("SDKROOT", "")).name
+        if not re.fullmatch(r"(?:iPhoneSimulator\d+(?:\.\d+)*\.sdk|iphonesimulator\d*(?:\.\d+)*)", sdk_name):
+            raise CaptureFailure("Generated UI target SDK root is not a Simulator SDK")
+        targets[item["target"]] = {"platform": "iphonesimulator", "supportedPlatforms": ["iphonesimulator"],
+            "codeSigningAllowed": "NO", "codeSigningRequired": "NO", "sdkName": sdk_name}
+    if set(targets) != {"AshesCaptureHost", "AshesCaptureUITests"}:
+        raise CaptureFailure("Generated UI build settings did not include both independent targets")
+    return {"targets": targets, "rawBuildSettingsJsonWithheld": True,
+            "buildSettingsJsonSha256": hashlib.sha256(raw).hexdigest()}
+
+
+def destination_facts(raw, owned_udid):
+    if not UUID_RE.fullmatch(owned_udid):
+        raise CaptureFailure("Destination check requires the owned Simulator UUID")
+    text = raw.decode("utf-8", errors="replace")
+    available = text.split("Available destinations for", 1)
+    eligible = available[1].split("Ineligible destinations", 1)[0] if len(available) == 2 else ""
+    matches = re.findall(r"\bid:\s*([0-9a-fA-F-]{36})\b", eligible)
+    if owned_udid.lower() not in [item.lower() for item in matches]:
+        raise CaptureFailure("Owned Simulator was not an eligible UI-test scheme destination")
+    return {"ownedSimulatorEligible": True, "ownedSimulatorId": owned_udid, "rawDestinationListingWithheld": True,
+            "destinationListingSha256": hashlib.sha256(raw).hexdigest()}
+
+
 class Commands:
     def __init__(self, scratch):
         self.scratch = pathlib.Path(scratch)
@@ -184,6 +280,8 @@ class Commands:
                                     "diagnostic": re.sub(r"/[^\s\"']+", "<path-withheld>", match[4])})
         if diagnostics:
             self.facts[-1]["generatedSwiftCompilerErrors"] = diagnostics[:20]
+        if pathlib.Path(str(args[0])).name == "xcodebuild" and (timed_out or code != 0):
+            self.facts[-1]["safeXcodeDiagnostics"] = safe_xcode_diagnostics(log.read_bytes())
         if interruption:
             raise interruption
         if check and (timed_out or code != 0):
@@ -339,14 +437,26 @@ def record(args):
         commands.run("boot-owned-simulator", ["xcrun", "simctl", "boot", device["udid"]])
         commands.run("bootstatus-owned-simulator", ["xcrun", "simctl", "bootstatus", device["udid"], "-b"], 300)
         commands.run("install-frozen-app", ["xcrun", "simctl", "install", device["udid"], app], 180)
-        test_root = scratch / "independent-ui-test"
+        # Fixed, non-secret independent generated files are retained so a
+        # native build failure is inspectable after private logs are cleaned.
+        test_root = public / "generated-ui-test-project"
         contract = generator.generate(test_root, source)
+        facts["generatedUIProject"] = {"relativeDirectory": "generated-ui-test-project", "gameSourceIncluded": False,
+            "files": [{"path": item.relative_to(test_root).as_posix(), "sha256": sha256(item), "bytes": item.stat().st_size}
+                      for item in sorted(test_root.rglob("*")) if item.is_file()]}
         write_json(public / "capture-contract.json", contract)
         runner_derived = scratch / "test-derived"
         xcode_args = ["xcodebuild", "-project", test_root / "AshesCapture.xcodeproj", "-scheme", "AshesCapture",
             "-configuration", "Debug", "-sdk", "iphonesimulator", "-destination", "platform=iOS Simulator,id=" + device["udid"],
             "-derivedDataPath", runner_derived, "CODE_SIGNING_ALLOWED=NO", "CODE_SIGNING_REQUIRED=NO"]
-        commands.run("unsigned-ui-test-build", [*xcode_args, "build-for-testing"], 900)
+        facts["uiRunnerPreflight"] = {}
+        raw, _ = commands.run("ui-project-schema", ["xcodebuild", "-list", "-json", "-project", test_root / "AshesCapture.xcodeproj"], 120)
+        facts["uiRunnerPreflight"]["schema"] = project_schema_facts(raw)
+        raw, _ = commands.run("ui-build-settings", [*xcode_args, "-showBuildSettings", "-json"], 180)
+        facts["uiRunnerPreflight"]["settings"] = ui_build_settings_facts(raw)
+        raw, _ = commands.run("ui-destination-eligibility", ["xcodebuild", "-project", test_root / "AshesCapture.xcodeproj", "-scheme", "AshesCapture", "-showdestinations"], 120)
+        facts["uiRunnerPreflight"]["destination"] = destination_facts(raw, device["udid"])
+        commands.run("unsigned-ui-test-build", [*xcode_args, "-resultBundlePath", public / "ui-test-build.xcresult", "build-for-testing"], 900)
         recorder_path = scratch / "owned-recorder.log"
         recorder_log = recorder_path.open("wb")
         recorder = subprocess.Popen(["xcrun", "simctl", "io", device["udid"], "recordVideo", "--codec=h264", str(video)],
@@ -405,6 +515,7 @@ def record(args):
     except (CaptureFailure, ValueError, OSError, KeyError, UnicodeError) as error:
         failed_stage = str(error) if isinstance(error, CaptureFailure) else "Input/tool artifact could not meet the recording contract"
     finally:
+        facts["uiTestBuildResultBundlePresent"] = (public / "ui-test-build.xcresult").is_dir()
         # Finalize only the exact recorder Popen handle owned by this invocation.
         if recorder is not None:
             try:

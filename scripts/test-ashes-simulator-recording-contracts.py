@@ -312,5 +312,59 @@ class BoundedCommandTests(unittest.TestCase):
             launch.assert_not_called()
 
 
+class NativeFailureDiagnosticsTests(unittest.TestCase):
+    def test_error_excerpt_redacts_paths_urls_and_secrets(self):
+        raw = ("Command line invocation: do-not-publish-this\n"
+               "xcodebuild: error: Unable to read project /Users/private-owner/owned/AshesCapture.xcodeproj\n"
+               "Reason: Could not read file from https://user:private-password@example.test/file\n"
+               "xcodebuild: error: authorization Bearer DO-NOT-PUBLISH-KEY\n"
+               "xcodebuild: error: token=DO-NOT-PUBLISH-TOKEN\n"
+               "xcodebuild: error: cannot read AuthKey_DO-NOT-PUBLISH-ID.p8\n").encode()
+        result = driver.safe_xcode_diagnostics(raw)
+        output = json.dumps(result)
+        for secret in ("private-owner", "private-password", "DO-NOT-PUBLISH", "Command line invocation"):
+            self.assertNotIn(secret, output)
+        self.assertFalse(result["rootCauseConfirmed"])
+        self.assertTrue(result["rawCommandAndOutputWithheld"])
+        self.assertIn("Unable to read project", output)
+
+    def test_excerpt_is_bounded_and_does_not_publish_source_or_commands(self):
+        raw = (("xcodebuild: error: " + "a" * 1000 + "\n") * 30
+               + "let sourceBody = doNotPublish()\nCommand line invocation: xcodebuild ...\n").encode()
+        result = driver.safe_xcode_diagnostics(raw)
+        self.assertLessEqual(len(result["messages"]), 12)
+        self.assertTrue(all(len(item) <= 512 for item in result["messages"]))
+        self.assertNotIn("sourceBody", json.dumps(result))
+        self.assertNotIn("Command line invocation", json.dumps(result))
+
+    def test_project_list_requires_actual_fixed_scheme_and_targets(self):
+        data = {"project": {"name": "AshesCapture", "targets": ["AshesCaptureHost", "AshesCaptureUITests"], "schemes": ["AshesCapture"]}}
+        self.assertTrue(driver.project_schema_facts(json.dumps(data).encode())["projectSchemaReadByXcode"])
+        data["project"]["schemes"] = []
+        with self.assertRaises(driver.CaptureFailure):
+            driver.project_schema_facts(json.dumps(data).encode())
+
+    def test_settings_preserve_only_fixed_target_platform_and_sdk_facts(self):
+        data = [{"target": target, "buildSettings": {"PLATFORM_NAME": "iphonesimulator", "SUPPORTED_PLATFORMS": "iphonesimulator",
+                 "CODE_SIGNING_ALLOWED": "NO", "CODE_SIGNING_REQUIRED": "NO", "SDKROOT": "/Applications/Private/Xcode/iPhoneSimulator26.2.sdk",
+                 "UNRELATED_PRIVATE_SETTING": "DO-NOT-PUBLISH"}} for target in ("AshesCaptureHost", "AshesCaptureUITests")]
+        result = driver.ui_build_settings_facts(json.dumps(data).encode())
+        self.assertNotIn("Private", json.dumps(result))
+        self.assertNotIn("DO-NOT-PUBLISH", json.dumps(result))
+        data[0]["buildSettings"]["CODE_SIGNING_ALLOWED"] = "YES"
+        with self.assertRaises(driver.CaptureFailure):
+            driver.ui_build_settings_facts(json.dumps(data).encode())
+
+    def test_destination_must_be_owned_and_eligible_without_listing_other_devices(self):
+        raw = ("Available destinations for the scheme:\n{ platform:iOS Simulator, id:" + UDID + ", name:Owned }\n"
+               "Ineligible destinations for the scheme:\n{ platform:iOS Simulator, id:" + OTHER_UDID + ", name:OtherPersonPhone }\n").encode()
+        result = driver.destination_facts(raw, UDID)
+        self.assertTrue(result["ownedSimulatorEligible"])
+        self.assertNotIn("OtherPersonPhone", json.dumps(result))
+        self.assertNotIn(OTHER_UDID, json.dumps(result))
+        with self.assertRaises(driver.CaptureFailure):
+            driver.destination_facts(raw, OTHER_UDID)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

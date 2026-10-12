@@ -42,6 +42,32 @@ def verify_swangle_boot_selection(log):
     return True
 
 
+def bounded_native_ocr(argv, remaining_seconds, runner=subprocess.run):
+    """One OCR child with isolated OMP1 env and no extension to the900s flow."""
+    env = os.environ.copy()
+    env["OMP_THREAD_LIMIT"] = "1"
+    env["OMP_NUM_THREADS"] = "1"
+    budget = min(60.0, remaining_seconds)
+    if budget <= 0:
+        raise RuntimeError("Absolute native observation deadline exceeded before OCR")
+    started = time.monotonic()
+    try:
+        result = runner(argv, capture_output=True, timeout=budget, env=env)
+        stdout, stderr, exit_code, timed_out = result.stdout or b"", result.stderr or b"", result.returncode, False
+    except subprocess.TimeoutExpired as error:
+        stdout, stderr, exit_code, timed_out = error.stdout or b"", error.stderr or b"", None, True
+    if isinstance(stdout, str):
+        stdout = stdout.encode("utf-8")
+    if isinstance(stderr, str):
+        stderr = stderr.encode("utf-8")
+    receipt = {"configuredMaximumSeconds":60, "effectiveBudgetSeconds":budget,
+        "elapsedSeconds":round(time.monotonic()-started,6), "exitCode":exit_code,"timedOut":timed_out,
+        "childOmpEnvironment":{"OMP_THREAD_LIMIT":"1","OMP_NUM_THREADS":"1"},
+        "globalEnvironmentMutated":False,"flowDeadlineExtended":False,
+        "stdoutBytes":len(stdout),"stderrBytes":len(stderr)}
+    return stdout, stderr, receipt
+
+
 def normalized(value):
     return re.sub(r"[^A-Za-z0-9\u3400-\u9fff]", "", value).casefold()
 
@@ -200,6 +226,8 @@ def main():
         "differentIosSceneAndConfigResourceCount": 40, "wholeIosPayloadEquivalent": False,
         "gpuRequested": GPU_MODE, "experiment": "EXPLICIT_SUPPORTED_SWANGLE_ENVIRONMENT_COMPATIBILITY_TEST",
         "gameSourceShaderUniformFixClaimed": False, "previousR1CandidateHistoryPreserved": True, "accelRequested": "on",
+        "ocrConfiguredMaximumSeconds":60, "ocrChildOmpThreadLimit":1,
+        "flowAbsoluteDeadlineSeconds":900,
         "automaticRendererFallback": False, "automaticEmulatorRestart": False,
         "bootVerified": False, "installedIdentityVerified": False, "startMenuObserved": False,
         "visibleStartTapped": False, "gameplayHudObserved": False, "movementGestureExecuted": False,
@@ -246,8 +274,22 @@ def main():
         report["captures"].append({"name": name, "nativeWidth": image.width, "nativeHeight": image.height,
                                    "sha256": hashlib.sha256(raw).hexdigest(), "ocrComplete": False})
         save()
-        ocr = command(["tesseract", str(path), "stdout", "-l", "chi_tra+eng", "--psm", "11", "tsv"], timeout=25).stdout.decode("utf-8", "replace")
-        path.with_suffix(".tsv").write_text(ocr)
+        ocr_argv = ["tesseract", str(path), "stdout", "-l", "chi_tra+eng", "--psm", "11", "tsv"]
+        ocr_stdout, ocr_stderr, ocr_receipt = bounded_native_ocr(ocr_argv, deadline-time.monotonic())
+        path.with_suffix(".ocr.stdout.txt").write_bytes(ocr_stdout)
+        path.with_suffix(".ocr.stderr.txt").write_bytes(ocr_stderr)
+        path.with_suffix(".tsv").write_bytes(ocr_stdout)
+        ocr_receipt.update(nativeFrame=name, nativeFrameSha256=hashlib.sha256(raw).hexdigest(),
+            argv=ocr_argv, stdoutFile=path.with_suffix(".ocr.stdout.txt").name,
+            stderrFile=path.with_suffix(".ocr.stderr.txt").name)
+        path.with_suffix(".ocr-receipt.json").write_text(json.dumps(ocr_receipt,indent=2)+"\n")
+        report["captures"][-1]["ocrReceipt"] = ocr_receipt
+        save()
+        if ocr_receipt["timedOut"]:
+            raise RuntimeError("OCR_CHILD_TIMEOUT_OMP1_WITHIN_REMAINING_FLOW_BUDGET: " + name)
+        if ocr_receipt["exitCode"] != 0:
+            raise RuntimeError("OCR_CHILD_NONZERO_STDERR_PRESERVED: " + name)
+        ocr = ocr_stdout.decode("utf-8", "replace")
         text = " ".join(row.get("text", "") for row in csv.DictReader(io.StringIO(ocr), delimiter="\t") if row.get("text"))
         report["captures"][-1].update(ocrComplete=True, ocrText=text[:4096])
         save()

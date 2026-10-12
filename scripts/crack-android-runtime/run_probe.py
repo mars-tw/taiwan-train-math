@@ -19,7 +19,7 @@ import xml.etree.ElementTree as ET
 from PIL import Image, ImageChops
 import cv2
 import numpy as np
-from roi_ocr import find_caption as find_caption_roi, read_tsv, merge_tsv, map_box, caption_budget, FlowDeadlineExceeded
+from roi_ocr import find_caption as find_caption_roi, read_tsv, merge_tsv, map_box, caption_budget, FlowDeadlineExceeded, roi_rectangles, clipped_word_tsv
 
 PACKAGE = "tw.mars.crackveilvanguard"
 ALIAS = PACKAGE + "/com.godot.game.GodotAppLauncher"
@@ -28,6 +28,11 @@ APK_SHA = "0b3a4aec652ce8cbb5110688670df3ef7d60bce28d13668c3fa6f22d5e54a8d2"
 CERT_SHA = "7166f66b5a182f2330c380fd57bd6f2821247db519b59ab9abe5aa554968c797"
 SERIAL = "emulator-5580"
 GPU_MODE = "swangle"  # Fixed supported environment experiment; no product-source fix or fallback.
+SOURCE_LEVEL_PREFIXES = ("Lv.", "等級")
+SOURCE_SKILL_CAPTIONS = ("旋", "斬")
+SOURCE_CAPTION_CONTRACT = {"hudSourceSha256":"4822ed136c3fc7a3127ba1f86b0f4020913e120c00b152af0d6c49b97f7360a3",
+    "levelFormats":["Lv.%d", "等級 %d", "等級 %d   經驗 %d/%d"], "abilityButtonTexts":["旋", "斬"],
+    "sourceLines":{"Lv":1304,"fallbackLevel":1713,"abilityButton":1917}}
 SOURCE_OPTION_CAPTIONS = ('事件穹網', '五人滿編', '五分鐘防線', '偏壓改裝', '共鳴火花', '共鳴聖歌', '分裂燼彈', '剃界盾輪', '剪界星環', '單線協定', '回影追斬', '回收磁場', '回收餘波', '契約擴展', '契約槽 +1', '守門者倒下', '定向改裝', '帷幕王庭', '帷幕護盾', '招募：', '星環共鳴', '星盾和聲', '星盾重衛', '星裂貫槍', '星雷珠', '星雷羽鷹', '星霜聖域', '時輪刃衛', '時輪工坊', '曜砂王陵', '曜砂甲蟲', '月華靈森', '月華靈火', '武器覺醒', '殲滅 500', '流星雨', '深層急救', '深潮歌妖', '漸強和聲', '潮生祝禱', '灼星烙印', '焰尾靈狐', '焰爆術士', '燼脈聯爆', '燼雨連爆', '牧長裂約', '獵隙導引', '獵隙蜂群', '玻璃磁界', '珊潮遺都', '珊瑚巨衛', '疾步校準', '疾閃目擊', '短路超載', '砂影獵手', '磁暴回收', '磁滯目擊', '空槽', '精英信標', '精英餌標', '精英首獵', '緊急整補', '緋星熔庭', '縫獵協議', '翠晶花園', '翠玉靈兔', '脈衝餘燼', '蒼月空庭', '虛空錨點', '血稅', '裂光校準', '裂殖目擊', '裂線分叉', '裂群召喚師', '裂錨定駐', '裂隙急救', '裂隙扇編', '裂隙拾荒', '裂隙護甲', '裂隙過載', '裂隙韌性', '起始選擇 +1', '超載新星', '返刃共振', '追影刃', '逐金魔靈', '重整庫存', '金饑', '鏡裂群牧', '雷爪獵將', '雷鏈過載', '雷霆浮島', '霜晶槍', '霜環守望者', '靜幕', '餘燼井')
 
 
@@ -111,6 +116,74 @@ def label_box(tsv, caption):
     if len(matches) > 1:
         raise RuntimeError("Ambiguous visible caption; no tap guessed")
     return matches[0] if matches else None
+
+
+def exact_word_box(tsv, caption):
+    matches=[]
+    for word in read_tsv(tsv)[1]:
+        if word['level']=='5' and float(word['conf'])>=25 and word['text'].strip()==caption:
+            left,top,width,height=(int(word[k]) for k in ['left','top','width','height'])
+            matches.append([left,top,left+width,top+height])
+    if len(matches)>1:raise RuntimeError("Ambiguous exact skill caption; no tap guessed")
+    return matches[0] if matches else None
+
+
+def source_level_box(tsv, caption):
+    patterns={"Lv.":r"(?<!\S)Lv\.\s*[0-9]+(?=\s|$)", "等級":r"(?<!\S)等\s*級\s*[0-9]+(?=\s|$)"}
+    if caption not in patterns:raise RuntimeError("Unknown source level prefix")
+    lines={}
+    for word in read_tsv(tsv)[1]:
+        if word['level']=='5' and float(word['conf'])>=25 and word['text'].strip():
+            key=tuple(word[k] for k in ['page_num','block_num','par_num','line_num'])
+            lines.setdefault(key,[]).append(word)
+    matches=[]
+    for words in lines.values():
+        words.sort(key=lambda word:int(word['left']));text="";spans=[]
+        for word in words:
+            if text:text+=" "
+            start=len(text);text+=word['text'].strip();spans.append((start,len(text),word))
+        for match in re.finditer(patterns[caption],text,re.IGNORECASE):
+            contributing=[word for left,right,word in spans if right>match.start() and left<match.end()]
+            matches.append([min(int(w['left']) for w in contributing),min(int(w['top']) for w in contributing),
+                max(int(w['left'])+int(w['width']) for w in contributing),max(int(w['top'])+int(w['height']) for w in contributing)])
+    if len(matches)>1:raise RuntimeError("Ambiguous source level caption")
+    return matches[0] if matches else None
+
+
+def source_hud_boxes(tsv,size):
+    hp=label_box(clipped_word_tsv(tsv,roi_rectangles(size,"HP")[0]),"HP")
+    pause=label_box(clipped_word_tsv(tsv,roi_rectangles(size,"暫停")[0]),"暫停")
+    level=None;prefix=None
+    for candidate in SOURCE_LEVEL_PREFIXES:
+        level=source_level_box(clipped_word_tsv(tsv,roi_rectangles(size,candidate)[0]),candidate)
+        if level:prefix=candidate;break
+    return {"hpBox":hp,"levelBox":level,"levelPrefix":prefix,"pauseBox":pause,"complete":bool(hp and level and pause)}
+
+
+def source_skill_box(tsv,size):
+    matches=[]
+    for caption in SOURCE_SKILL_CAPTIONS:
+        box=exact_word_box(clipped_word_tsv(tsv,roi_rectangles(size,caption)[0]),caption)
+        if box:matches.append((caption,map_box(box,[0,0],size)))
+    if len(matches)>1:raise RuntimeError("Ambiguous source ability-button glyphs; no tap guessed")
+    return matches[0] if matches else None
+
+
+def visible_choice_proof(tsv,captions):
+    read_tsv(tsv) # Schema failures cannot be mistaken for an absent card.
+    observed=[];chosen=None
+    for source_index,caption in enumerate(captions):
+        try:box=label_box(tsv,caption)
+        except RuntimeError as error:
+            if "Ambiguous visible caption" not in str(error):raise
+            observed.append({"caption":caption,"sourceIndex":source_index,"status":"AMBIGUOUS_EXCLUDED","nativeBox":None})
+            continue
+        if box:
+            row={"caption":caption,"sourceIndex":source_index,"status":"UNIQUE_VISIBLE","nativeBox":box}
+            observed.append(row)
+            if chosen is None:chosen=row
+    return {"selectionRule":"FIRST_SOURCE_ORDER_CAPTION_WITH_ONE_VISIBLE_TEXT_BBOX_EXCLUDE_AMBIGUOUS_CAPTIONS",
+        "observedChoices":observed,"chosen":chosen,"fixedCardCoordinatesUsed":False}
 
 
 def system_ui_notice_box(xml, width, height):
@@ -234,6 +307,7 @@ def main():
         "gameSourceShaderUniformFixClaimed": False, "previousR1CandidateHistoryPreserved": True, "accelRequested": "on",
         "ocrConfiguredMaximumSeconds":60, "ocrChildOmpThreadLimit":1,
         "flowAbsoluteDeadlineSeconds":900,
+        "sourceCaptionContract":SOURCE_CAPTION_CONTRACT,
         "automaticRendererFallback": False, "automaticEmulatorRestart": False,
         "bootVerified": False, "installedIdentityVerified": False, "startMenuObserved": False,
         "visibleStartTapped": False, "gameplayHudObserved": False, "movementGestureExecuted": False,
@@ -313,13 +387,15 @@ def main():
 
     def scoped_caption(image, tsv, basis, caption, until):
         caption_budget(caption, until, deadline)
-        box = label_box(tsv, caption)
+        finder = source_level_box if caption in SOURCE_LEVEL_PREFIXES else exact_word_box if caption in SOURCE_SKILL_CAPTIONS else label_box
+        native_tsv = clipped_word_tsv(tsv, roi_rectangles(image.size, caption)[0]) if caption in SOURCE_LEVEL_PREFIXES + SOURCE_SKILL_CAPTIONS else tsv
+        box = finder(native_tsv, caption)
         if box:
             return map_box(box, [0, 0], image.size), tsv
         def caption_ocr(argv, remaining):
             return bounded_native_ocr(argv, min(remaining, caption_budget(caption, until, deadline)))
         proof = find_caption_roi(frames / basis, caption, caption_budget(caption, until, deadline),
-            caption_ocr, label_box, frames / "derived-roi")
+            caption_ocr, finder, frames / "derived-roi")
         report.setdefault("scopedRoiCaptionProof", []).append({"caption":caption,"basisNativeFrame":basis,
             "nativeBox":proof["nativeBox"],"originalSha256":proof["originalSha256"],"trials":proof["trials"],
             "coordinatesRequireRecognizedText":True})
@@ -408,23 +484,29 @@ def main():
         device("shell", "input", "tap", *map(str, point))
         time.sleep(.7)
 
-    def unique_visible_choice(tsv, captions):
-        matches = []
-        for caption in captions:
-            try:
-                box = label_box(tsv, caption)
-            except RuntimeError:
-                continue  # An ambiguous name is excluded, never assigned guessed coordinates.
+    def unique_visible_choice(tsv, captions, basis, modal):
+        proof = visible_choice_proof(tsv, captions)
+        report.setdefault("observedModalChoices", []).append({"basisNativeFrame":basis,"modal":modal,**proof})
+        save()
+        chosen = proof["chosen"]
+        return (chosen["caption"], chosen["nativeBox"]) if chosen else None
+
+    def source_skill(image, tsv, basis, until):
+        caption_budget("旋/斬", until, deadline)
+        choice = source_skill_box(tsv, image.size)
+        if choice:return choice
+        for caption in SOURCE_SKILL_CAPTIONS:
+            box, context = scoped_caption(image, tsv, basis, caption, until)
             if box:
-                matches.append((caption, box))
-        if not matches:
-            return None
-        return sorted(matches, key=lambda match: (match[1][1], match[1][0]))[0]
+                choice = source_skill_box(context, image.size)
+                if not choice:raise RuntimeError("Derived skill glyph lacks unique native-region proof")
+                return choice
+        raise RuntimeError("Unique source lower-right 旋/斬 glyph not observed; no tap guessed")
 
     def hud(label):
         until = min(deadline, time.monotonic() + 60)
         while time.monotonic() < until:
-            image, tsv, name = capture(label, until, "HP/等級/暫停")
+            image, tsv, name = capture(label, until, "HP/Lv.或等級/暫停")
             launch = "warm" if label.startswith("warm") else "cold"
             if dismiss_systemui_notice(label+"-delayed-notice", image, tsv, name, launch=launch):
                 continue
@@ -437,7 +519,7 @@ def main():
                 tap_observed(image, name, label_box(tsv, "直接出擊"), "直接出擊", "normal_intro_dismiss")
                 continue
             if label_box(tsv, "選擇裂隙契約"):
-                choice = unique_visible_choice(tsv, ["血稅", "金饑", "靜幕", "精英信標", "玻璃磁界", "單線協定"])
+                choice = unique_visible_choice(tsv, ["血稅", "金饑", "靜幕", "精英信標", "玻璃磁界", "單線協定"], name, "contract")
                 if not choice:
                     raise RuntimeError("Contract modal visible but no unique known card caption; no card guessed")
                 tap_observed(image, name, choice[1], choice[0], "normal_contract_card")
@@ -448,7 +530,7 @@ def main():
                     tap_observed(confirm_image, confirm_name, confirm, "再次點擊確認", "normal_contract_confirmation")
                 continue
             if label_box(tsv, "選擇升級") or label_box(tsv, "再點高亮卡確認"):
-                choice = unique_visible_choice(tsv, SOURCE_OPTION_CAPTIONS)
+                choice = unique_visible_choice(tsv, SOURCE_OPTION_CAPTIONS, name, "upgrade")
                 if not choice:
                     raise RuntimeError("Upgrade modal visible but no unique source-defined card caption; no card guessed")
                 tap_observed(image, name, choice[1], choice[0], "normal_upgrade_card")
@@ -462,12 +544,18 @@ def main():
             if label_box(tsv, "回主選單"):
                 raise RuntimeError("Normal game-over occurred before required control smoke was complete")
             hp_box, tsv = scoped_caption(image, tsv, name, "HP", until)
-            level_box, tsv = scoped_caption(image, tsv, name, "等級", until)
+            level_box = None
+            for level_prefix in SOURCE_LEVEL_PREFIXES:
+                level_box, tsv = scoped_caption(image, tsv, name, level_prefix, until)
+                if level_box:break
             pause_box, tsv = scoped_caption(image, tsv, name, "暫停", until)
             if hp_box and level_box and pause_box:
+                report.setdefault("sourceHudCaptionProof", []).append({"basisNativeFrame":name,
+                    "hpBox":hp_box,"levelPrefix":level_prefix,"levelBox":level_box,"pauseBox":pause_box})
+                save()
                 return image, tsv, name
-            time.sleep(min(1, caption_budget("HP/等級/暫停", until, deadline)))
-        caption_budget("HP/等級/暫停", until, deadline)
+            time.sleep(min(1, caption_budget("HP/Lv.或等級/暫停", until, deadline)))
+        caption_budget("HP/Lv.或等級/暫停", until, deadline)
         raise RuntimeError("Active native HP/level/pause HUD not observed within bound")
 
     def foreground_component():
@@ -644,10 +732,9 @@ def main():
         hud("after-visible-start")
         report["gameplayHudObserved"] = True
         image, tsv, basis = hud("skill-ready")
-        skill = label_box(tsv, "斬")
-        if not skill or (skill[0]+skill[2])/2 < image.width*.65 or (skill[1]+skill[3])/2 < image.height*.58:
-            raise RuntimeError("Unique visible lower-right skill caption not observed; no tap guessed")
-        tap_observed(image, basis, skill, "斬", "normal_leader_skill")
+        skill_caption, skill = source_skill(image, tsv, basis, min(deadline, time.monotonic()+30))
+        tap_observed(image, basis, skill, skill_caption, "normal_leader_skill")
+        report["normalSkillSourceCaption"] = skill_caption
         report["normalSkillTapped"] = True
         capture("after-normal-skill")
         movement("movement-one")

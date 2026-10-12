@@ -42,8 +42,9 @@ REGIONS={
     '世界地圖':[(.045,.315,.205,.405)],
     '關卡出擊':[(.25,.84,.46,.98)], # Actual R4 009 caption bbox [589,956,765,1017] at 1920x1080.
     '返回':[(.045,.87,.11,.95)], # Actual R4 009 caption-only interior; exclude the rounded button border.
-    'HP':[(0,0,.52,.30)], '等級':[(0,0,.65,.32)],
-    '暫停':[(.70,0,1.0,.27)], '斬':[(.65,.58,1.0,1.0)],
+    'HP':[(0,0,.52,.30)], 'Lv.':[(.20,.055,.265,.12)], '等級':[(0,0,.65,.32)],
+    '暫停':[(.70,0,1.0,.27)],
+    '旋':[(.92,.835,.967,.925)], '斬':[(.92,.835,.967,.925)], # Source ability-button glyph interior, not the central combo caption.
     '繼續':[(.10,.35,.90,1.0)],
 }
 
@@ -65,6 +66,15 @@ def mapped_tsv(text,origin):
     out=io.StringIO();writer=csv.DictWriter(out,fieldnames=fields,delimiter='\t',lineterminator='\n',quoting=csv.QUOTE_NONE,quotechar=None);writer.writeheader()
     for row in rows:
         row['left']=str(int(row['left'])+origin[0]);row['top']=str(int(row['top'])+origin[1]);writer.writerow(row)
+    return out.getvalue()
+
+def clipped_word_tsv(text,rect):
+    fields,rows=read_tsv(text);selected=[]
+    for row in rows:
+        if row['level']!='5':continue
+        left,top,width,height=(int(row[k]) for k in ['left','top','width','height'])
+        if rect[0]<=left<left+width<=rect[2] and rect[1]<=top<top+height<=rect[3]:selected.append(row)
+    out=io.StringIO();writer=csv.DictWriter(out,fieldnames=fields,delimiter='\t',lineterminator='\n',quoting=csv.QUOTE_NONE,quotechar=None);writer.writeheader();writer.writerows(selected)
     return out.getvalue()
 
 def merge_tsv(native,mapped):

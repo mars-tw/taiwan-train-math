@@ -1,4 +1,4 @@
-"""One exact Seven7 Android KVM observation through normal adb UI input only.
+"""One exact Seven8 Android KVM observation through normal adb UI input only.
 
 No app source, pack, save, mission or object state is edited. Captured control
 flow is separate from root visual gameplay acceptance and first-chapter completion.
@@ -23,7 +23,7 @@ import numpy as np
 
 PACKAGE = "tw.mars.sevendistrictreckoning"
 ALIAS = PACKAGE + "/com.godot.game.GodotAppLauncher"
-APK_NAME = "seven-district-reckoning-1.0.0-build7.apk"
+APK_NAME = "seven-district-reckoning-1.0.0-build8.apk"
 CERT_SHA = "1dd3cc96a02e4555e8d91a42d749a019ee5c4781d4d7510947ae48c865e21110"
 SERIAL = "emulator-5580"
 GPU_MODE = "swangle"  # Explicit supported compatibility experiment, never fallback.
@@ -201,27 +201,27 @@ def main():
     sdk = Path(os.environ["SEVEN_SDK"]).resolve()
     if not sdk.is_relative_to(temp) or not os.access("/dev/kvm", os.R_OK | os.W_OK):
         raise RuntimeError("Owned SDK and usable KVM required; no TCG fallback")
-    out = Path(os.environ["GITHUB_WORKSPACE"]) / "output/seven-code7-runtime"
+    out = Path(os.environ["GITHUB_WORKSPACE"]) / "output/seven-code8-runtime"
     frames = out / "native-frames"
     frames.mkdir(parents=True, exist_ok=True)
-    input_dir = temp / "seven-code7-input"
+    input_dir = temp / "seven-code8-input"
     apk = input_dir / APK_NAME
     provenance = json.loads((input_dir / "fetch-provenance.json").read_text())
     if (apk.stat().st_size != pins["bytes"] or hashlib.sha256(apk.read_bytes()).hexdigest() != APK_SHA
             or provenance.get("assetId") != pins["assetId"] or provenance.get("apkSha256") != APK_SHA or provenance.get("releaseId") != pins["releaseId"]
-            or provenance.get("versionCode") != 7
-            or provenance.get("sourcePostOverridesInputsSha256") != "e486a578116242aaa7a1fe7394ffe5aec1adb3c4dc2bb1ca852846f3a06436a9"):
+            or provenance.get("versionCode") != 8
+            or provenance.get("sourcePostOverridesInputsSha256") != "c4fd6196614ade90eb9b589788da4316acd6a4cbdbd71c68cb50d25408d96b5f"):
         raise RuntimeError("Relayed frozen APK/provenance mismatch")
     (out / "fetch-provenance.json").write_text(json.dumps(provenance, indent=2) + "\n")
     adb = str(sdk / "platform-tools/adb")
     emulator = str(sdk / "emulator/emulator")
     run_id = os.environ["GITHUB_RUN_ID"]
-    avd = "SevenCode7_" + run_id
+    avd = "SevenCode8_" + run_id
     deadline = time.monotonic() + 900
     report = {"schemaVersion": 1, "projectId": "seven-district-reckoning", "status": "PREPARING",
         "runId": run_id, "runAttempt": os.environ.get("GITHUB_RUN_ATTEMPT"), "physical": False,
         "deviceKind": "OFFICIAL_ANDROID_EMULATOR_KVM", "apkSha256": APK_SHA,
-        "versionCode": 7, "ocrConfiguredMaximumSeconds": 60, "ocrChildOmpThreadLimit": 1,
+        "versionCode": 8, "ocrConfiguredMaximumSeconds": 60, "ocrChildOmpThreadLimit": 1,
         "flowAbsoluteDeadlineSeconds": 900, "gpuRequested": GPU_MODE, "accelRequested": "on",
         "experiment": "EXPLICIT_SUPPORTED_SWANGLE_ENGINE_DEVICE_COMPATIBILITY_TEST",
         "previousSwiftshaderFailureHistoryPreserved": True,
@@ -232,7 +232,7 @@ def main():
         "pauseResumeObserved": False, "retryCheckpointNoticeObserved": False,
         "warmRelaunchObserved": False, "sessionControlSmokeCaptured": False,
         "nativeGameplayAccepted": False, "nativeRuntimeReady": False, "firstChapterCompletedVerified": False,
-        "gameSourceChangedByProbe": False, "candidateSourceOverrides": 4,
+        "gameSourceChangedByProbe": False, "candidateSourceOverrides": 3,
         "fiveMissionNativeLifecycleVerified": False, "gameStateInjected": False, "physicalDeviceRequirementSatisfied": False,
         "realTesterParticipationInferred": False, "storeWrites": 0, "captures": [], "inputs": [],
         "limits": ["Real native emulator frames and normal UI inputs; root visual acceptance remains required",
@@ -330,7 +330,7 @@ def main():
                 "launch": launch, "result": "FULLSCREEN_EDUCATION_BODY_NOT_VISIBLE", "tapPerformed": False})
             save()
             return False  # A blank first frame does not suppress a later legitimate notice.
-        remote_xml = "/sdcard/SevenCode7_" + run_id + "_notice.xml"
+        remote_xml = "/sdcard/SevenCode8_" + run_id + "_notice.xml"
         device("shell", "uiautomator", "dump", remote_xml, timeout=30)
         xml = device("exec-out", "cat", remote_xml).stdout.decode("utf-8", "replace")
         (frames / (Path(basis).stem + ".uiautomator.xml")).write_text(xml)
@@ -420,7 +420,7 @@ def main():
         manager = str(sdk / "cmdline-tools/latest/bin/avdmanager")
         avd_home = Path(os.environ["ANDROID_AVD_HOME"]).resolve()
         user_home = Path(os.environ["ANDROID_USER_HOME"]).resolve()
-        if avd_home != temp / "seven-code7-avds" or user_home != temp / "seven-code7-user":
+        if avd_home != temp / "seven-code8-avds" or user_home != temp / "seven-code8-user":
             raise RuntimeError("Fixed owned AVD/user homes differ")
         # The official Java manager may fall back when an override directory does
         # not exist. Establish both owned homes before the one create call.
@@ -496,7 +496,7 @@ def main():
         device("shell", "input", "keyevent", "82")
         device("install", "-r", str(apk), timeout=90)
         package = device("shell", "dumpsys", "package", PACKAGE).stdout.decode()
-        if not re.search(r"versionCode=7\b", package) or "versionName=1.0.0" not in package:
+        if not re.search(r"versionCode=8\b", package) or "versionName=1.0.0" not in package:
             raise RuntimeError("Installed fixed package/version differs")
         resolved = device("shell", "cmd", "package", "resolve-activity", "--brief", PACKAGE).stdout.decode().strip().splitlines()[-1]
         if resolved != ALIAS:
@@ -512,7 +512,7 @@ def main():
         wait_caption("開始新遊戲", "cold-title-wait", seconds=360)
         report["startMenuObserved"] = True
         save()
-        remote_movie = "/sdcard/SevenCode7_" + run_id + ".mp4"
+        remote_movie = "/sdcard/SevenCode8_" + run_id + ".mp4"
         recorder = subprocess.Popen([adb, "-s", SERIAL, "shell", "screenrecord", "--time-limit", "90", remote_movie],
                                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         tap_caption("開始新遊戲", "observed-start")
@@ -555,7 +555,7 @@ def main():
         report["status"] = "NATIVE_CONTROL_FLOW_CAPTURED_PENDING_ROOT_VISUAL_GAMEPLAY_ACCEPTANCE"
         if recorder is not None:
             recorder.wait(timeout=95)
-            movie = out / "SevenCode7-native-emulator-control-flow.mp4"
+            movie = out / "SevenCode8-native-emulator-control-flow.mp4"
             device("pull", remote_movie, str(movie), timeout=60)
             if movie.is_file() and movie.stat().st_size > 0:
                 report["nativeMovie"] = {"file": movie.name, "bytes": movie.stat().st_size,
@@ -596,7 +596,7 @@ def main():
                 if recorder is not None and "nativeMovie" not in report:
                     try:
                         recorder.wait(timeout=95)
-                        movie = out / "SevenCode7-native-emulator-control-flow.mp4"
+                        movie = out / "SevenCode8-native-emulator-control-flow.mp4"
                         result = subprocess.run([adb, "-s", SERIAL, "pull", remote_movie, str(movie)],
                                                 capture_output=True, timeout=45)
                         if result.returncode == 0 and movie.is_file() and movie.stat().st_size > 0:

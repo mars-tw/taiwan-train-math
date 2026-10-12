@@ -209,6 +209,29 @@ def verify_native_phone720_dimensions(width, height):
     return True
 
 
+
+def actual_uiautomator_xml(stdout, stderr, exit_code):
+    """Raw cat diagnostics are not XML; never strip arbitrary text into proof."""
+    if exit_code != 0:
+        return None, "CAT_NONZERO_EXIT"
+    if not isinstance(stdout, bytes) or not stdout or len(stdout) > 512 * 1024:
+        return None, "EMPTY_OR_OVERSIZED_CAT_STDOUT"
+    try:
+        xml = stdout.decode("utf-8-sig").strip()
+    except UnicodeDecodeError:
+        return None, "CAT_STDOUT_NOT_UTF8_XML"
+    if (not (xml.startswith("<?xml") or xml.startswith("<hierarchy"))
+            or "<!DOCTYPE" in xml or "<!ENTITY" in xml):
+        return None, "CAT_STDOUT_NOT_SAFE_XML"
+    try:
+        tree = ET.fromstring(xml)
+    except ET.ParseError:
+        return None, "CAT_STDOUT_MALFORMED_XML"
+    if tree.tag != "hierarchy":
+        return None, "CAT_XML_WRONG_ROOT"
+    return xml, "VALID_ACTUAL_XML_PENDING_OWNED_NOTICE_FRAME_MATCH"
+
+
 def main():
     if (os.environ.get("GITHUB_ACTIONS") != "true"
             or os.environ.get("GITHUB_REPOSITORY") != "mars-tw/taiwan-train-math"
@@ -266,6 +289,7 @@ def main():
     remote_movie = None
     sequence = 0
     notice_dismissals = {"cold": 0, "warm": 0}
+    system_ui_dump_attempts = 0  # Maximum2 official dumps across this whole900s flow.
 
     def save():
         (out / "native-observation.json").write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n")
@@ -347,6 +371,7 @@ def main():
         time.sleep(1)
 
     def dismiss_systemui_notice(label, image=None, tsv=None, basis=None, launch="cold"):
+        nonlocal system_ui_dump_attempts
         if image is None:
             image, tsv, basis = capture(label)
         if notice_dismissals[launch] >= 1:
@@ -357,11 +382,67 @@ def main():
                 "launch": launch, "result": "FULLSCREEN_EDUCATION_BODY_NOT_VISIBLE", "tapPerformed": False})
             save()
             return False  # A blank first frame does not suppress a later legitimate notice.
-        remote_xml = "/sdcard/SevenCode8_720p_" + run_id + "_notice.xml"
-        device("shell", "uiautomator", "dump", remote_xml, timeout=30)
-        xml = device("exec-out", "cat", remote_xml).stdout.decode("utf-8", "replace")
-        (frames / (Path(basis).stem + ".uiautomator.xml")).write_text(xml)
+        xml = None
+        while system_ui_dump_attempts < 2:
+            system_ui_dump_attempts += 1
+            number = system_ui_dump_attempts
+            remote_xml = "/sdcard/SevenCode8_720p_" + run_id + "_notice_" + str(number) + ".xml"
+            prefix = frames / (Path(basis).stem + ".uiautomator-attempt-" + str(number))
+            record = {"attempt":number, "maximumFlowAttempts":2, "launch":launch,
+                "basisNativeFrame":basis, "remoteXMLPath":remote_xml,
+                "requestedAtUtc":datetime.now(timezone.utc).isoformat(), "validActualXML":False, "tapPerformed":False}
+            report.setdefault("systemUiDumpAttempts", []).append(record)
+            save()
+            began = time.monotonic()
+            try:
+                dumped = device("shell", "uiautomator", "dump", remote_xml, timeout=30, allow_failure=True)
+                dump_stdout, dump_stderr, dump_exit, dump_timed_out = dumped.stdout, dumped.stderr, dumped.returncode, False
+            except subprocess.TimeoutExpired as error:
+                dump_stdout, dump_stderr, dump_exit, dump_timed_out = error.stdout or b"", error.stderr or b"", None, True
+            prefix.with_suffix(prefix.suffix+".dump.stdout.txt").write_bytes(dump_stdout)
+            prefix.with_suffix(prefix.suffix+".dump.stderr.txt").write_bytes(dump_stderr)
+            record["dump"] = {"argv":["adb","-s",SERIAL,"shell","uiautomator","dump",remote_xml], "exitCode":dump_exit, "timedOut":dump_timed_out,
+                "elapsedSeconds":round(time.monotonic()-began,6), "stdoutBytes":len(dump_stdout), "stderrBytes":len(dump_stderr)}
+            save()
+            began = time.monotonic()
+            try:
+                cat = device("exec-out", "cat", remote_xml, timeout=20, allow_failure=True)
+                cat_stdout, cat_stderr, cat_exit, cat_timed_out = cat.stdout, cat.stderr, cat.returncode, False
+            except subprocess.TimeoutExpired as error:
+                cat_stdout, cat_stderr, cat_exit, cat_timed_out = error.stdout or b"", error.stderr or b"", None, True
+            prefix.with_suffix(prefix.suffix+".cat.stdout.txt").write_bytes(cat_stdout)
+            prefix.with_suffix(prefix.suffix+".cat.stderr.txt").write_bytes(cat_stderr)
+            xml, validity = actual_uiautomator_xml(cat_stdout,cat_stderr,cat_exit)
+            if dump_exit != 0 or dump_timed_out:
+                xml, validity = None, "OFFICIAL_DUMP_FAILED_OR_TIMEOUT"
+            record["cat"] = {"argv":["adb","-s",SERIAL,"exec-out","cat",remote_xml], "exitCode":cat_exit,"timedOut":cat_timed_out,
+                "elapsedSeconds":round(time.monotonic()-began,6), "stdoutBytes":len(cat_stdout), "stderrBytes":len(cat_stderr)}
+            record.update(validActualXML=xml is not None, validity=validity, completedAtUtc=datetime.now(timezone.utc).isoformat())
+            prefix.with_suffix(prefix.suffix+".receipt.json").write_text(json.dumps(record,indent=2)+"\n")
+            save()
+            if xml is not None:
+                (frames/(Path(basis).stem+".uiautomator.xml")).write_text(xml)
+                break
+            if system_ui_dump_attempts >= 2 or deadline-time.monotonic() <= 2:
+                break
+            record["shortWaitBeforeNextActualDumpSeconds"] = 2
+            save()
+            time.sleep(2)  # Bounded once, inside the original900s deadline.
+            image,tsv,basis = capture(label+"-xml-retry-frame")
+            if not (label_box(tsv,"Viewing full screen") and label_box(tsv,"To exit, swipe down from the top of your screen")):
+                report.setdefault("systemUiNoticeChecks",[]).append({"basisNativeFrame":basis,
+                    "launch":launch,"result":"NOTICE_BODY_ABSENT_ON_NEW_ACTUAL_FRAME","tapPerformed":False})
+                save()
+                return False
+        if xml is None:
+            report["infrastructureHoldReason"] = "SYSTEMUI_XML_UNAVAILABLE_AFTER_AT_MOST2_OFFICIAL_DUMPS"
+            report["performanceGateStatus"] = "NOT_RUN_OBSERVER_XML_UNAVAILABLE"
+            report["performanceAttemptCount"] = 0
+            save()
+            raise RuntimeError("SYSTEMUI_XML_UNAVAILABLE; no ownership proof, no tap, no performance result")
         notice = system_ui_notice_from_frame(xml, image.width, image.height, tsv, notice_dismissals[launch])
+        record["ownedPackageSamePanelMatched"] = notice is not None
+        prefix.with_suffix(prefix.suffix+".receipt.json").write_text(json.dumps(record,indent=2)+"\n")
         if notice is None:
             report.setdefault("systemUiNoticeChecks", []).append({"basisNativeFrame": basis,
                 "launch": launch, "result": "NO_UNIQUE_VISIBLE_OWNED_SAME_PANEL_NOTICE", "tapPerformed": False})
@@ -377,6 +458,9 @@ def main():
         save()
         device("shell", "input", "tap", *map(str, point))
         action["commandSucceeded"] = True
+        record["tapPerformed"] = True
+        record["actualTapPoint"] = point
+        prefix.with_suffix(prefix.suffix+".receipt.json").write_text(json.dumps(record,indent=2)+"\n")
         notice_dismissals[launch] += 1
         report["systemUiNoticeDismissals"] = dict(notice_dismissals)
         time.sleep(1)
@@ -612,7 +696,8 @@ def main():
         report["status"] = "FAILED_NATIVE_OBSERVATION"
         report["errorType"] = type(error).__name__
         report["error"] = str(error)[:1000]
-        report["remainingPerformanceAcceptanceGate"] = "REAL_ARM_DEVICE_REQUIRED_IF_THIS_ONE720P_DIAGNOSTIC_STILL_LOADING; retain hold, no repeated emulator guesses"
+        report["remainingPerformanceAcceptanceGate"] = ("NOT_RUN_OBSERVER_XML_UNAVAILABLE" if report.get("infrastructureHoldReason")
+            else "REAL_ARM_DEVICE_REQUIRED_IF_THIS_ONE720P_DIAGNOSTIC_STILL_LOADING; retain hold, no repeated emulator guesses")
         report["ownedEmulatorExitAtFailure"] = proc.poll() if proc is not None else None
         save()
         raise

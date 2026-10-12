@@ -36,6 +36,51 @@ SOURCE_CAPTION_CONTRACT = {"hudSourceSha256":"4822ed136c3fc7a3127ba1f86b0f402091
 SOURCE_OPTION_CAPTIONS = ('事件穹網', '五人滿編', '五分鐘防線', '偏壓改裝', '共鳴火花', '共鳴聖歌', '分裂燼彈', '剃界盾輪', '剪界星環', '單線協定', '回影追斬', '回收磁場', '回收餘波', '契約擴展', '契約槽 +1', '守門者倒下', '定向改裝', '帷幕王庭', '帷幕護盾', '招募：', '星環共鳴', '星盾和聲', '星盾重衛', '星裂貫槍', '星雷珠', '星雷羽鷹', '星霜聖域', '時輪刃衛', '時輪工坊', '曜砂王陵', '曜砂甲蟲', '月華靈森', '月華靈火', '武器覺醒', '殲滅 500', '流星雨', '深層急救', '深潮歌妖', '漸強和聲', '潮生祝禱', '灼星烙印', '焰尾靈狐', '焰爆術士', '燼脈聯爆', '燼雨連爆', '牧長裂約', '獵隙導引', '獵隙蜂群', '玻璃磁界', '珊潮遺都', '珊瑚巨衛', '疾步校準', '疾閃目擊', '短路超載', '砂影獵手', '磁暴回收', '磁滯目擊', '空槽', '精英信標', '精英餌標', '精英首獵', '緊急整補', '緋星熔庭', '縫獵協議', '翠晶花園', '翠玉靈兔', '脈衝餘燼', '蒼月空庭', '虛空錨點', '血稅', '裂光校準', '裂殖目擊', '裂線分叉', '裂群召喚師', '裂錨定駐', '裂隙急救', '裂隙扇編', '裂隙拾荒', '裂隙護甲', '裂隙過載', '裂隙韌性', '起始選擇 +1', '超載新星', '返刃共振', '追影刃', '逐金魔靈', '重整庫存', '金饑', '鏡裂群牧', '雷爪獵將', '雷鏈過載', '雷霆浮島', '霜晶槍', '霜環守望者', '靜幕', '餘燼井')
 
 
+def locate_visible_joystick(image):
+    """Find the source-defined lower-left cyan ring and bright central knob.
+
+    The radius band and knob threshold are pinned to the fixed Crack2 native
+    1920x1080 observation. Other layouts may fail closed; no coordinate fallback.
+    """
+    width, height = image.size
+    if (width, height) != (1920, 1080):
+        raise RuntimeError("Unexpected native frame size for pinned joystick locator")
+    rgb = np.asarray(image.convert("RGB"))
+    gray = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY)
+    top, right = int(height * .66), int(width * .23)
+    circles = cv2.HoughCircles(gray[top:, :right], cv2.HOUGH_GRADIENT,
+        dp=1.2, minDist=int(height * .074), param1=80, param2=40,
+        minRadius=int(height * .083), maxRadius=int(height * .125))
+    geometric = []
+    if circles is not None:
+        for raw_x, raw_y, raw_radius in circles[0]:
+            x, y, radius = float(raw_x), float(raw_y + top), float(raw_radius)
+            if x < width * .2 and height * .72 < y < height * .96:
+                geometric.append([x, y, radius])
+    # The Godot source draws an arc around a filled knob. The old grayscale
+    # Hough pass treated textured terrain as additional rings; require the
+    # knob's observed light disk at the ring center before any gesture.
+    verified = []
+    for x, y, radius in geometric:
+        knob_radius = radius * .22
+        left = max(0, int(x - knob_radius))
+        upper = max(0, int(y - knob_radius))
+        right_edge = min(width, int(x + knob_radius) + 1)
+        bottom = min(height, int(y + knob_radius) + 1)
+        yy, xx = np.ogrid[upper:bottom, left:right_edge]
+        disk = (xx - x) ** 2 + (yy - y) ** 2 <= knob_radius ** 2
+        pixels = rgb[upper:bottom, left:right_edge][disk]
+        bright_fraction = float(np.mean((pixels[:, 0] > 145) &
+            (pixels[:, 1] > 155) & (pixels[:, 2] > 155)))
+        if bright_fraction > .20:
+            verified.append({"circle": [x, y, radius], "knobBrightFraction": bright_fraction})
+    if not verified:
+        raise RuntimeError("Visible native joystick ring and central knob not uniquely identified; no coordinate guessed")
+    if len(verified) != 1:
+        raise RuntimeError("Multiple spatial native joystick candidates with visible knobs; no gesture guessed")
+    return geometric, verified[0]
+
+
 def verify_swangle_gpu_help(stdout, stderr, exit_code):
     if exit_code != 0 or not re.search(r"(?<![\w])swangle(?![\w])", stdout + stderr):
         raise RuntimeError("Pinned official emulator does not advertise swangle; no fallback")
@@ -567,22 +612,13 @@ def main():
 
     def movement(label):
         image, tsv, basis = hud(label + "-before")
-        gray = cv2.cvtColor(np.asarray(image), cv2.COLOR_RGB2GRAY)
-        roi = gray[int(image.height * .66):, :int(image.width * .23)]
-        circles = cv2.HoughCircles(roi, cv2.HOUGH_GRADIENT, dp=1.2, minDist=15,
-                                  param1=80, param2=24, minRadius=22, maxRadius=int(image.height * .17))
-        values = [] if circles is None else [[float(x), float(y + int(image.height * .66)), float(rad)] for x, y, rad in circles[0]]
-        values = [x for x in values if x[0] < image.width * .2 and x[1] > image.height * .72]
-        if not values:
-            raise RuntimeError("Visible native joystick ring not identified; no coordinate guessed")
-        values.sort(key=lambda row: row[2], reverse=True)
-        circle = values[0]
-        if any(abs(row[0] - circle[0]) + abs(row[1] - circle[1]) > circle[2] for row in values[1:]):
-            raise RuntimeError("Multiple native joystick candidates; no gesture guessed")
+        values, verified = locate_visible_joystick(image)
+        circle = verified["circle"]
         x, y, radius = circle
         gesture = [round(x), round(y), round(x + radius * .72), round(y), 1800]
         report["inputs"].append({"action": "joystick_swipe", "basisNativeFrame": basis,
-            "observedCircleCandidates": values, "selectedCircle": circle, "nativeGesture": gesture})
+            "observedCircleCandidates": values, "selectedCircle": circle,
+            "centerKnobBrightFraction": verified["knobBrightFraction"], "nativeGesture": gesture})
         save()
         device("shell", "input", "swipe", *map(str, gesture))
         time.sleep(.5)

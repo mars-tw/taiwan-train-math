@@ -1,80 +1,34 @@
-name: Ashes Simulator gameplay recording (unsigned, no store submission)
+name: Ashes owned Simulator recorder startup diagnostic (no gameplay)
 on:
   workflow_dispatch: {}
 permissions:
   contents: read
 concurrency:
-  group: ashes-simulator-recording-${{ github.ref }}
+  group: ashes-recorder-startup-diagnostic-${{ github.ref }}
   cancel-in-progress: false
 jobs:
-  fetch:
+  diagnose:
     if: github.repository == 'mars-tw/taiwan-train-math' && github.ref == 'refs/heads/codex/ashes-simulator-recording'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 12
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
-        with:
-          persist-credentials: false
-          sparse-checkout: scripts/fetch-ashes-recording-source.py
-          sparse-checkout-cone-mode: false
-      - name: Fetch only the fixed same-repository draft source
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: python3 scripts/fetch-ashes-recording-source.py fetch --directory "$RUNNER_TEMP/ashes-recording-input"
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: ashes-recording-input-${{ github.run_id }}
-          path: ${{ runner.temp }}/ashes-recording-input
-          if-no-files-found: error
-          retention-days: 1
-  record:
-    needs: fetch
     runs-on: macos-26-intel
-    timeout-minutes: 60
-    permissions:
-      contents: read
+    timeout-minutes: 30
     env:
       DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
+      PYTHONDONTWRITEBYTECODE: '1'
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           persist-credentials: false
           sparse-checkout: |
-            scripts/fetch-ashes-recording-source.py
             scripts/record-ashes-ios-simulator.py
-            scripts/create-ashes-simulator-capture-project.py
+            scripts/diagnose-ashes-simulator-recorder-startup.py
+            .github/workflows/web-runtime-probe.yml
           sparse-checkout-cone-mode: false
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
-        with:
-          node-version: '24'
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
-        with:
-          name: ashes-recording-input-${{ github.run_id }}
-          path: ${{ runner.temp }}/ashes-recording-input
-      - name: Set paths from the actual runner environment
-        run: |
-          echo "CI_TOOLS=$RUNNER_TEMP/ashes-recording-input" >> "$GITHUB_ENV"
-          echo "APP_SOURCE=$RUNNER_TEMP/ashes-recording-source" >> "$GITHUB_ENV"
-          echo "PUBLIC_OUTPUT=$GITHUB_WORKSPACE/output/ashes-simulator-recording" >> "$GITHUB_ENV"
-      - name: Verify exact same-run source and safely extract it
-        run: |
-          python3 scripts/fetch-ashes-recording-source.py verify --directory "$CI_TOOLS"
-          python3 "$CI_TOOLS/ci_verify_ios.py" extract --zip "$CI_TOOLS/ashes-convoy-ios-source.zip" --destination "$APP_SOURCE"
-          mkdir -p "$PUBLIC_OUTPUT"
-          python3 "$CI_TOOLS/ci_verify_ios.py" source --root "$APP_SOURCE" --project ashes-convoy --output "$PUBLIC_OUTPUT/source-verification.json"
-          cp "$CI_TOOLS/recording-input-provenance.json" "$PUBLIC_OUTPUT/input-provenance.json"
-      - name: Prepare frozen native source without any Apple signing credentials
-        run: bash "$CI_TOOLS/ci_ios_export.sh" prepare "$APP_SOURCE" ashes-convoy "$PUBLIC_OUTPUT"
-      - name: Record a continuous real Simulator launch and normal native XCTest controls
-        env:
-          DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
-        run: python3 scripts/record-ashes-ios-simulator.py --app-source "$APP_SOURCE" --output "$PUBLIC_OUTPUT" --source-zip "$CI_TOOLS/ashes-convoy-ios-source.zip"
+      - name: Observe one owned recorder startup without game build or launch
+        run: python3 scripts/diagnose-ashes-simulator-recorder-startup.py --output "$GITHUB_WORKSPACE/output/ashes-recorder-startup-diagnostic"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
-          name: ashes-ios-simulator-recording-${{ github.run_id }}
-          path: ${{ github.workspace }}/output/ashes-simulator-recording
+          name: ashes-recorder-startup-diagnostic-${{ github.run_id }}
+          path: ${{ github.workspace }}/output/ashes-recorder-startup-diagnostic
           if-no-files-found: error
           retention-days: 7

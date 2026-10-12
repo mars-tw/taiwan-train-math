@@ -557,24 +557,27 @@ class BoundedCommandTests(unittest.TestCase):
 
 
 class NativeFailureDiagnosticsTests(unittest.TestCase):
-    def test_measured_startup_reserves_existing_test_allowance_and_finite_job_budget(self):
+    def test_capture_allowances_preserved_and_startup_only_job_is_bounded(self):
         source = pathlib.Path(driver.__file__).read_text(encoding="utf-8")
         outer = int(re.search(r'"test-without-building"\], (\d+), check=False', source)[1])
         default = int(re.search(r'"-default-test-execution-time-allowance", "(\d+)"', source)[1])
         maximum = int(re.search(r'"-maximum-test-execution-time-allowance", "(\d+)"', source)[1])
         workflow = pathlib.Path(__file__).parent.parent / ".github/workflows/web-runtime-probe.yml"
-        record_job = workflow.read_text(encoding="utf-8").split("  record:\n", 1)[1]
-        job_seconds = int(re.search(r"timeout-minutes: (\d+)", record_job)[1]) * 60
+        diagnostic_job = workflow.read_text(encoding="utf-8").split("  diagnose:\n", 1)[1]
+        job_seconds = int(re.search(r"timeout-minutes: (\d+)", diagnostic_job)[1]) * 60
         # Independently audited run11 approximation: ps observation to runner
         # launch. Actual UI-start epoch was not recorded; this is a budget
         # regression, not proof that timeout was the root cause or UI passed.
         approximate_startup = 305.806
-        self.assertEqual((outer, default, maximum, job_seconds), (1500, 180, 240, 3600))
+        self.assertEqual((outer, default, maximum), (1500, 180, 240))
+        self.assertEqual(job_seconds, 1800)
         self.assertLess(480 - approximate_startup, default)
         self.assertGreaterEqual(outer - approximate_startup, maximum)
-        counterfactual_capture_step = 1454.226 - 480.191 + outer
-        self.assertAlmostEqual(counterfactual_capture_step, 2474.035)
-        self.assertGreater(job_seconds, counterfactual_capture_step + 120)
+        # This QA-branch workflow now diagnoses recorder startup only. It never
+        # invokes the original 1500-second game UI command; no UI budget claim.
+        self.assertNotIn("test-without-building", diagnostic_job)
+        self.assertNotIn("record-ashes-ios-simulator.py --", diagnostic_job)
+        self.assertGreater(job_seconds, 1280 + 180)  # bounded stages + artifact allowance
 
 
     def test_fixed_test_stages_and_progress_discard_untrusted_log_content(self):
@@ -631,17 +634,17 @@ class NativeFailureDiagnosticsTests(unittest.TestCase):
         self.assertIn('self.facts[-1]["safeSummaryError"]', text)
         self.assertIn('"test-without-building"], 1500', text)
 
-    def test_frozen_prepare_and_record_use_explicit_263_known_baseline(self):
+    def test_startup_only_workflow_and_capture_driver_use_explicit_263_baseline(self):
         workflow = pathlib.Path(__file__).parent.parent / ".github/workflows/web-runtime-probe.yml"
         text = workflow.read_text(encoding="utf-8")
         self.assertIn("runs-on: macos-26-intel", text)
-        job = text.split("  record:\n", 1)[1]
+        job = text.split("  diagnose:\n", 1)[1]
         self.assertIn("DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer", job.split("    steps:", 1)[0])
-        prepare = job.split("      - name: Prepare frozen native source", 1)[1].split("      - name: Record a continuous", 1)[0]
-        self.assertIn('bash "$CI_TOOLS/ci_ios_export.sh" prepare', prepare)
-        self.assertNotIn("Xcode_26.6", prepare)
-        recording = job.split("      - name: Record a continuous", 1)[1].split("      - uses:", 1)[0]
-        self.assertIn("DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer", recording)
+        self.assertIn('diagnose-ashes-simulator-recorder-startup.py --output', job)
+        self.assertNotIn("ci_ios_export.sh", job)
+        self.assertNotIn("Xcode_26.6", job)
+        self.assertNotIn("${{ secrets.", text)
+        self.assertIn("refs/heads/codex/ashes-simulator-recording", text)
         source = pathlib.Path(driver.__file__).read_text(encoding="utf-8")
         self.assertIn('rb"^Xcode 26\\.3\\s*$"', source)
         self.assertNotIn('rb"^Xcode 26\\.6\\s*$"', source)

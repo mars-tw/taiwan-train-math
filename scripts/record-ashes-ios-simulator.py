@@ -208,6 +208,50 @@ def wait_for_recorder_ack(recorder, path, timeout=90):
             **log_facts}
 
 
+def owned_recorder_device_readback(commands, device, public, stage="recorder-startup-device-readback"):
+    """Diagnostic only: record the exact owned UUID state; never relax the ACK gate."""
+    raw, code = commands.run(stage, ["xcrun", "simctl", "list", "devices", "--json"], 30, check=False)
+    command = commands.facts[-1]
+    result = {"ownedSimulatorId": device["udid"], "exitCode": code,
+              "timedOut": command["timedOut"], "rawReadbackBytes": len(raw),
+              "rawReadbackSha256": hashlib.sha256(raw).hexdigest(),
+              "ownershipMatched": False, "state": None, "bootedReadback": None,
+              "observedAtUtc": datetime.datetime.now(datetime.timezone.utc).isoformat()}
+    try:
+        inventory = json.loads(raw)
+        valid_shape = (isinstance(inventory, dict) and isinstance(inventory.get("devices"), dict)
+                       and isinstance(inventory["devices"].get(device["runtime"]), list)
+                       and all(isinstance(item, dict) for item in inventory["devices"][device["runtime"]]))
+        if code == 0 and command["timedOut"] is False and valid_shape and still_owned(device, inventory):
+            match = next(item for item in inventory["devices"][device["runtime"]]
+                         if str(item.get("udid", "")).lower() == device["udid"].lower())
+            state = match.get("state")
+            result.update(ownershipMatched=True,
+                          state=state if state in {"Booted", "Shutdown", "Booting", "Shutting Down"} else None,
+                          bootedReadback=state == "Booted")
+    except (ValueError, TypeError, KeyError, StopIteration):
+        pass
+    write_json(public / "recorder-startup-device-readback.json", result)
+    return result
+
+
+def preserve_owned_recorder_log(path, public):
+    """Preserve complete, byte-identical stdout/stderr before owned scratch cleanup."""
+    path, public = pathlib.Path(path), pathlib.Path(public)
+    if path.is_symlink() or not path.is_file():
+        raise CaptureFailure("Owned recorder stdout/stderr file is absent or unsafe")
+    destination = public / "recorder-stdout-stderr.log"
+    if destination.exists() or destination.is_symlink():
+        raise CaptureFailure("Owned recorder log artifact already exists")
+    original_hash, original_size = sha256(path), path.stat().st_size
+    shutil.copyfile(path, destination)
+    if destination.stat().st_size != original_size or sha256(destination) != original_hash:
+        raise CaptureFailure("Owned recorder stdout/stderr artifact copy differs")
+    return {"file": destination.name, "bytes": original_size, "sha256": original_hash,
+            "rawUnmodifiedCombinedStdoutStderr": True, "retained": True,
+            "credentialsForwardedToRecorder": False}
+
+
 def parse_cold_launch_pid(raw):
     match = re.fullmatch(rb"tw\.mars\.ashesconvoy:\s*([1-9][0-9]{0,9})\s*", raw.strip())
     if not match or int(match[1]) > 2147483647:
@@ -686,6 +730,11 @@ def record(args):
         facts["recorderStartup"] = wait_for_recorder_ack(recorder, recorder_path, timeout=90)
         recorder_started = (facts["recorderStartup"]["recordingStartedAckObserved"]
                             and facts["recorderStartup"]["processAliveAtObservation"])
+        try:
+            facts["recorderStartupDeviceReadback"] = owned_recorder_device_readback(commands, device, public)
+        except (CaptureFailure, OSError, ValueError, KeyError):
+            facts["recorderStartupDeviceReadback"] = {"diagnosticFailed": True, "bootedReadback": None}
+            errors.append("Owned recorder startup device readback could not be retained")
         if not recorder_started:
             raise CaptureFailure("Owned recorder did not confirm live recording started")
         ack_epoch = time.time()
@@ -772,6 +821,12 @@ def record(args):
         failed_stage = str(error) if isinstance(error, CaptureFailure) else "Input/tool artifact could not meet the recording contract"
     finally:
         facts["uiTestBuildResultBundlePresent"] = (public / "ui-test-build.xcresult").is_dir()
+        if recorder is not None and "recorderStartupDeviceReadback" not in facts:
+            try:
+                facts["recorderStartupDeviceReadback"] = owned_recorder_device_readback(
+                    commands, device, public, "recorder-startup-exception-device-readback")
+            except (CaptureFailure, OSError, ValueError, KeyError):
+                errors.append("Owned recorder startup device readback could not be retained")
         # Finalize only the exact recorder Popen handle owned by this invocation.
         if recorder is not None and not recorder_finished:
             recorder_finalized, code, warning = finish_owned_recording(recorder, recorder_started)
@@ -781,7 +836,15 @@ def record(args):
                 errors.append(warning)
         if recorder_log is not None:
             recorder_log.close()
-            facts["recorderFinalLog"], _ = recorder_log_facts(recorder_path)
+            try:
+                facts["recorderFinalLog"], _ = recorder_log_facts(recorder_path)
+                facts["recorderLogArtifact"] = preserve_owned_recorder_log(recorder_path, public)
+                for stage in ("recorderStartup", "recorderFinalLog"):
+                    if stage in facts:
+                        facts[stage]["rawLogPublished"] = True
+                        facts[stage]["rawLogArtifactRetained"] = True
+            except (CaptureFailure, OSError):
+                errors.append("Original owned recorder stdout/stderr artifact could not be retained")
         if recorder_finalized and video.is_file() and video.stat().st_size > 0:
             try:
                 metadata = scratch / "inspect-original-mp4.swift"

@@ -6,8 +6,22 @@ import math
 
 TSV_FIELDS={'level','page_num','block_num','par_num','line_num','word_num','left','top','width','height','conf','text'}
 
+class FlowDeadlineExceeded(RuntimeError):
+    pass
+
+class CaptionDeadlineExceeded(RuntimeError):
+    pass
+
+def caption_budget(caption,until,flow_deadline,now=None):
+    now=time.monotonic() if now is None else now
+    if now>=flow_deadline:raise FlowDeadlineExceeded('NATIVE_FLOW_DEADLINE_900S_EXCEEDED: '+caption)
+    if now>=until:raise CaptionDeadlineExceeded('NATIVE_CAPTION_DEADLINE_EXCEEDED: '+caption)
+    return min(until,flow_deadline)-now
+
 def read_tsv(text):
-    reader=csv.DictReader(io.StringIO(text),delimiter='\t');fields=reader.fieldnames
+    # Tesseract emits raw TSV, including bare double quotes as recognized text.
+    # CSV quote handling can consume hundreds of later physical rows.
+    reader=csv.DictReader(io.StringIO(text,newline=''),delimiter='\t',quoting=csv.QUOTE_NONE,quotechar=None);fields=reader.fieldnames
     if not fields or len(fields)!=len(set(fields)) or not TSV_FIELDS.issubset(fields):raise RuntimeError('OCR TSV schema invalid')
     rows=[]
     for row in reader:
@@ -26,8 +40,8 @@ def read_tsv(text):
 REGIONS={
     '開始出擊':[(.08,.165,.395,.25)],
     '世界地圖':[(.045,.315,.205,.405)],
-    '關卡出擊':[(.55,.76,1.0,1.0)],
-    '返回':[(0,.76,.5,1.0)],
+    '關卡出擊':[(.25,.84,.46,.98)], # Actual R4 009 caption bbox [589,956,765,1017] at 1920x1080.
+    '返回':[(.01,.84,.145,.99)], # Isolate the actual R4 009 visible lower-left Back button.
     'HP':[(0,0,.52,.30)], '等級':[(0,0,.65,.32)],
     '暫停':[(.70,0,1.0,.27)], '斬':[(.65,.58,1.0,1.0)],
     '繼續':[(.10,.35,.90,1.0)],
@@ -48,7 +62,7 @@ def map_box(box,origin,size):
 
 def mapped_tsv(text,origin):
     fields,rows=read_tsv(text)
-    out=io.StringIO();writer=csv.DictWriter(out,fieldnames=fields,delimiter='\t',lineterminator='\n');writer.writeheader()
+    out=io.StringIO();writer=csv.DictWriter(out,fieldnames=fields,delimiter='\t',lineterminator='\n',quoting=csv.QUOTE_NONE,quotechar=None);writer.writeheader()
     for row in rows:
         row['left']=str(int(row['left'])+origin[0]);row['top']=str(int(row['top'])+origin[1]);writer.writerow(row)
     return out.getvalue()
@@ -60,7 +74,7 @@ def merge_tsv(native,mapped):
     # unrelated native/ROI rows cannot become one line in label_box.
     offset=max([int(row['page_num']) for row in rows]+[0])
     for row in mapped_rows:row['page_num']=str(int(row['page_num'])+offset)
-    out=io.StringIO();writer=csv.DictWriter(out,fieldnames=fields,delimiter='\t',lineterminator='\n');writer.writeheader();writer.writerows(rows+mapped_rows)
+    out=io.StringIO();writer=csv.DictWriter(out,fieldnames=fields,delimiter='\t',lineterminator='\n',quoting=csv.QUOTE_NONE,quotechar=None);writer.writeheader();writer.writerows(rows+mapped_rows)
     return out.getvalue()
 
 def find_caption(native_path,caption,remaining_seconds,ocr_runner,label_finder,output):

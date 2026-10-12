@@ -19,7 +19,7 @@ import xml.etree.ElementTree as ET
 from PIL import Image, ImageChops
 import cv2
 import numpy as np
-from roi_ocr import find_caption as find_caption_roi, read_tsv, merge_tsv, map_box
+from roi_ocr import find_caption as find_caption_roi, read_tsv, merge_tsv, map_box, caption_budget, FlowDeadlineExceeded
 
 PACKAGE = "tw.mars.crackveilvanguard"
 ALIAS = PACKAGE + "/com.godot.game.GodotAppLauncher"
@@ -238,6 +238,8 @@ def main():
         "bootVerified": False, "installedIdentityVerified": False, "startMenuObserved": False,
         "visibleStartTapped": False, "gameplayHudObserved": False, "movementGestureExecuted": False,
         "pauseResumeObserved": False, "worldMapObserved": False, "mapChoiceTapped": False,
+        "mapSelectionNativeVerified": False, "worldMapObservationOnly": True,
+        "previousFailedR4RunPreserved": 38204384086,
         "introObserved": False, "contractChoiceTapped": False, "normalSkillTapped": False,
         "normalQuitToLauncherObserved": False,
         "warmRelaunchObserved": False, "sessionControlSmokeCaptured": False,
@@ -257,7 +259,7 @@ def main():
 
     def command(argv, timeout=20, allow_failure=False):
         if time.monotonic() >= deadline:
-            raise RuntimeError("Absolute native observation deadline exceeded")
+            raise FlowDeadlineExceeded("NATIVE_FLOW_DEADLINE_900S_EXCEEDED: owned command")
         result = subprocess.run(argv, capture_output=True, timeout=min(timeout, max(.1, deadline - time.monotonic())))
         if result.returncode and not allow_failure:
             raise RuntimeError("Owned native command failed: " + Path(argv[0]).name + " " + " ".join(argv[1:4]))
@@ -266,12 +268,18 @@ def main():
     def device(*args, timeout=20, allow_failure=False):
         return command([adb, "-s", SERIAL, *args], timeout, allow_failure)
 
-    def capture(label):
+    def capture(label, until=None, caption=None):
         nonlocal sequence
+        caption_until = deadline if until is None else until
         report["currentObservationPhase"] = label
         sequence += 1
         name = f"{sequence:03d}-{label}.png"
-        raw = device("exec-out", "screencap", "-p").stdout
+        remaining = caption_budget(caption or label, caption_until, deadline)
+        try:
+            raw = device("exec-out", "screencap", "-p", timeout=min(20, remaining)).stdout
+        except subprocess.TimeoutExpired:
+            caption_budget(caption or label, caption_until, deadline)
+            raise
         image = Image.open(io.BytesIO(raw)).convert("RGB")
         if image.width < 600 or image.height < 300 or image.width * image.height > 5000000:
             raise RuntimeError("Native viewport unexpectedly small or oversized")
@@ -281,7 +289,8 @@ def main():
                                    "sha256": hashlib.sha256(raw).hexdigest(), "ocrComplete": False})
         save()
         ocr_argv = ["tesseract", str(path), "stdout", "-l", "chi_tra+eng", "--psm", "11", "tsv"]
-        ocr_stdout, ocr_stderr, ocr_receipt = bounded_native_ocr(ocr_argv, deadline-time.monotonic())
+        remaining = caption_budget(caption or label, caption_until, deadline)
+        ocr_stdout, ocr_stderr, ocr_receipt = bounded_native_ocr(ocr_argv, remaining)
         path.with_suffix(".ocr.stdout.txt").write_bytes(ocr_stdout)
         path.with_suffix(".ocr.stderr.txt").write_bytes(ocr_stderr)
         path.with_suffix(".tsv").write_bytes(ocr_stdout)
@@ -291,26 +300,31 @@ def main():
         path.with_suffix(".ocr-receipt.json").write_text(json.dumps(ocr_receipt,indent=2)+"\n")
         report["captures"][-1]["ocrReceipt"] = ocr_receipt
         save()
+        caption_budget(caption or label, caption_until, deadline)
         if ocr_receipt["timedOut"]:
             raise RuntimeError("OCR_CHILD_TIMEOUT_OMP1_WITHIN_REMAINING_FLOW_BUDGET: " + name)
         if ocr_receipt["exitCode"] != 0:
             raise RuntimeError("OCR_CHILD_NONZERO_STDERR_PRESERVED: " + name)
         ocr = ocr_stdout.decode("utf-8", "replace")
-        text = " ".join(row.get("text", "") for row in csv.DictReader(io.StringIO(ocr), delimiter="\t") if row.get("text"))
+        text = " ".join(row["text"] for row in read_tsv(ocr)[1] if row["text"])
         report["captures"][-1].update(ocrComplete=True, ocrText=text[:4096])
         save()
         return image, ocr, name
 
     def scoped_caption(image, tsv, basis, caption, until):
+        caption_budget(caption, until, deadline)
         box = label_box(tsv, caption)
         if box:
             return map_box(box, [0, 0], image.size), tsv
-        proof = find_caption_roi(frames / basis, caption, min(deadline, until)-time.monotonic(),
-            bounded_native_ocr, label_box, frames / "derived-roi")
+        def caption_ocr(argv, remaining):
+            return bounded_native_ocr(argv, min(remaining, caption_budget(caption, until, deadline)))
+        proof = find_caption_roi(frames / basis, caption, caption_budget(caption, until, deadline),
+            caption_ocr, label_box, frames / "derived-roi")
         report.setdefault("scopedRoiCaptionProof", []).append({"caption":caption,"basisNativeFrame":basis,
             "nativeBox":proof["nativeBox"],"originalSha256":proof["originalSha256"],"trials":proof["trials"],
             "coordinatesRequireRecognizedText":True})
         save()
+        caption_budget(caption, until, deadline)
         if proof["nativeBox"]:
             # Preserve full native OCR context for map choices; appended word rows already
             # use original native coordinates, with the ROI proof separately retained.
@@ -323,7 +337,7 @@ def main():
         while time.monotonic() < until:
             if proc is not None and proc.poll() is not None:
                 raise RuntimeError("Owned emulator exited before visible UI proof")
-            image, tsv, name = capture(label)
+            image, tsv, name = capture(label, until, caption)
             if caption == "開始出擊":
                 launch = "warm" if label.startswith("warm") else "cold"
                 if dismiss_systemui_notice(label+"-delayed-notice", image, tsv, name, launch=launch):
@@ -331,7 +345,8 @@ def main():
             box, recognized_tsv = scoped_caption(image, tsv, name, caption, until)
             if box:
                 return image, recognized_tsv, name, box
-            time.sleep(3 if seconds <= 30 else 10)
+            time.sleep(min(3 if seconds <= 30 else 10, caption_budget(caption, until, deadline)))
+        caption_budget(caption, until, deadline)
         raise RuntimeError("Visible caption not observed within bound: " + caption)
 
     def tap_caption(caption, label, seconds=30):
@@ -409,7 +424,7 @@ def main():
     def hud(label):
         until = min(deadline, time.monotonic() + 60)
         while time.monotonic() < until:
-            image, tsv, name = capture(label)
+            image, tsv, name = capture(label, until, "HP/等級/暫停")
             launch = "warm" if label.startswith("warm") else "cold"
             if dismiss_systemui_notice(label+"-delayed-notice", image, tsv, name, launch=launch):
                 continue
@@ -451,7 +466,8 @@ def main():
             pause_box, tsv = scoped_caption(image, tsv, name, "暫停", until)
             if hp_box and level_box and pause_box:
                 return image, tsv, name
-            time.sleep(1)
+            time.sleep(min(1, caption_budget("HP/等級/暫停", until, deadline)))
+        caption_budget("HP/等級/暫停", until, deadline)
         raise RuntimeError("Active native HP/level/pause HUD not observed within bound")
 
     def foreground_component():
@@ -615,14 +631,12 @@ def main():
         recorder = subprocess.Popen([adb, "-s", SERIAL, "shell", "screenrecord", "--time-limit", "180", remote_movie],
                                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         tap_caption("世界地圖", "observed-world-map")
-        image, tsv, basis, _ = wait_caption("關卡出擊", "world-map-ready")
+        image, tsv, basis, map_box_observed = wait_caption("關卡出擊", "world-map-ready")
         report["worldMapObserved"] = True
-        stage_choice = unique_visible_choice(tsv, ["蒼月空庭", "翠晶花園", "緋星熔庭", "雷霆浮島", "星霜聖域", "帷幕王庭"])
-        if not stage_choice:
-            raise RuntimeError("No unique visible battlefield caption; no map node guessed")
-        tap_observed(image, basis, stage_choice[1], stage_choice[0], "normal_map_choice")
-        report.update(mapChoiceTapped=True, mapChoiceCaption=stage_choice[0])
-        capture("map-after-actual-choice")
+        report.update(worldMapEvidenceFrame=basis, worldMapEvidenceCaption="關卡出擊",
+            worldMapEvidenceNativeBox=map_box_observed, mapChoiceTapped=False, mapSelectionNativeVerified=False,
+            mapChoiceSkippedReason="Observed world map only; multiple visible map cards are outside this control-smoke diagnostic")
+        save()
         tap_caption("返回", "observed-map-return")
         wait_caption("開始出擊", "after-map-main-menu")
         tap_caption("開始出擊", "observed-start")

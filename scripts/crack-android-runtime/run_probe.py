@@ -78,7 +78,7 @@ def normalized(value):
     return re.sub(r"[^A-Za-z0-9\u3400-\u9fff]", "", value).casefold()
 
 
-def label_box(tsv, caption):
+def label_box(tsv, caption, *, contributing_rows=False):
     lines = {}
     _, rows = read_tsv(tsv)
     for row in rows:
@@ -112,23 +112,23 @@ def label_box(tsv, caption):
         top = min(int(word["top"]) for word in contributing)
         right = max(int(word["left"]) + int(word["width"]) for word in contributing)
         bottom = max(int(word["top"]) + int(word["height"]) for word in contributing)
-        matches.append([left, top, right, bottom])
+        matches.append(([left, top, right, bottom], contributing))
     if len(matches) > 1:
         raise RuntimeError("Ambiguous visible caption; no tap guessed")
-    return matches[0] if matches else None
+    return matches[0][1 if contributing_rows else 0] if matches else None
 
 
-def exact_word_box(tsv, caption):
+def exact_word_box(tsv, caption, *, contributing_rows=False):
     matches=[]
     for word in read_tsv(tsv)[1]:
         if word['level']=='5' and float(word['conf'])>=25 and word['text'].strip()==caption:
             left,top,width,height=(int(word[k]) for k in ['left','top','width','height'])
-            matches.append([left,top,left+width,top+height])
+            matches.append(([left,top,left+width,top+height],[word]))
     if len(matches)>1:raise RuntimeError("Ambiguous exact skill caption; no tap guessed")
-    return matches[0] if matches else None
+    return matches[0][1 if contributing_rows else 0] if matches else None
 
 
-def source_level_box(tsv, caption):
+def source_level_box(tsv, caption, *, contributing_rows=False):
     patterns={"Lv.":r"(?<!\S)Lv\.\s*[0-9]+(?=\s|$)", "等級":r"(?<!\S)等\s*級\s*[0-9]+(?=\s|$)"}
     if caption not in patterns:raise RuntimeError("Unknown source level prefix")
     lines={}
@@ -144,10 +144,10 @@ def source_level_box(tsv, caption):
             start=len(text);text+=word['text'].strip();spans.append((start,len(text),word))
         for match in re.finditer(patterns[caption],text,re.IGNORECASE):
             contributing=[word for left,right,word in spans if right>match.start() and left<match.end()]
-            matches.append([min(int(w['left']) for w in contributing),min(int(w['top']) for w in contributing),
-                max(int(w['left'])+int(w['width']) for w in contributing),max(int(w['top'])+int(w['height']) for w in contributing)])
+            matches.append(([min(int(w['left']) for w in contributing),min(int(w['top']) for w in contributing),
+                max(int(w['left'])+int(w['width']) for w in contributing),max(int(w['top'])+int(w['height']) for w in contributing)],contributing))
     if len(matches)>1:raise RuntimeError("Ambiguous source level caption")
-    return matches[0] if matches else None
+    return matches[0][1 if contributing_rows else 0] if matches else None
 
 
 def source_hud_boxes(tsv,size):
@@ -402,9 +402,9 @@ def main():
         save()
         caption_budget(caption, until, deadline)
         if proof["nativeBox"]:
-            # Preserve full native OCR context for map choices; appended word rows already
-            # use original native coordinates, with the ROI proof separately retained.
-            combined = merge_tsv(tsv, proof["nativeMappedTSV"])
+            # Add only words that proved this caption. Full ROI TSV/provenance stays
+            # in its receipt files; unrelated glyphs cannot become duplicate entities.
+            combined = merge_tsv(tsv, proof["nativeCaptionTSV"])
             return proof["nativeBox"], combined
         return None, tsv
 

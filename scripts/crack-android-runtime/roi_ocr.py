@@ -110,10 +110,21 @@ def find_caption(native_path,caption,remaining_seconds,ocr_runner,label_finder,o
                 if local_box:
                     if not 0<=local_box[0]<local_box[2]<=derived.width or not 0<=local_box[1]<local_box[3]<=derived.height:raise RuntimeError('OCR local bbox outside derived crop')
                     native_box=map_box(local_box,rect[:2],image.size);receipt.update(recognized=True,localOCRBox=local_box,nativeOCRBox=native_box)
+                    caption_rows=label_finder(text,caption,contributing_rows=True)
+                    if not caption_rows:raise RuntimeError('Recognized caption has no contributing word rows')
+                    fields,_=read_tsv(text);selected=io.StringIO()
+                    writer=csv.DictWriter(selected,fieldnames=fields,delimiter='\t',lineterminator='\n',quoting=csv.QUOTE_NONE,quotechar=None);writer.writeheader();writer.writerows(caption_rows)
+                    native_caption=mapped_tsv(selected.getvalue(),rect[:2]);native_full=mapped_tsv(text,rect[:2])
+                    if label_finder(native_caption,caption)!=native_box:raise RuntimeError('Mapped caption contributors do not reproduce recognized native bbox')
+                    full_path=output/(prefix+'.native-full.tsv');caption_path=output/(prefix+'.native-caption.tsv')
+                    full_path.write_text(native_full,encoding='utf-8');caption_path.write_text(native_caption,encoding='utf-8')
+                    receipt.update(nativeFullTSVFile=str(full_path),nativeFullTSVSha256=hashlib.sha256(full_path.read_bytes()).hexdigest(),
+                        nativeCaptionTSVFile=str(caption_path),nativeCaptionTSVSha256=hashlib.sha256(caption_path.read_bytes()).hexdigest(),
+                        contributedWordRows=len(caption_rows),onlyCurrentCaptionContributorsMerged=True)
                 else:receipt['recognized']=False
                 (output/(prefix+'.receipt.json')).write_text(json.dumps(receipt,ensure_ascii=False,indent=2)+'\n',encoding='utf-8');trials.append(receipt)
                 if local_box:
                     if hashlib.sha256(native_path.read_bytes()).hexdigest()!=source_sha:raise RuntimeError('Original native PNG changed during recognition')
-                    return {'nativeBox':native_box,'nativeMappedTSV':mapped_tsv(text,rect[:2]),'caption':caption,'trials':trials,'originalSha256':source_sha,'textRequiredForCoordinates':True}
+                    return {'nativeBox':native_box,'nativeMappedTSV':native_full,'nativeCaptionTSV':native_caption,'caption':caption,'trials':trials,'originalSha256':source_sha,'textRequiredForCoordinates':True}
     if hashlib.sha256(native_path.read_bytes()).hexdigest()!=source_sha:raise RuntimeError('Original native PNG changed during recognition')
     return {'nativeBox':None,'caption':caption,'trials':trials,'originalSha256':source_sha,'textRequiredForCoordinates':True}

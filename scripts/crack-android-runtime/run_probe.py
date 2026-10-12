@@ -19,6 +19,7 @@ import xml.etree.ElementTree as ET
 from PIL import Image, ImageChops
 import cv2
 import numpy as np
+from roi_ocr import find_caption as find_caption_roi, read_tsv, merge_tsv, map_box
 
 PACKAGE = "tw.mars.crackveilvanguard"
 ALIAS = PACKAGE + "/com.godot.game.GodotAppLauncher"
@@ -74,7 +75,8 @@ def normalized(value):
 
 def label_box(tsv, caption):
     lines = {}
-    for row in csv.DictReader(io.StringIO(tsv), delimiter="\t"):
+    _, rows = read_tsv(tsv)
+    for row in rows:
         if row.get("level") != "5" or not normalized(row.get("text", "")):
             continue
         try:
@@ -86,6 +88,8 @@ def label_box(tsv, caption):
             continue
     matches = []
     wanted = normalized(caption)
+    if not wanted:
+        raise RuntimeError("Empty visible caption; no tap guessed")
     for words in lines.values():
         words.sort(key=lambda word: int(word["left"]))
         text, spans = "", []
@@ -94,8 +98,10 @@ def label_box(tsv, caption):
             text += normalized(word["text"])
             spans.append((start, len(text), word))
         start = text.find(wanted)
-        if start < 0 or text.find(wanted, start + 1) >= 0:
+        if start < 0:
             continue
+        if text.find(wanted, start + 1) >= 0:
+            raise RuntimeError("Ambiguous visible caption; no tap guessed")
         contributing = [word for left, right, word in spans if right > start and left < start + len(wanted)]
         left = min(int(word["left"]) for word in contributing)
         top = min(int(word["top"]) for word in contributing)
@@ -295,6 +301,23 @@ def main():
         save()
         return image, ocr, name
 
+    def scoped_caption(image, tsv, basis, caption, until):
+        box = label_box(tsv, caption)
+        if box:
+            return map_box(box, [0, 0], image.size), tsv
+        proof = find_caption_roi(frames / basis, caption, min(deadline, until)-time.monotonic(),
+            bounded_native_ocr, label_box, frames / "derived-roi")
+        report.setdefault("scopedRoiCaptionProof", []).append({"caption":caption,"basisNativeFrame":basis,
+            "nativeBox":proof["nativeBox"],"originalSha256":proof["originalSha256"],"trials":proof["trials"],
+            "coordinatesRequireRecognizedText":True})
+        save()
+        if proof["nativeBox"]:
+            # Preserve full native OCR context for map choices; appended word rows already
+            # use original native coordinates, with the ROI proof separately retained.
+            combined = merge_tsv(tsv, proof["nativeMappedTSV"])
+            return proof["nativeBox"], combined
+        return None, tsv
+
     def wait_caption(caption, label, seconds=30):
         until = min(deadline, time.monotonic() + seconds)
         while time.monotonic() < until:
@@ -305,9 +328,9 @@ def main():
                 launch = "warm" if label.startswith("warm") else "cold"
                 if dismiss_systemui_notice(label+"-delayed-notice", image, tsv, name, launch=launch):
                     continue
-            box = label_box(tsv, caption)
+            box, recognized_tsv = scoped_caption(image, tsv, name, caption, until)
             if box:
-                return image, tsv, name, box
+                return image, recognized_tsv, name, box
             time.sleep(3 if seconds <= 30 else 10)
         raise RuntimeError("Visible caption not observed within bound: " + caption)
 
@@ -360,6 +383,7 @@ def main():
         return True
 
     def tap_observed(image, basis, box, caption, action="tap"):
+        box = map_box(box, [0, 0], image.size)
         point = [(box[0] + box[2]) // 2, (box[1] + box[3]) // 2]
         if not (0 <= point[0] < image.width and 0 <= point[1] < image.height):
             raise RuntimeError("Observed caption tap outside native frame")
@@ -422,7 +446,10 @@ def main():
                 continue
             if label_box(tsv, "回主選單"):
                 raise RuntimeError("Normal game-over occurred before required control smoke was complete")
-            if label_box(tsv, "HP") and label_box(tsv, "等級") and label_box(tsv, "暫停"):
+            hp_box, tsv = scoped_caption(image, tsv, name, "HP", until)
+            level_box, tsv = scoped_caption(image, tsv, name, "等級", until)
+            pause_box, tsv = scoped_caption(image, tsv, name, "暫停", until)
+            if hp_box and level_box and pause_box:
                 return image, tsv, name
             time.sleep(1)
         raise RuntimeError("Active native HP/level/pause HUD not observed within bound")

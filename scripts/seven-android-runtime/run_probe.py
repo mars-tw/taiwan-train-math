@@ -1,4 +1,4 @@
-"""One exact Seven6 Android KVM observation through normal adb UI input only.
+"""One exact Seven7 Android KVM observation through normal adb UI input only.
 
 No app source, pack, save, mission or object state is edited. Captured control
 flow is separate from root visual gameplay acceptance and first-chapter completion.
@@ -18,12 +18,12 @@ import xml.etree.ElementTree as ET
 
 from PIL import Image, ImageChops
 import cv2
+from fetch_input import fixed_input_pins
 import numpy as np
 
 PACKAGE = "tw.mars.sevendistrictreckoning"
 ALIAS = PACKAGE + "/com.godot.game.GodotAppLauncher"
-APK_NAME = "seven-district-reckoning-1.0.0-build6.apk"
-APK_SHA = "f72044f7b2c1a1fb44b099128b8e7446fc3ba8531c8946b1dddd7e5f7482bee7"
+APK_NAME = "seven-district-reckoning-1.0.0-build7.apk"
 CERT_SHA = "1dd3cc96a02e4555e8d91a42d749a019ee5c4781d4d7510947ae48c865e21110"
 SERIAL = "emulator-5580"
 GPU_MODE = "swangle"  # Explicit supported compatibility experiment, never fallback.
@@ -39,6 +39,32 @@ def verify_swangle_boot_selection(log):
     if not re.search(r"gles_mode_selected:swangle\b", log):
         raise RuntimeError("Actual owned GLES mode is not explicit swangle target; no fallback")
     return True
+
+
+def bounded_native_ocr(argv, remaining_seconds, runner=subprocess.run):
+    """One OCR child with isolated OMP1 env and no extension to the900s flow."""
+    env = os.environ.copy()
+    env["OMP_THREAD_LIMIT"] = "1"
+    env["OMP_NUM_THREADS"] = "1"
+    budget = min(60.0, remaining_seconds)
+    if budget <= 0:
+        raise RuntimeError("Absolute native observation deadline exceeded before OCR")
+    started = time.monotonic()
+    try:
+        result = runner(argv, capture_output=True, timeout=budget, env=env)
+        stdout, stderr, exit_code, timed_out = result.stdout or b"", result.stderr or b"", result.returncode, False
+    except subprocess.TimeoutExpired as error:
+        stdout, stderr, exit_code, timed_out = error.stdout or b"", error.stderr or b"", None, True
+    if isinstance(stdout, str):
+        stdout = stdout.encode("utf-8")
+    if isinstance(stderr, str):
+        stderr = stderr.encode("utf-8")
+    receipt = {"configuredMaximumSeconds":60, "effectiveBudgetSeconds":budget,
+        "elapsedSeconds":round(time.monotonic()-started,6), "exitCode":exit_code,"timedOut":timed_out,
+        "childOmpEnvironment":{"OMP_THREAD_LIMIT":"1","OMP_NUM_THREADS":"1"},
+        "globalEnvironmentMutated":False,"flowDeadlineExtended":False,
+        "stdoutBytes":len(stdout),"stderrBytes":len(stderr)}
+    return stdout, stderr, receipt
 
 
 def normalized(value):
@@ -169,29 +195,34 @@ def main():
             or os.environ.get("GITHUB_REPOSITORY") != "mars-tw/taiwan-train-math"
             or os.environ.get("GITHUB_REF") != "refs/heads/codex/ashes-simulator-recording"):
         raise RuntimeError("Fixed Seven QA branch only")
+    pins = fixed_input_pins()
+    APK_SHA = pins["sha256"]
     temp = Path(os.environ["RUNNER_TEMP"]).resolve()
     sdk = Path(os.environ["SEVEN_SDK"]).resolve()
     if not sdk.is_relative_to(temp) or not os.access("/dev/kvm", os.R_OK | os.W_OK):
         raise RuntimeError("Owned SDK and usable KVM required; no TCG fallback")
-    out = Path(os.environ["GITHUB_WORKSPACE"]) / "output/seven-code6-runtime"
+    out = Path(os.environ["GITHUB_WORKSPACE"]) / "output/seven-code7-runtime"
     frames = out / "native-frames"
     frames.mkdir(parents=True, exist_ok=True)
-    input_dir = temp / "seven-code6-input"
+    input_dir = temp / "seven-code7-input"
     apk = input_dir / APK_NAME
     provenance = json.loads((input_dir / "fetch-provenance.json").read_text())
-    if (apk.stat().st_size != 42696838 or hashlib.sha256(apk.read_bytes()).hexdigest() != APK_SHA
-            or provenance.get("assetId") != 632341589 or provenance.get("apkSha256") != APK_SHA):
+    if (apk.stat().st_size != pins["bytes"] or hashlib.sha256(apk.read_bytes()).hexdigest() != APK_SHA
+            or provenance.get("assetId") != pins["assetId"] or provenance.get("apkSha256") != APK_SHA or provenance.get("releaseId") != pins["releaseId"]
+            or provenance.get("versionCode") != 7
+            or provenance.get("sourcePostOverridesInputsSha256") != "e486a578116242aaa7a1fe7394ffe5aec1adb3c4dc2bb1ca852846f3a06436a9"):
         raise RuntimeError("Relayed frozen APK/provenance mismatch")
     (out / "fetch-provenance.json").write_text(json.dumps(provenance, indent=2) + "\n")
     adb = str(sdk / "platform-tools/adb")
     emulator = str(sdk / "emulator/emulator")
     run_id = os.environ["GITHUB_RUN_ID"]
-    avd = "SevenCode6_" + run_id
+    avd = "SevenCode7_" + run_id
     deadline = time.monotonic() + 900
     report = {"schemaVersion": 1, "projectId": "seven-district-reckoning", "status": "PREPARING",
         "runId": run_id, "runAttempt": os.environ.get("GITHUB_RUN_ATTEMPT"), "physical": False,
         "deviceKind": "OFFICIAL_ANDROID_EMULATOR_KVM", "apkSha256": APK_SHA,
-        "versionCode": 6, "gpuRequested": GPU_MODE, "accelRequested": "on",
+        "versionCode": 7, "ocrConfiguredMaximumSeconds": 60, "ocrChildOmpThreadLimit": 1,
+        "flowAbsoluteDeadlineSeconds": 900, "gpuRequested": GPU_MODE, "accelRequested": "on",
         "experiment": "EXPLICIT_SUPPORTED_SWANGLE_ENGINE_DEVICE_COMPATIBILITY_TEST",
         "previousSwiftshaderFailureHistoryPreserved": True,
         "uniform261ShaderErrorFixedInGameSource": False,
@@ -201,7 +232,8 @@ def main():
         "pauseResumeObserved": False, "retryCheckpointNoticeObserved": False,
         "warmRelaunchObserved": False, "sessionControlSmokeCaptured": False,
         "nativeGameplayAccepted": False, "nativeRuntimeReady": False, "firstChapterCompletedVerified": False,
-        "gameSourceChanged": False, "gameStateInjected": False, "physicalDeviceRequirementSatisfied": False,
+        "gameSourceChangedByProbe": False, "candidateSourceOverrides": 4,
+        "fiveMissionNativeLifecycleVerified": False, "gameStateInjected": False, "physicalDeviceRequirementSatisfied": False,
         "realTesterParticipationInferred": False, "storeWrites": 0, "captures": [], "inputs": [],
         "limits": ["Real native emulator frames and normal UI inputs; root visual acceptance remains required",
                    "Control-flow session is not an assertion that all five first-chapter missions completed",
@@ -217,7 +249,7 @@ def main():
     def command(argv, timeout=20, allow_failure=False):
         if time.monotonic() >= deadline:
             raise RuntimeError("Absolute native observation deadline exceeded")
-        result = subprocess.run(argv, capture_output=True, timeout=timeout)
+        result = subprocess.run(argv, capture_output=True, timeout=min(timeout, max(.1, deadline - time.monotonic())))
         if result.returncode and not allow_failure:
             raise RuntimeError("Owned native command failed: " + Path(argv[0]).name + " " + " ".join(argv[1:4]))
         return result
@@ -236,11 +268,27 @@ def main():
             raise RuntimeError("Native viewport unexpectedly small or oversized")
         path = frames / name
         path.write_bytes(raw)
-        ocr = command(["tesseract", str(path), "stdout", "-l", "chi_tra+eng", "--psm", "11", "tsv"], timeout=25).stdout.decode("utf-8", "replace")
-        path.with_suffix(".tsv").write_text(ocr)
-        text = " ".join(row.get("text", "") for row in csv.DictReader(io.StringIO(ocr), delimiter="\t") if row.get("text"))
         report["captures"].append({"name": name, "nativeWidth": image.width, "nativeHeight": image.height,
-                                   "sha256": hashlib.sha256(raw).hexdigest(), "ocrText": text[:4096]})
+                                   "sha256": hashlib.sha256(raw).hexdigest(), "ocrComplete": False})
+        save()  # Preserve the original native frame even if this OCR child times out.
+        ocr_argv = ["tesseract", str(path), "stdout", "-l", "chi_tra+eng", "--psm", "11", "tsv"]
+        ocr_stdout, ocr_stderr, ocr_receipt = bounded_native_ocr(ocr_argv, deadline-time.monotonic())
+        path.with_suffix(".ocr.stdout.txt").write_bytes(ocr_stdout)
+        path.with_suffix(".ocr.stderr.txt").write_bytes(ocr_stderr)
+        path.with_suffix(".tsv").write_bytes(ocr_stdout)
+        ocr_receipt.update(nativeFrame=name, nativeFrameSha256=hashlib.sha256(raw).hexdigest(),
+            argv=ocr_argv, stdoutFile=path.with_suffix(".ocr.stdout.txt").name,
+            stderrFile=path.with_suffix(".ocr.stderr.txt").name)
+        path.with_suffix(".ocr-receipt.json").write_text(json.dumps(ocr_receipt, indent=2)+"\n")
+        report["captures"][-1]["ocrReceipt"] = ocr_receipt
+        save()
+        if ocr_receipt["timedOut"]:
+            raise RuntimeError("OCR_CHILD_TIMEOUT_OMP1_WITHIN_REMAINING_FLOW_BUDGET: " + name)
+        if ocr_receipt["exitCode"] != 0:
+            raise RuntimeError("OCR_CHILD_NONZERO_STDERR_PRESERVED: " + name)
+        ocr = ocr_stdout.decode("utf-8", "replace")
+        text = " ".join(row.get("text", "") for row in csv.DictReader(io.StringIO(ocr), delimiter="\t") if row.get("text"))
+        report["captures"][-1].update(ocrComplete=True, ocrText=text[:4096])
         save()
         return image, ocr, name
 
@@ -282,7 +330,7 @@ def main():
                 "launch": launch, "result": "FULLSCREEN_EDUCATION_BODY_NOT_VISIBLE", "tapPerformed": False})
             save()
             return False  # A blank first frame does not suppress a later legitimate notice.
-        remote_xml = "/sdcard/SevenCode6_" + run_id + "_notice.xml"
+        remote_xml = "/sdcard/SevenCode7_" + run_id + "_notice.xml"
         device("shell", "uiautomator", "dump", remote_xml, timeout=30)
         xml = device("exec-out", "cat", remote_xml).stdout.decode("utf-8", "replace")
         (frames / (Path(basis).stem + ".uiautomator.xml")).write_text(xml)
@@ -372,7 +420,7 @@ def main():
         manager = str(sdk / "cmdline-tools/latest/bin/avdmanager")
         avd_home = Path(os.environ["ANDROID_AVD_HOME"]).resolve()
         user_home = Path(os.environ["ANDROID_USER_HOME"]).resolve()
-        if avd_home != temp / "seven-code6-avds" or user_home != temp / "seven-code6-user":
+        if avd_home != temp / "seven-code7-avds" or user_home != temp / "seven-code7-user":
             raise RuntimeError("Fixed owned AVD/user homes differ")
         # The official Java manager may fall back when an override directory does
         # not exist. Establish both owned homes before the one create call.
@@ -448,7 +496,7 @@ def main():
         device("shell", "input", "keyevent", "82")
         device("install", "-r", str(apk), timeout=90)
         package = device("shell", "dumpsys", "package", PACKAGE).stdout.decode()
-        if not re.search(r"versionCode=6\b", package) or "versionName=1.0.0" not in package:
+        if not re.search(r"versionCode=7\b", package) or "versionName=1.0.0" not in package:
             raise RuntimeError("Installed fixed package/version differs")
         resolved = device("shell", "cmd", "package", "resolve-activity", "--brief", PACKAGE).stdout.decode().strip().splitlines()[-1]
         if resolved != ALIAS:
@@ -464,7 +512,7 @@ def main():
         wait_caption("開始新遊戲", "cold-title-wait", seconds=360)
         report["startMenuObserved"] = True
         save()
-        remote_movie = "/sdcard/SevenCode6_" + run_id + ".mp4"
+        remote_movie = "/sdcard/SevenCode7_" + run_id + ".mp4"
         recorder = subprocess.Popen([adb, "-s", SERIAL, "shell", "screenrecord", "--time-limit", "90", remote_movie],
                                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         tap_caption("開始新遊戲", "observed-start")
@@ -507,7 +555,7 @@ def main():
         report["status"] = "NATIVE_CONTROL_FLOW_CAPTURED_PENDING_ROOT_VISUAL_GAMEPLAY_ACCEPTANCE"
         if recorder is not None:
             recorder.wait(timeout=95)
-            movie = out / "SevenCode6-native-emulator-control-flow.mp4"
+            movie = out / "SevenCode7-native-emulator-control-flow.mp4"
             device("pull", remote_movie, str(movie), timeout=60)
             if movie.is_file() and movie.stat().st_size > 0:
                 report["nativeMovie"] = {"file": movie.name, "bytes": movie.stat().st_size,
@@ -548,7 +596,7 @@ def main():
                 if recorder is not None and "nativeMovie" not in report:
                     try:
                         recorder.wait(timeout=95)
-                        movie = out / "SevenCode6-native-emulator-control-flow.mp4"
+                        movie = out / "SevenCode7-native-emulator-control-flow.mp4"
                         result = subprocess.run([adb, "-s", SERIAL, "pull", remote_movie, str(movie)],
                                                 capture_output=True, timeout=45)
                         if result.returncode == 0 and movie.is_file() and movie.stat().st_size > 0:

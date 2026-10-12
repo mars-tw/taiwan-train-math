@@ -90,6 +90,31 @@ def system_ui_notice_box(xml, width, height):
     return matches[0] if matches else None
 
 
+def verify_avd_registry(ini, data, name, names, allowed_root):
+    """Require actual official create output and emulator discovery before boot."""
+    allowed_root = Path(allowed_root).resolve()
+    ini, data = Path(ini), Path(data)
+    if (ini.is_symlink() or data.is_symlink() or not ini.resolve().is_relative_to(allowed_root)
+            or not data.resolve().is_relative_to(allowed_root)):
+        raise RuntimeError("Owned AVD registry path/type leaves runner temp")
+    if not ini.is_file() or not data.is_dir():
+        raise RuntimeError("Official AVD registry/data missing; stop before boot")
+    pairs = {}
+    for line in ini.read_text(encoding="utf-8").splitlines():
+        if "=" not in line or line.startswith("#"):
+            continue
+        key, value = line.split("=", 1)
+        if key in pairs:
+            raise RuntimeError("Duplicate official AVD registry property")
+        pairs[key] = value
+    if not pairs.get("path") or not Path(pairs["path"]).is_absolute() or Path(pairs["path"]).resolve() != data.resolve():
+        raise RuntimeError("Official AVD registry points at wrong data path")
+    if [line.strip() for line in names.splitlines() if line.strip()] != [name]:
+        raise RuntimeError("Official emulator does not discover exactly the owned AVD")
+    return {"registryPath": str(ini), "dataPath": str(data), "registryProperties": pairs,
+            "emulatorListedNames": [name], "verified": True, "registryManuallyWritten": False}
+
+
 def main():
     if (os.environ.get("GITHUB_ACTIONS") != "true"
             or os.environ.get("GITHUB_REPOSITORY") != "mars-tw/taiwan-train-math"
@@ -271,12 +296,54 @@ def main():
             with socket.socket() as reserved:
                 reserved.bind(("127.0.0.1", port))
         manager = str(sdk / "cmdline-tools/latest/bin/avdmanager")
-        result = subprocess.run([manager, "create", "avd", "-n", avd, "-k",
-            "system-images;android-36;google_apis;x86_64", "--device", "pixel_2"],
-            input=b"no\n", capture_output=True, timeout=75)
+        avd_home = Path(os.environ["ANDROID_AVD_HOME"]).resolve()
+        user_home = Path(os.environ["ANDROID_USER_HOME"]).resolve()
+        if avd_home != temp / "seven-code6-avds" or user_home != temp / "seven-code6-user":
+            raise RuntimeError("Fixed owned AVD/user homes differ")
+        # The official Java manager may fall back when an override directory does
+        # not exist. Establish both owned homes before the one create call.
+        avd_home.mkdir(parents=True, exist_ok=True)
+        user_home.mkdir(parents=True, exist_ok=True)
+        data_path = avd_home / (avd + ".avd")
+        registry_path = avd_home / (avd + ".ini")
+        if registry_path.exists() or data_path.exists():
+            raise RuntimeError("Owned AVD name/data already exist; no overwrite or retry")
+        report["ownedAvdPrecreate"] = {"avdHome": str(avd_home), "userHome": str(user_home),
+            "avdHomeExists": avd_home.is_dir(), "userHomeExists": user_home.is_dir(),
+            "expectedRegistry": str(registry_path), "expectedData": str(data_path)}
+        save()
+        try:
+            result = subprocess.run([manager, "create", "avd", "-n", avd, "-k",
+                "system-images;android-36;google_apis;x86_64", "--device", "pixel_2", "--path", str(data_path)],
+                input=b"no\n", capture_output=True, timeout=75)
+        except subprocess.TimeoutExpired as error:
+            (out / "avd-create.stdout.txt").write_bytes((error.stdout or b"")[:1024 * 1024])
+            (out / "avd-create.stderr.txt").write_bytes((error.stderr or b"")[:1024 * 1024])
+            report["officialAvdCreate"] = {"exitCode": None, "timedOut": True}
+            save()
+            raise RuntimeError("Official AVD create deadline exceeded before boot") from None
+        (out / "avd-create.stdout.txt").write_bytes(result.stdout[:1024 * 1024])
+        (out / "avd-create.stderr.txt").write_bytes(result.stderr[:1024 * 1024])
+        report["officialAvdCreate"] = {"exitCode": result.returncode,
+            "stdoutBytes": len(result.stdout), "stderrBytes": len(result.stderr),
+            "stdoutTruncated": len(result.stdout) > 1024 * 1024,
+            "stderrTruncated": len(result.stderr) > 1024 * 1024}
+        save()
         if result.returncode:
-            (out / "avd-create.stderr.txt").write_bytes(result.stderr)
             raise RuntimeError("Canonical isolated avdmanager create failed before boot")
+        if registry_path.is_file():
+            (out / "owned-avd-registry.ini.txt").write_bytes(registry_path.read_bytes())
+        if (data_path / "config.ini").is_file():
+            (out / "owned-avd-config.ini.txt").write_bytes((data_path / "config.ini").read_bytes())
+        listing = command([emulator, "-list-avds"], allow_failure=True)
+        (out / "emulator-list-avds.stdout.txt").write_bytes(listing.stdout)
+        (out / "emulator-list-avds.stderr.txt").write_bytes(listing.stderr)
+        if listing.returncode:
+            raise RuntimeError("Official emulator AVD discovery failed before boot")
+        report["ownedAvdRegistry"] = verify_avd_registry(registry_path, data_path, avd,
+                                                        listing.stdout.decode("utf-8"), temp)
+        (out / "owned-avd-prelaunch-proof.json").write_text(json.dumps(report["ownedAvdRegistry"], indent=2) + "\n")
+        save()
         bootlog = (out / "owned-emulator.log").open("wb")
         proc = subprocess.Popen([emulator, "-avd", avd, "-no-window", "-no-boot-anim", "-no-snapshot",
             "-no-audio", "-accel", "on", "-gpu", "swiftshader", "-memory", "2048", "-cores", "2",
@@ -376,10 +443,16 @@ def main():
         if proc is not None:
             try:
                 # Cleanup is bounded separately and still runs after the observation deadline.
-                log = subprocess.run([adb, "-s", SERIAL, "logcat", "-d", "-v", "threadtime"],
-                                     capture_output=True, timeout=20).stdout
-                (out / "owned-guest-logcat.txt").write_bytes(log[:4 * 1024 * 1024])
-                report["guestLogcatTruncated"] = len(log) > 4 * 1024 * 1024
+                if report["bootVerified"]:
+                    try:
+                        log = subprocess.run([adb, "-s", SERIAL, "logcat", "-d", "-v", "threadtime"],
+                                             capture_output=True, timeout=20).stdout
+                        (out / "owned-guest-logcat.txt").write_bytes(log[:4 * 1024 * 1024])
+                        report["guestLogcatTruncated"] = len(log) > 4 * 1024 * 1024
+                    except subprocess.TimeoutExpired:
+                        report["guestLogcatUnavailableReason"] = "BOOTED_GUEST_LOGCAT_TIMEOUT"
+                else:
+                    report["guestLogcatUnavailableReason"] = "NO_BOOTED_GUEST"
                 if recorder is not None and "nativeMovie" not in report:
                     try:
                         recorder.wait(timeout=95)

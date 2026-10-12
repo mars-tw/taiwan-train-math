@@ -26,6 +26,19 @@ APK_NAME = "seven-district-reckoning-1.0.0-build6.apk"
 APK_SHA = "f72044f7b2c1a1fb44b099128b8e7446fc3ba8531c8946b1dddd7e5f7482bee7"
 CERT_SHA = "1dd3cc96a02e4555e8d91a42d749a019ee5c4781d4d7510947ae48c865e21110"
 SERIAL = "emulator-5580"
+GPU_MODE = "swangle"  # Explicit supported compatibility experiment, never fallback.
+
+
+def verify_swangle_gpu_help(stdout, stderr, exit_code):
+    if exit_code != 0 or not re.search(r"(?<![\w])swangle(?![\w])", stdout + stderr):
+        raise RuntimeError("Pinned official emulator does not advertise swangle; no fallback")
+    return True
+
+
+def verify_swangle_boot_selection(log):
+    if not re.search(r"gles_mode_selected:swangle\b", log):
+        raise RuntimeError("Actual owned GLES mode is not explicit swangle target; no fallback")
+    return True
 
 
 def normalized(value):
@@ -90,6 +103,42 @@ def system_ui_notice_box(xml, width, height):
     return matches[0] if matches else None
 
 
+def system_ui_notice_from_frame(xml, width, height, tsv, dismissals):
+    """Exact SystemUI XML plus the observed education body, at most one tap."""
+    if dismissals >= 1:
+        return None
+    title = label_box(tsv, "Viewing full screen")
+    instruction = label_box(tsv, "To exit, swipe down from the top of your screen")
+    if not title or not instruction:
+        return None
+    button = system_ui_notice_box(xml, width, height)
+    if button is None:
+        return None
+    tree = ET.fromstring(xml)
+    parents = {child: parent for parent in tree.iter() for child in parent}
+    got_it = next(node for node in tree.iter("node")
+                  if node.get("package") == "com.android.systemui" and node.get("text") == "Got it"
+                  and node.get("enabled", "true") == "true" and node.get("visible-to-user", "true") == "true")
+    panels = []
+    parent = parents.get(got_it)
+    while parent is not None:
+        match = re.fullmatch(r"\[(\d+),(\d+)\]\[(\d+),(\d+)\]", parent.get("bounds", ""))
+        if parent.get("package") == "com.android.systemui" and match:
+            box = list(map(int, match.groups()))
+            valid = 0 <= box[0] < box[2] <= width and 0 <= box[1] < box[3] <= height
+            if valid and all(box[0] <= child[0] < child[2] <= box[2]
+                             and box[1] <= child[1] < child[3] <= box[3]
+                             for child in [title, instruction, button]):
+                panels.append(box)
+        parent = parents.get(parent)
+    if not panels:
+        return None
+    panel = min(panels, key=lambda box: (box[2] - box[0]) * (box[3] - box[1]))
+    return {"buttonBounds": button, "panelBounds": panel,
+            "titleOCRBounds": title, "instructionOCRBounds": instruction,
+            "buttonOCRRequired": False, "ownerPackage": "com.android.systemui"}
+
+
 def verify_avd_registry(ini, data, name, names, allowed_root):
     """Require actual official create output and emulator discovery before boot."""
     allowed_root = Path(allowed_root).resolve()
@@ -142,7 +191,10 @@ def main():
     report = {"schemaVersion": 1, "projectId": "seven-district-reckoning", "status": "PREPARING",
         "runId": run_id, "runAttempt": os.environ.get("GITHUB_RUN_ATTEMPT"), "physical": False,
         "deviceKind": "OFFICIAL_ANDROID_EMULATOR_KVM", "apkSha256": APK_SHA,
-        "versionCode": 6, "gpuRequested": "swiftshader", "accelRequested": "on",
+        "versionCode": 6, "gpuRequested": GPU_MODE, "accelRequested": "on",
+        "experiment": "EXPLICIT_SUPPORTED_SWANGLE_ENGINE_DEVICE_COMPATIBILITY_TEST",
+        "previousSwiftshaderFailureHistoryPreserved": True,
+        "uniform261ShaderErrorFixedInGameSource": False,
         "automaticRendererFallback": False, "automaticEmulatorRestart": False,
         "bootVerified": False, "installedIdentityVerified": False, "startMenuObserved": False,
         "visibleStartTapped": False, "gameplayHudObserved": False, "movementGestureExecuted": False,
@@ -157,6 +209,7 @@ def main():
     proc = recorder = None
     remote_movie = None
     sequence = 0
+    notice_dismissals = {"cold": 0, "warm": 0}
 
     def save():
         (out / "native-observation.json").write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n")
@@ -197,6 +250,10 @@ def main():
             if proc is not None and proc.poll() is not None:
                 raise RuntimeError("Owned emulator exited before visible UI proof")
             image, tsv, name = capture(label)
+            if normalized(caption) == normalized("開始新遊戲"):
+                launch = "warm" if label.startswith("warm") else "cold"
+                if dismiss_systemui_notice(label + "-late-notice", image, tsv, name, launch):
+                    continue  # Observe a new actual frame after this one legitimate notice tap.
             box = label_box(tsv, caption)
             if box:
                 return image, tsv, name, box
@@ -214,33 +271,42 @@ def main():
         device("shell", "input", "tap", *map(str, point))
         time.sleep(1)
 
-    def dismiss_systemui_notice(label):
-        image, tsv, basis = capture(label)
+    def dismiss_systemui_notice(label, image=None, tsv=None, basis=None, launch="cold"):
+        if image is None:
+            image, tsv, basis = capture(label)
+        if notice_dismissals[launch] >= 1:
+            return False
+        if not (label_box(tsv, "Viewing full screen")
+                and label_box(tsv, "To exit, swipe down from the top of your screen")):
+            report.setdefault("systemUiNoticeChecks", []).append({"basisNativeFrame": basis,
+                "launch": launch, "result": "FULLSCREEN_EDUCATION_BODY_NOT_VISIBLE", "tapPerformed": False})
+            save()
+            return False  # A blank first frame does not suppress a later legitimate notice.
         remote_xml = "/sdcard/SevenCode6_" + run_id + "_notice.xml"
         device("shell", "uiautomator", "dump", remote_xml, timeout=30)
         xml = device("exec-out", "cat", remote_xml).stdout.decode("utf-8", "replace")
         (frames / (Path(basis).stem + ".uiautomator.xml")).write_text(xml)
-        box = system_ui_notice_box(xml, image.width, image.height)
-        if box is None:
+        notice = system_ui_notice_from_frame(xml, image.width, image.height, tsv, notice_dismissals[launch])
+        if notice is None:
             report.setdefault("systemUiNoticeChecks", []).append({"basisNativeFrame": basis,
-                "result": "NO_UNIQUE_VISIBLE_SYSTEMUI_GOT_IT_NOTICE", "tapPerformed": False})
+                "launch": launch, "result": "NO_UNIQUE_VISIBLE_OWNED_SAME_PANEL_NOTICE", "tapPerformed": False})
             save()
-            return
-        visible_caption = label_box(tsv, "Got it")
-        if visible_caption is None:
-            raise RuntimeError("SystemUI XML notice caption not visible in original frame OCR; no tap")
-        caption_center = [(visible_caption[0] + visible_caption[2]) // 2,
-                          (visible_caption[1] + visible_caption[3]) // 2]
-        if not (box[0] <= caption_center[0] < box[2] and box[1] <= caption_center[1] < box[3]):
-            raise RuntimeError("SystemUI caption frame/XML mismatch; no tap")
+            return False
+        box = notice["buttonBounds"]
         point = [(box[0] + box[2]) // 2, (box[1] + box[3]) // 2]
-        report["inputs"].append({"action": "dismiss_systemui_fullscreen_notice", "caption": "Got it",
+        action = {"action": "dismiss_systemui_fullscreen_notice", "caption": "Got it",
             "package": "com.android.systemui", "basisNativeFrame": basis, "xmlBounds": box,
-            "nativePoint": point, "permissionGrant": False})
+            "launch": launch, "nativePoint": point, "permissionGrant": False,
+            "samePanelEvidence": notice, "commandSucceeded": False}
+        report["inputs"].append(action)
         save()
         device("shell", "input", "tap", *map(str, point))
+        action["commandSucceeded"] = True
+        notice_dismissals[launch] += 1
+        report["systemUiNoticeDismissals"] = dict(notice_dismissals)
         time.sleep(1)
         capture(label + "-after-dismiss")
+        return True
 
     def hud(label):
         image, tsv, name, _ = wait_caption("MAIN", label, seconds=30)
@@ -289,6 +355,14 @@ def main():
         if "KVM" not in accel_text or "usable" not in accel_text.lower():
             raise RuntimeError("Official usable KVM acceleration not established")
         report["actualAccelCheck"] = accel_text
+        gpu_help = command([emulator, "-help-gpu"], allow_failure=True)
+        (out / "emulator-help-gpu.stdout.txt").write_bytes(gpu_help.stdout)
+        (out / "emulator-help-gpu.stderr.txt").write_bytes(gpu_help.stderr)
+        report["officialGpuHelp"] = {"exitCode": gpu_help.returncode,
+            "explicitSwangleAdvertised": verify_swangle_gpu_help(
+                gpu_help.stdout.decode("utf-8", "replace"),
+                gpu_help.stderr.decode("utf-8", "replace"), gpu_help.returncode)}
+        save()
         attached = command([adb, "devices"]).stdout.decode().strip().splitlines()[1:]
         if any(line.strip() for line in attached):
             raise RuntimeError("Fresh runner already has an unexpected device; no reuse")
@@ -346,7 +420,7 @@ def main():
         save()
         bootlog = (out / "owned-emulator.log").open("wb")
         proc = subprocess.Popen([emulator, "-avd", avd, "-no-window", "-no-boot-anim", "-no-snapshot",
-            "-no-audio", "-accel", "on", "-gpu", "swiftshader", "-memory", "2048", "-cores", "2",
+            "-no-audio", "-accel", "on", "-gpu", GPU_MODE, "-memory", "2048", "-cores", "2",
             "-camera-back", "none", "-camera-front", "none", "-port", "5580"], stdout=bootlog, stderr=subprocess.STDOUT,
             start_new_session=True)
         report["ownedAvdName"] = avd
@@ -366,6 +440,11 @@ def main():
         if "arm64-v8a" not in guest_abi.split(",") or bridge != "libndk_translation.so":
             raise RuntimeError("Actual guest ARM64 bridge absent; no injection allowed")
         report.update(bootVerified=True, actualGuestAbi64=guest_abi, actualGuestNativeBridge=bridge)
+        actual_boot_log = (out / "owned-emulator.log").read_text(encoding="utf-8", errors="replace")
+        report["actualSwangleGlesSelectionVerified"] = verify_swangle_boot_selection(actual_boot_log)
+        report["actualGraphicsModeLines"] = [line for line in actual_boot_log.splitlines()
+            if any(key in line for key in ["emuglConfig_init", "Graphics Adapter", "Graphics API Version"])]
+        save()
         device("shell", "input", "keyevent", "82")
         device("install", "-r", str(apk), timeout=90)
         package = device("shell", "dumpsys", "package", PACKAGE).stdout.decode()
@@ -378,6 +457,9 @@ def main():
         device("logcat", "-c")
         start = device("shell", "am", "start", "-W", "-n", ALIAS, timeout=45).stdout.decode()
         report["actualStartCommandOutput"] = start
+        pid_text = device("shell", "pidof", PACKAGE, allow_failure=True).stdout.decode().strip()
+        if re.fullmatch(r"[1-9][0-9]*", pid_text):
+            report["ownedAppPidAtLaunch"] = int(pid_text)
         dismiss_systemui_notice("cold-systemui-notice")
         wait_caption("開始新遊戲", "cold-title-wait", seconds=360)
         report["startMenuObserved"] = True
@@ -416,7 +498,7 @@ def main():
         report["retryCheckpointNoticeObserved"] = True
         device("shell", "am", "force-stop", PACKAGE)
         device("shell", "am", "start", "-W", "-n", ALIAS, timeout=45)
-        dismiss_systemui_notice("warm-systemui-notice")
+        dismiss_systemui_notice("warm-systemui-notice", launch="warm")
         wait_caption("開始新遊戲", "warm-title-wait", seconds=120)
         tap_caption("開始新遊戲", "warm-visible-start")
         hud("warm-gameplay")
@@ -445,6 +527,16 @@ def main():
                 # Cleanup is bounded separately and still runs after the observation deadline.
                 if report["bootVerified"]:
                     try:
+                        app_pid = report.get("ownedAppPidAtLaunch")
+                        if type(app_pid) is int and app_pid > 0:
+                            app_log = subprocess.run([adb, "-s", SERIAL, "logcat", "-d", "--pid=" + str(app_pid),
+                                                      "-v", "threadtime"], capture_output=True, timeout=20).stdout
+                            (out / "owned-app-renderer-logcat.txt").write_bytes(app_log[:4 * 1024 * 1024])
+                            report["ownedAppRendererLogcatTruncated"] = len(app_log) > 4 * 1024 * 1024
+                            app_text = app_log.decode("utf-8", "replace")
+                            report["ownedAppRendererLines"] = [line for line in app_text.splitlines()
+                                if any(key in line for key in ["renderingDevice:", "renderer:", "OpenGL API", "Godot Engine"])]
+                            report["ownedAppUniformVectorErrorObserved"] = "GL_MAX_FRAGMENT_UNIFORM_VECTORS" in app_text
                         log = subprocess.run([adb, "-s", SERIAL, "logcat", "-d", "-v", "threadtime"],
                                              capture_output=True, timeout=20).stdout
                         (out / "owned-guest-logcat.txt").write_bytes(log[:4 * 1024 * 1024])

@@ -176,12 +176,12 @@ jobs:
                       raise SystemExit('Pinned signing input changed immediately before export')
           PY
           bash "$CI_INPUT/ci_ios_export.sh" sign "$APP_SOURCE" "$PROJECT_ID" "$PUBLIC_OUTPUT"
-      - name: Upload signed IPA and small receipts once to the same draft Release
+      - name: Package exact-run IPA and screenshots into one draft Release asset
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           python3 - <<'PY'
-          import hashlib,json,os,pathlib,subprocess
+          import hashlib,json,os,pathlib,re,struct,subprocess,zipfile
           repo='mars-tw/taiwan-train-math'
           tag='farm-r78-build3-20261013'
           release_id=410813892
@@ -209,18 +209,81 @@ jobs:
               raise SystemExit('Signed IPA digest differs from verification')
           if hashlib.sha256((stage/'SHA256SUMS').read_bytes()).hexdigest()!=pin:
               raise SystemExit('Source pin changed before upload')
-          files=[ipa,out/'source-verification.json',out/'simulator-verification.json',out/'simulator-launch.json',out/'verification.json']
-          descriptors=[]
-          for path in files:
-              if not path.is_file() or path.is_symlink() or path.stat().st_size<=0 or (path!=ipa and path.stat().st_size>1024**2):
-                  raise SystemExit('Missing or oversized iOS verification receipt')
+          run_id=os.environ.get('GITHUB_RUN_ID','')
+          if not re.fullmatch(r'[1-9][0-9]*',run_id):
+              raise SystemExit('An exact GitHub run ID is required for this evidence package')
+          launch=json.loads((out/'simulator-launch.json').read_text(encoding='utf-8'))
+          if launch.get('projectId')!='pixel-idle-farm-skill' or launch.get('actualSimulator') is not True or launch.get('freshDevices') is not True:
+              raise SystemExit('Fresh Farm simulator capture receipt is required')
+          expected_shots={'screenshots/iphone-cold.png':(1320,2868),'screenshots/iphone-relaunch.png':(1320,2868),
+                          'screenshots/ipad-cold.png':(2064,2752),'screenshots/ipad-relaunch.png':(2064,2752)}
+          shots=launch.get('screenshots')
+          if not isinstance(shots,list) or len(shots)!=4 or {item.get('file') for item in shots if isinstance(item,dict)}!=set(expected_shots):
+              raise SystemExit('Exactly four expected iPhone/iPad simulator screenshots are required')
+          members={'signed.ipa':ipa,'source-verification.json':out/'source-verification.json',
+                   'simulator-verification.json':out/'simulator-verification.json',
+                   'simulator-launch.json':out/'simulator-launch.json','verification.json':out/'verification.json'}
+          screenshot_hashes={}
+          for shot in shots:
+              name=shot['file'];path=out/name
+              if not path.is_file() or path.is_symlink() or not path.resolve().is_relative_to(out.resolve()) or not 0<path.stat().st_size<=20*1024**2:
+                  raise SystemExit('Missing, linked, or oversized simulator screenshot')
+              with path.open('rb') as data:
+                  header=data.read(26)
+              if len(header)!=26 or header[:8]!=b'\x89PNG\r\n\x1a\n' or header[12:16]!=b'IHDR' or header[25]!=2:
+                  raise SystemExit('Simulator screenshot must be a decoded RGB PNG')
+              dimensions=struct.unpack('>II',header[16:24])
+              if dimensions!=expected_shots[name] or (shot.get('width'),shot.get('height'))!=dimensions or shot.get('nativeResolution') is not True or shot.get('uiResized') is not False:
+                  raise SystemExit('Simulator screenshot geometry differs from capture receipt')
               with path.open('rb') as data:
                   sha=hashlib.file_digest(data,'sha256').hexdigest()
-              descriptors.append({'name':path.name,'bytes':path.stat().st_size,'sha256':sha})
+              if sha!=shot.get('sha256'):
+                  raise SystemExit('Simulator screenshot hash differs from capture receipt')
+              screenshot_hashes[name]=sha;members[name]=path
+          descriptors=[]
+          for name,path in sorted(members.items()):
+              if not path.is_file() or path.is_symlink() or not path.resolve().is_relative_to(out.resolve()) or path.stat().st_size<=0 or (name.endswith('.json') and path.stat().st_size>1024**2):
+                  raise SystemExit('Missing or unsafe exact-run evidence member')
+              with path.open('rb') as data:
+                  sha=hashlib.file_digest(data,'sha256').hexdigest()
+              if name in screenshot_hashes and sha!=screenshot_hashes[name]:
+                  raise SystemExit('Simulator screenshot changed while packaging')
+              descriptors.append({'name':name,'bytes':path.stat().st_size,'sha256':sha})
+          ipa_record=next((item for item in descriptors if item['name']=='signed.ipa'),None)
+          if len(descriptors)!=9 or not ipa_record or ipa_record['sha256']!=ipa_sha:
+              raise SystemExit('Exact-run evidence member list or signed IPA changed')
           release_manifest=out/'release-payload-manifest.json'
-          release_manifest.write_text(json.dumps({'projectId':'pixel-idle-farm-skill','version':'1.0.1','build':3,'sourceHead':'f951376ea5ceff001b620288e33819892b899c92','sourcePin':pin,'releaseId':provenance['releaseId'],'storeUploadPerformed':False,'assets':descriptors},indent=2)+'\n',encoding='utf-8')
-          files.append(release_manifest)
-          descriptors.append({'name':release_manifest.name,'bytes':release_manifest.stat().st_size,'sha256':hashlib.sha256(release_manifest.read_bytes()).hexdigest()})
+          with release_manifest.open('x',encoding='utf-8') as handle:
+              handle.write(json.dumps({'projectId':'pixel-idle-farm-skill','version':'1.0.1','build':3,
+                  'runId':run_id,'sourceHead':'f951376ea5ceff001b620288e33819892b899c92','sourcePin':pin,
+                  'releaseId':provenance['releaseId'],'storeUploadPerformed':False,'physicalDeviceTested':False,
+                  'archiveMembers':sorted([*members,'release-payload-manifest.json']),'entries':descriptors},indent=2)+'\n')
+          members['release-payload-manifest.json']=release_manifest
+          with release_manifest.open('rb') as data:
+              descriptors.append({'name':release_manifest.name,'bytes':release_manifest.stat().st_size,
+                                  'sha256':hashlib.file_digest(data,'sha256').hexdigest()})
+          evidence=out/('farm-r78-build3-evidence-'+run_id+'.zip')
+          with zipfile.ZipFile(evidence,'x',compression=zipfile.ZIP_STORED,allowZip64=True) as archive:
+              for name,path in sorted(members.items()):
+                  archive.write(path,name)
+          with zipfile.ZipFile(evidence) as archive:
+              if len(archive.namelist())!=10 or set(archive.namelist())!=set(members):
+                  raise SystemExit('Evidence ZIP has missing, duplicate, or unexpected members')
+              for item in descriptors:
+                  info=archive.getinfo(item['name'])
+                  if info.file_size!=item['bytes'] or info.compress_type!=zipfile.ZIP_STORED:
+                      raise SystemExit('Evidence ZIP member byte count changed')
+                  digest=hashlib.sha256()
+                  with archive.open(item['name']) as data:
+                      for block in iter(lambda:data.read(1024*1024),b''):
+                          digest.update(block)
+                  if digest.hexdigest()!=item['sha256']:
+                      raise SystemExit('Evidence ZIP member SHA-256 changed')
+          if not 0<evidence.stat().st_size<250*1024**2:
+              raise SystemExit('Evidence ZIP size is outside the expected bound')
+          with evidence.open('rb') as data:
+              evidence_sha=hashlib.file_digest(data,'sha256').hexdigest()
+          expected_asset={'name':evidence.name,'bytes':evidence.stat().st_size,'sha256':evidence_sha}
           def read_release():
               result=subprocess.run(['gh','api','--method','GET',f'repos/{repo}/releases/{release_id}'],capture_output=True,timeout=60)
               if result.returncode:
@@ -237,29 +300,29 @@ jobs:
               raise SystemExit('gh CLI resolved an unexpected draft Release before upload')
           if not os.environ.get('GH_TOKEN'):
               raise SystemExit('Release upload credential is unavailable')
-          names={record['name'] for record in descriptors}
-          if names & {asset.get('name') for asset in before.get('assets',[]) if isinstance(asset,dict)}:
-              raise SystemExit('One or more signed assets already exist; do not overwrite or retry blindly')
-          journal=out/'release-upload-once.json'
+          if expected_asset['name'] in {asset.get('name') for asset in before.get('assets',[]) if isinstance(asset,dict)}:
+              raise SystemExit('This exact-run evidence ZIP already exists; do not overwrite or retry blindly')
+          journal=out/('release-evidence-upload-once-'+run_id+'.json')
           with journal.open('x',encoding='utf-8') as handle:
-              json.dump({'releaseId':before['id'],'tag':tag,'attempt':'ONE_SHOT','expectedAssets':descriptors},handle,indent=2)
+              json.dump({'releaseId':before['id'],'tag':tag,'runId':run_id,'attempt':'ONE_SHOT',
+                         'expectedAsset':expected_asset,'archiveMembers':descriptors},handle,indent=2)
               handle.write('\n');handle.flush();os.fsync(handle.fileno())
           with pathlib.Path(os.environ['GITHUB_STEP_SUMMARY']).open('a',encoding='utf-8') as summary:
-              summary.write('Farm R78 build 3: one-shot draft Release upload attempted. Release ID '+str(before['id'])+'. Inspect the Release before any retry.\n')
+              summary.write('Farm R78 build 3: one-shot exact-run evidence ZIP upload attempted. Release ID '+str(before['id'])+'; run ID '+run_id+'. Inspect the Release before any retry.\n')
+              summary.write('- ZIP '+expected_asset['name']+': '+str(expected_asset['bytes'])+' bytes; SHA-256 '+expected_asset['sha256']+'\n')
               for record in descriptors:
-                  summary.write('- '+record['name']+': '+str(record['bytes'])+' bytes; SHA-256 '+record['sha256']+'\n')
-          upload=subprocess.run(['gh','release','upload',tag,*[str(path) for path in files],'--repo',repo],capture_output=True,timeout=900)
+                  summary.write('  - '+record['name']+': '+str(record['bytes'])+' bytes; SHA-256 '+record['sha256']+'\n')
+          upload=subprocess.run(['gh','release','upload',tag,str(evidence),'--repo',repo],capture_output=True,timeout=900)
           if upload.returncode:
-              raise SystemExit('Release upload failed or outcome is uncertain; inspect assets before retry')
+              raise SystemExit('Evidence ZIP upload failed or outcome is uncertain; inspect the Release before retry')
           after=read_release()
-          if after.get('id')!=before['id'] or after.get('draft') is not True:
+          if after.get('id')!=before['id'] or after.get('tag_name')!=tag or after.get('draft') is not True:
               raise SystemExit('Release changed during upload; inspect it before any further action')
           assets={asset.get('name'):asset for asset in after.get('assets',[]) if isinstance(asset,dict)}
-          for record in descriptors:
-              asset=assets.get(record['name'])
-              if not asset or asset.get('state')!='uploaded' or asset.get('size')!=record['bytes'] or asset.get('digest')!='sha256:'+record['sha256']:
-                  raise SystemExit('Release asset readback incomplete; inspect before any retry')
+          asset=assets.get(expected_asset['name'])
+          if not asset or asset.get('state')!='uploaded' or asset.get('size')!=expected_asset['bytes'] or asset.get('digest')!='sha256:'+expected_asset['sha256']:
+              raise SystemExit('Evidence ZIP readback incomplete; inspect before any retry')
           with pathlib.Path(os.environ['GITHUB_STEP_SUMMARY']).open('a',encoding='utf-8') as summary:
-              summary.write('Draft Release asset names and sizes read back for signed.ipa and five small receipts. No App Store upload.\n')
-          print('Signed Farm IPA and five small receipts uploaded to the pinned draft Release; no store upload')
+              summary.write('Exact-run evidence ZIP state, size and SHA-256 read back from the draft Release. No App Store upload.\n')
+          print('Signed Farm IPA, five receipts and four simulator PNGs archived and uploaded once; no store upload')
           PY

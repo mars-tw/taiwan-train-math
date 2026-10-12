@@ -41,7 +41,7 @@ REGIONS={
     '開始出擊':[(.08,.165,.395,.25)],
     '世界地圖':[(.045,.315,.205,.405)],
     '關卡出擊':[(.25,.84,.46,.98)], # Actual R4 009 caption bbox [589,956,765,1017] at 1920x1080.
-    '返回':[(.01,.84,.145,.99)], # Isolate the actual R4 009 visible lower-left Back button.
+    '返回':[(.045,.87,.11,.95)], # Actual R4 009 caption-only interior; exclude the rounded button border.
     'HP':[(0,0,.52,.30)], '等級':[(0,0,.65,.32)],
     '暫停':[(.70,0,1.0,.27)], '斬':[(.65,.58,1.0,1.0)],
     '繼續':[(.10,.35,.90,1.0)],
@@ -83,6 +83,7 @@ def find_caption(native_path,caption,remaining_seconds,ocr_runner,label_finder,o
     image=Image.open(io.BytesIO(original)).convert('RGB');started=time.monotonic();trials=[]
     for region_index,rect in enumerate(roi_rectangles(image.size,caption)):
         raw=image.crop(tuple(rect));variants=[('contrast',ImageEnhance.Contrast(ImageOps.autocontrast(ImageOps.grayscale(raw))).enhance(2.0)),('raw',raw)]
+        if caption=='返回':variants.append(('inverse',ImageOps.invert(ImageOps.grayscale(raw))))
         for variant,derived in variants:
             if derived.size != raw.size:raise RuntimeError('Unexpected OCR resize; native-coordinate proof invalid')
             for psm in [7,6]:

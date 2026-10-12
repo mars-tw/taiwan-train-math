@@ -14,8 +14,8 @@ jobs:
     environment: game-store-pixel-idle-farm-skill
     env:
       DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
-      CI_INPUT: ${{ runner.temp }}/farm-r78-build3-source
-      APP_SOURCE: ${{ runner.temp }}/farm-r78-build3-app
+      CI_INPUT: ${{ github.workspace }}/farm-r78-build3-source
+      APP_SOURCE: ${{ github.workspace }}/farm-r78-build3-app
       PUBLIC_OUTPUT: ${{ github.workspace }}/output/farm-r78-build3-ios
       PROJECT_ID: pixel-idle-farm-skill
     steps:

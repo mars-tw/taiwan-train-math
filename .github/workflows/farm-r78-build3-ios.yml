@@ -29,16 +29,23 @@ jobs:
           import hashlib,json,os,pathlib,re,subprocess
           repo='mars-tw/taiwan-train-math'
           tag='farm-r78-build3-20261013'
+          release_id=410813892
           pin='84a011e90c1163d9872bfbfb52ca5fcb9ee62a6dc075d133adf534e533fa1898'
           project='pixel-idle-farm-skill'
           if os.environ['GITHUB_REPOSITORY']!=repo:
               raise SystemExit('Unexpected repository')
-          result=subprocess.run(['gh','api','--method','GET',f'repos/{repo}/releases/tags/{tag}'],capture_output=True,timeout=60)
+          result=subprocess.run(['gh','api','--method','GET',f'repos/{repo}/releases/{release_id}'],capture_output=True,timeout=60)
           if result.returncode:
               raise SystemExit('Pinned source draft Release is unavailable')
           release=json.loads(result.stdout)
-          if release.get('tag_name')!=tag or release.get('draft') is not True or type(release.get('id')) is not int:
+          if release.get('id')!=release_id or release.get('tag_name')!=tag or release.get('draft') is not True:
               raise SystemExit('Unexpected source Release identity or state')
+          resolved=subprocess.run(['gh','release','view',tag,'--repo',repo,'--json','isDraft,tagName'],capture_output=True,timeout=60)
+          if resolved.returncode:
+              raise SystemExit('gh CLI cannot resolve this draft Release by tag')
+          cli=json.loads(resolved.stdout)
+          if cli.get('isDraft') is not True or cli.get('tagName')!=tag:
+              raise SystemExit('gh CLI resolved an unexpected draft Release')
           required={'SHA256SUMS','ci_ios_export.sh','ci_verify_ios.py',project+'-ios-source.zip'}
           if not required.issubset({item.get('name') for item in release.get('assets',[]) if isinstance(item,dict)}):
               raise SystemExit('Pinned Release is missing a source input')
@@ -65,7 +72,7 @@ jobs:
               with (stage/name).open('rb') as source:
                   if hashlib.file_digest(source,'sha256').hexdigest()!=sha:
                       raise SystemExit('Source asset differs from pinned digest')
-          provenance={'repository':repo,'releaseTag':tag,'releaseId':release['id'],'releaseDraft':True,
+          provenance={'repository':repo,'releaseTag':tag,'releaseId':release_id,'releaseDraft':True,
                       'projectId':project,'checksumManifestSha256':pin,'helpersExecuted':False,
                       'gameExecuted':False,'appleSecretsUsed':False}
           (stage/'input-provenance.json').write_text(json.dumps(provenance,indent=2)+'\n',encoding='utf-8')
@@ -81,7 +88,7 @@ jobs:
           if not stage.is_dir() or {path.name for path in stage.iterdir()}!=required:
               raise SystemExit('Source staging differs from the expected files')
           proof=json.loads((stage/'input-provenance.json').read_text(encoding='utf-8'))
-          if proof.get('repository')!='mars-tw/taiwan-train-math' or proof.get('releaseTag')!='farm-r78-build3-20261013' or proof.get('releaseDraft') is not True or type(proof.get('releaseId')) is not int or proof.get('projectId')!='pixel-idle-farm-skill' or proof.get('checksumManifestSha256')!=pin or any(proof.get(key) is not False for key in ('helpersExecuted','gameExecuted','appleSecretsUsed')):
+          if proof.get('repository')!='mars-tw/taiwan-train-math' or proof.get('releaseTag')!='farm-r78-build3-20261013' or proof.get('releaseDraft') is not True or proof.get('releaseId')!=410813892 or proof.get('projectId')!='pixel-idle-farm-skill' or proof.get('checksumManifestSha256')!=pin or any(proof.get(key) is not False for key in ('helpersExecuted','gameExecuted','appleSecretsUsed')):
               raise SystemExit('Farm source provenance differs from pinned Release')
           sums=stage/'SHA256SUMS'
           if hashlib.sha256(sums.read_bytes()).hexdigest()!=pin:
@@ -177,6 +184,7 @@ jobs:
           import hashlib,json,os,pathlib,subprocess
           repo='mars-tw/taiwan-train-math'
           tag='farm-r78-build3-20261013'
+          release_id=410813892
           pin='84a011e90c1163d9872bfbfb52ca5fcb9ee62a6dc075d133adf534e533fa1898'
           out=pathlib.Path(os.environ['PUBLIC_OUTPUT'])
           stage=pathlib.Path(os.environ['CI_INPUT'])
@@ -214,13 +222,21 @@ jobs:
           files.append(release_manifest)
           descriptors.append({'name':release_manifest.name,'bytes':release_manifest.stat().st_size,'sha256':hashlib.sha256(release_manifest.read_bytes()).hexdigest()})
           def read_release():
-              result=subprocess.run(['gh','api','--method','GET',f'repos/{repo}/releases/tags/{tag}'],capture_output=True,timeout=60)
+              result=subprocess.run(['gh','api','--method','GET',f'repos/{repo}/releases/{release_id}'],capture_output=True,timeout=60)
               if result.returncode:
                   raise SystemExit('Cannot read the same draft Release')
               return json.loads(result.stdout)
           before=read_release()
-          if before.get('id')!=provenance['releaseId'] or before.get('tag_name')!=tag or before.get('draft') is not True:
+          if before.get('id')!=release_id or provenance['releaseId']!=release_id or before.get('tag_name')!=tag or before.get('draft') is not True:
               raise SystemExit('Draft Release identity/state changed')
+          resolved=subprocess.run(['gh','release','view',tag,'--repo',repo,'--json','isDraft,tagName'],capture_output=True,timeout=60)
+          if resolved.returncode:
+              raise SystemExit('gh CLI can no longer resolve the pinned draft Release by tag')
+          cli=json.loads(resolved.stdout)
+          if cli.get('isDraft') is not True or cli.get('tagName')!=tag:
+              raise SystemExit('gh CLI resolved an unexpected draft Release before upload')
+          if not os.environ.get('GH_TOKEN'):
+              raise SystemExit('Release upload credential is unavailable')
           names={record['name'] for record in descriptors}
           if names & {asset.get('name') for asset in before.get('assets',[]) if isinstance(asset,dict)}:
               raise SystemExit('One or more signed assets already exist; do not overwrite or retry blindly')
@@ -234,7 +250,7 @@ jobs:
                   summary.write('- '+record['name']+': '+str(record['bytes'])+' bytes; SHA-256 '+record['sha256']+'\n')
           upload=subprocess.run(['gh','release','upload',tag,*[str(path) for path in files],'--repo',repo],capture_output=True,timeout=900)
           if upload.returncode:
-              raise SystemExit('Release upload failed or outcome is uncertain; audit existing assets before any retry')
+              raise SystemExit('Release upload failed or outcome is uncertain; inspect assets before retry')
           after=read_release()
           if after.get('id')!=before['id'] or after.get('draft') is not True:
               raise SystemExit('Release changed during upload; inspect it before any further action')

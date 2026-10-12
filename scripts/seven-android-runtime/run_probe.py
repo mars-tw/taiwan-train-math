@@ -4,6 +4,7 @@ No app source, pack, save, mission or object state is edited. Captured control
 flow is separate from root visual gameplay acceptance and first-chapter completion.
 """
 import csv
+from datetime import datetime, timezone
 import hashlib
 import io
 import json
@@ -73,7 +74,7 @@ def normalized(value):
 
 def label_box(tsv, caption):
     lines = {}
-    for row in csv.DictReader(io.StringIO(tsv), delimiter="\t"):
+    for row in csv.DictReader(io.StringIO(tsv), delimiter="\t", quoting=csv.QUOTE_NONE):
         if row.get("level") != "5" or not normalized(row.get("text", "")):
             continue
         try:
@@ -190,6 +191,24 @@ def verify_avd_registry(ini, data, name, names, allowed_root):
             "emulatorListedNames": [name], "verified": True, "registryManuallyWritten": False}
 
 
+
+def verify_phone720_wm_readback(text):
+    physical = re.findall(r"^Physical size:\s*(\d+)x(\d+)\s*$", text, re.M)
+    override = re.findall(r"^Override size:\s*(\d+)x(\d+)\s*$", text, re.M)
+    if (len(physical) != 1 or len(override) != 1 or tuple(map(int, override[0])) != (720, 1280)
+            or any(value <= 0 for value in map(int, physical[0]))
+            or any(line.strip() and not re.fullmatch(r"(?:Physical|Override) size:\s*\d+x\d+\s*", line.strip()) for line in text.splitlines())):
+        raise RuntimeError("Actual owned wm size readback is not unique720x1280 override; no launch")
+    return {"physicalSize": list(map(int, physical[0])), "overrideNaturalPortraitSize": [720,1280],
+            "expectedOriginalNativeLandscapePNG": [1280,720], "readbackVerified": True}
+
+
+def verify_native_phone720_dimensions(width, height):
+    if (width,height) != (1280,720):
+        raise RuntimeError("Actual original native game PNG is not1280x720 landscape; no resize or coordinate guess")
+    return True
+
+
 def main():
     if (os.environ.get("GITHUB_ACTIONS") != "true"
             or os.environ.get("GITHUB_REPOSITORY") != "mars-tw/taiwan-train-math"
@@ -201,10 +220,10 @@ def main():
     sdk = Path(os.environ["SEVEN_SDK"]).resolve()
     if not sdk.is_relative_to(temp) or not os.access("/dev/kvm", os.R_OK | os.W_OK):
         raise RuntimeError("Owned SDK and usable KVM required; no TCG fallback")
-    out = Path(os.environ["GITHUB_WORKSPACE"]) / "output/seven-code8-runtime"
+    out = Path(os.environ["GITHUB_WORKSPACE"]) / "output/seven-code8-720p-runtime"
     frames = out / "native-frames"
     frames.mkdir(parents=True, exist_ok=True)
-    input_dir = temp / "seven-code8-input"
+    input_dir = temp / "seven-code8-720p-input"
     apk = input_dir / APK_NAME
     provenance = json.loads((input_dir / "fetch-provenance.json").read_text())
     if (apk.stat().st_size != pins["bytes"] or hashlib.sha256(apk.read_bytes()).hexdigest() != APK_SHA
@@ -216,14 +235,19 @@ def main():
     adb = str(sdk / "platform-tools/adb")
     emulator = str(sdk / "emulator/emulator")
     run_id = os.environ["GITHUB_RUN_ID"]
-    avd = "SevenCode8_" + run_id
+    avd = "SevenCode8_720p_" + run_id
     deadline = time.monotonic() + 900
     report = {"schemaVersion": 1, "projectId": "seven-district-reckoning", "status": "PREPARING",
         "runId": run_id, "runAttempt": os.environ.get("GITHUB_RUN_ATTEMPT"), "physical": False,
         "deviceKind": "OFFICIAL_ANDROID_EMULATOR_KVM", "apkSha256": APK_SHA,
         "versionCode": 8, "ocrConfiguredMaximumSeconds": 60, "ocrChildOmpThreadLimit": 1,
         "flowAbsoluteDeadlineSeconds": 900, "gpuRequested": GPU_MODE, "accelRequested": "on",
-        "experiment": "EXPLICIT_SUPPORTED_SWANGLE_ENGINE_DEVICE_COMPATIBILITY_TEST",
+        "experiment": "EXPLICIT_720P_PHONE_SIZE_SWANGLE_SAME_SIGNED_APK8_DIAGNOSTIC",
+        "previous1920x1080Run": 38204855965, "previous1920x1080FailurePreserved": True,
+        "deviceProfile": "pixel_2_with_owned_wm720x1280_override",
+        "expectedOriginalNativeLandscapePNG": [1280,720], "nativeImagesResampled": False,
+        "sourceQualityOrGameplayContentChanged": False, "pacingCauseProven": False,
+        "furtherDeviceDiagnosticRepeatsAuthorized": False,
         "previousSwiftshaderFailureHistoryPreserved": True,
         "uniform261ShaderErrorFixedInGameSource": False,
         "automaticRendererFallback": False, "automaticEmulatorRestart": False,
@@ -262,15 +286,18 @@ def main():
         report["currentObservationPhase"] = label
         sequence += 1
         name = f"{sequence:03d}-{label}.png"
+        capture_requested_at_utc = datetime.now(timezone.utc).isoformat()
         raw = device("exec-out", "screencap", "-p").stdout
         image = Image.open(io.BytesIO(raw)).convert("RGB")
-        if image.width < 600 or image.height < 300 or image.width * image.height > 5000000:
-            raise RuntimeError("Native viewport unexpectedly small or oversized")
         path = frames / name
-        path.write_bytes(raw)
+        path.write_bytes(raw)  # Preserve original dimensions/bytes even if the size guard fails.
         report["captures"].append({"name": name, "nativeWidth": image.width, "nativeHeight": image.height,
-                                   "sha256": hashlib.sha256(raw).hexdigest(), "ocrComplete": False})
-        save()  # Preserve the original native frame even if this OCR child times out.
+            "sha256": hashlib.sha256(raw).hexdigest(), "ocrComplete": False,
+            "captureRequestedAtUtc": capture_requested_at_utc, "originalPNGWrittenAtUtc": datetime.now(timezone.utc).isoformat(),
+            "nativeImageResampled": False, "originalLandscape720pVerified": False})
+        save()
+        report["captures"][-1]["originalLandscape720pVerified"] = verify_native_phone720_dimensions(image.width,image.height)
+        save()
         ocr_argv = ["tesseract", str(path), "stdout", "-l", "chi_tra+eng", "--psm", "11", "tsv"]
         ocr_stdout, ocr_stderr, ocr_receipt = bounded_native_ocr(ocr_argv, deadline-time.monotonic())
         path.with_suffix(".ocr.stdout.txt").write_bytes(ocr_stdout)
@@ -287,7 +314,7 @@ def main():
         if ocr_receipt["exitCode"] != 0:
             raise RuntimeError("OCR_CHILD_NONZERO_STDERR_PRESERVED: " + name)
         ocr = ocr_stdout.decode("utf-8", "replace")
-        text = " ".join(row.get("text", "") for row in csv.DictReader(io.StringIO(ocr), delimiter="\t") if row.get("text"))
+        text = " ".join(row.get("text", "") for row in csv.DictReader(io.StringIO(ocr), delimiter="\t", quoting=csv.QUOTE_NONE) if row.get("text"))
         report["captures"][-1].update(ocrComplete=True, ocrText=text[:4096])
         save()
         return image, ocr, name
@@ -330,7 +357,7 @@ def main():
                 "launch": launch, "result": "FULLSCREEN_EDUCATION_BODY_NOT_VISIBLE", "tapPerformed": False})
             save()
             return False  # A blank first frame does not suppress a later legitimate notice.
-        remote_xml = "/sdcard/SevenCode8_" + run_id + "_notice.xml"
+        remote_xml = "/sdcard/SevenCode8_720p_" + run_id + "_notice.xml"
         device("shell", "uiautomator", "dump", remote_xml, timeout=30)
         xml = device("exec-out", "cat", remote_xml).stdout.decode("utf-8", "replace")
         (frames / (Path(basis).stem + ".uiautomator.xml")).write_text(xml)
@@ -420,7 +447,7 @@ def main():
         manager = str(sdk / "cmdline-tools/latest/bin/avdmanager")
         avd_home = Path(os.environ["ANDROID_AVD_HOME"]).resolve()
         user_home = Path(os.environ["ANDROID_USER_HOME"]).resolve()
-        if avd_home != temp / "seven-code8-avds" or user_home != temp / "seven-code8-user":
+        if avd_home != temp / "seven-code8-720p-avds" or user_home != temp / "seven-code8-720p-user":
             raise RuntimeError("Fixed owned AVD/user homes differ")
         # The official Java manager may fall back when an override directory does
         # not exist. Establish both owned homes before the one create call.
@@ -493,6 +520,25 @@ def main():
         report["actualGraphicsModeLines"] = [line for line in actual_boot_log.splitlines()
             if any(key in line for key in ["emuglConfig_init", "Graphics Adapter", "Graphics API Version"])]
         save()
+        wm_before = device("shell","wm","size")
+        (out/"owned-wm-size-before.stdout.txt").write_bytes(wm_before.stdout)
+        (out/"owned-wm-size-before.stderr.txt").write_bytes(wm_before.stderr)
+        if "Override size:" in wm_before.stdout.decode("utf-8","replace"):
+            raise RuntimeError("Fresh owned guest has prior size override; no overwrite or retry")
+        wm_set = device("shell","wm","size","720x1280",allow_failure=True)
+        (out/"owned-wm-size-set.stdout.txt").write_bytes(wm_set.stdout)
+        (out/"owned-wm-size-set.stderr.txt").write_bytes(wm_set.stderr)
+        if wm_set.returncode:
+            raise RuntimeError("One official owned wm720x1280 override failed; no fallback/retry")
+        wm_after = device("shell","wm","size")
+        (out/"owned-wm-size-after.stdout.txt").write_bytes(wm_after.stdout)
+        (out/"owned-wm-size-after.stderr.txt").write_bytes(wm_after.stderr)
+        report["ownedDeviceSizeReadback"] = verify_phone720_wm_readback(wm_after.stdout.decode("utf-8","replace"))
+        report["ownedDeviceSizeReadback"].update(command=["adb","-s",SERIAL,"shell","wm","size","720x1280"],
+            appliedBeforeInstallAndLaunch=True, appAlreadyLaunched=False, densityChanged=False,
+            guestOnly=True, priorRunModified=False, actualMutationAttempts=1)
+        (out/"owned-720p-device-profile.json").write_text(json.dumps(report["ownedDeviceSizeReadback"],indent=2)+"\n")
+        save()
         device("shell", "input", "keyevent", "82")
         device("install", "-r", str(apk), timeout=90)
         package = device("shell", "dumpsys", "package", PACKAGE).stdout.decode()
@@ -512,7 +558,7 @@ def main():
         wait_caption("開始新遊戲", "cold-title-wait", seconds=360)
         report["startMenuObserved"] = True
         save()
-        remote_movie = "/sdcard/SevenCode8_" + run_id + ".mp4"
+        remote_movie = "/sdcard/SevenCode8_720p_" + run_id + ".mp4"
         recorder = subprocess.Popen([adb, "-s", SERIAL, "shell", "screenrecord", "--time-limit", "90", remote_movie],
                                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         tap_caption("開始新遊戲", "observed-start")
@@ -566,6 +612,7 @@ def main():
         report["status"] = "FAILED_NATIVE_OBSERVATION"
         report["errorType"] = type(error).__name__
         report["error"] = str(error)[:1000]
+        report["remainingPerformanceAcceptanceGate"] = "REAL_ARM_DEVICE_REQUIRED_IF_THIS_ONE720P_DIAGNOSTIC_STILL_LOADING; retain hold, no repeated emulator guesses"
         report["ownedEmulatorExitAtFailure"] = proc.poll() if proc is not None else None
         save()
         raise

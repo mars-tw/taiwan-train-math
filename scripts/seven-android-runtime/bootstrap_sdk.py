@@ -19,7 +19,7 @@ def main():
             or os.environ.get("GITHUB_REF") != "refs/heads/codex/ashes-simulator-recording"):
         raise RuntimeError("Fixed Seven QA branch only")
     temp = Path(os.environ["RUNNER_TEMP"]).resolve()
-    sdk = temp / "seven-code8-sdk"
+    sdk = temp / "seven-code8-720p-sdk"
     if sdk.exists():
         raise RuntimeError("Fresh own SDK required")
     vendor = Path(os.environ["ANDROID_HOME"]).resolve()
@@ -66,7 +66,7 @@ def main():
             or "ro.system.product.cpu.abilist64=x86_64,arm64-v8a" not in build
             or "ro.dalvik.vm.native.bridge=libndk_translation.so" not in build):
         raise RuntimeError("Exact API36 revision7 ARM64-translation image contract differs")
-    out = Path(os.environ["GITHUB_WORKSPACE"]) / "output/seven-code8-runtime"
+    out = Path(os.environ["GITHUB_WORKSPACE"]) / "output/seven-code8-720p-runtime"
     out.mkdir(parents=True, exist_ok=True)
     (out / "sdk-provenance.json").write_text(json.dumps({"schemaVersion": 1,
         "emulatorArchiveUrl": URL, "emulatorArchiveBytes": SIZE, "emulatorArchiveSha1": actual,
@@ -80,7 +80,7 @@ def main():
     with Path(os.environ["GITHUB_ENV"]).open("a") as env:
         env.write(f"SEVEN_SDK={sdk}\nANDROID_HOME={sdk}\nANDROID_SDK_ROOT={sdk}\n")
         env.write(f"JAVA_HOME={java}\n")
-        env.write(f"ANDROID_AVD_HOME={temp / 'seven-code8-avds'}\nANDROID_USER_HOME={temp / 'seven-code8-user'}\n")
+        env.write(f"ANDROID_AVD_HOME={temp / 'seven-code8-720p-avds'}\nANDROID_USER_HOME={temp / 'seven-code8-720p-user'}\n")
     print("One official isolated emulator/API36-r7 SDK ready; no AVD or game started yet.")
 
 

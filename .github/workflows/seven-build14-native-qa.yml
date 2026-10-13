@@ -15,6 +15,8 @@ jobs:
     if: github.event_name == 'workflow_dispatch' && github.repository == 'mars-tw/taiwan-train-math' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 90
+    permissions:
+      contents: write # Private, source-bound draft Release after all checks pass.
     steps:
       - name: Read reviewed CI and exact Seven source commit
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
@@ -45,26 +47,42 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      - name: Install verified official Godot 4.7.2 templates and Android build tools
+      - name: Install verified Godot and Android tools in an owned writable SDK
+        id: android_toolchain
         shell: bash
         run: |
           set -euo pipefail
-          python3 seven-source/tools/install_native_toolchain.py --output "$RUNNER_TEMP/seven-build14-toolchain" --android-sdk "$ANDROID_HOME"
+          vendor_sdk="$ANDROID_HOME"
+          owned_sdk="$RUNNER_TEMP/seven-build14-sdk"
+          test -f "$vendor_sdk/licenses/android-sdk-license"
+          test -f "$vendor_sdk/cmdline-tools/latest/bin/sdkmanager"
+          mkdir -p "$owned_sdk/cmdline-tools"
+          cp -a "$vendor_sdk/licenses" "$owned_sdk/licenses"
+          cp -a "$vendor_sdk/cmdline-tools/latest" "$owned_sdk/cmdline-tools/latest"
+          python3 seven-source/tools/install_native_toolchain.py --output "$RUNNER_TEMP/seven-build14-toolchain" --android-sdk "$owned_sdk"
+          "$owned_sdk/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$owned_sdk" --install 'platforms;android-36' 'platform-tools' --channel=0 </dev/null
+          test -f "$owned_sdk/platforms/android-36/android.jar"
+          test -x "$owned_sdk/build-tools/36.1.0/apksigner"
           python3 - <<'PY'
           import json,os,pathlib
           tool=json.loads((pathlib.Path(os.environ['RUNNER_TEMP'])/'seven-build14-toolchain/toolchain.json').read_text())
           with open(os.environ['GITHUB_ENV'],'a') as env:
               env.write('SEVEN_GODOT='+tool['godot']+'\nSEVEN_BUNDLETOOL='+tool['bundletool']+'\n')
+              env.write('SEVEN_ANDROID_SDK='+str(pathlib.Path(os.environ['RUNNER_TEMP'])/'seven-build14-sdk')+'\n')
+              env.write('ANDROID_HOME='+str(pathlib.Path(os.environ['RUNNER_TEMP'])/'seven-build14-sdk')+'\n')
+              env.write('ANDROID_SDK_ROOT='+str(pathlib.Path(os.environ['RUNNER_TEMP'])/'seven-build14-sdk')+'\n')
           PY
       - name: Parse and test pinned game on Linux
+        id: android_tests
         run: python3 seven-source/tools/test_game.py --godot "$SEVEN_GODOT"
       - name: Scan source for publication hazards
         run: python3 seven-source/tools/scan_publication.py
       - name: Export and inspect Android release APK and AAB without signing
+        id: android_export
         shell: bash
         run: |
           set -euo pipefail
-          python3 seven-source/tools/export_mobile.py --target android --godot "$SEVEN_GODOT" --jdk "$JAVA_HOME" --android-sdk "$ANDROID_HOME" --bundletool "$SEVEN_BUNDLETOOL"
+          python3 seven-source/tools/export_mobile.py --target android --godot "$SEVEN_GODOT" --jdk "$JAVA_HOME" --android-sdk "$SEVEN_ANDROID_SDK" --bundletool "$SEVEN_BUNDLETOOL"
           python3 - <<'PY'
           import json,pathlib
           p=pathlib.Path('seven-source/deliverables/native/android-verification.json')
@@ -74,6 +92,7 @@ jobs:
           print(json.dumps({'sourceSha':r['sourceSha'],'build':r['nativeBuild'],'packages':r['packages']}))
           PY
       - name: Independently reject signatures and AAB sensitive permissions
+        id: android_independent
         shell: bash
         run: |
           set -euo pipefail
@@ -117,27 +136,29 @@ jobs:
           (root/'independent-signature-check.json').write_text(json.dumps(report,indent=2)+'\n')
           print(json.dumps(report))
           PY
-      - name: Preserve unsigned native packages and exact source receipts
+      - name: Preserve verified unsigned packages on a private draft Release
+        id: android_draft
         if: success()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: seven-build14-android-${{ github.run_id }}
-          path: |
-            seven-source/deliverables/native/native-unsigned.apk
-            seven-source/deliverables/native/native-unsigned.aab
-            seven-source/deliverables/native/android-verification.json
-            seven-source/deliverables/native/independent-signature-check.json
-            seven-source/qa/engine-checks.json
-          if-no-files-found: warn
-          retention-days: 14
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 ci/scripts/seven-build14-native/publish_draft.py android
+      - name: Write current-run Android failure receipt
+        if: failure()
+        env:
+          TOOLCHAIN_OUTCOME: ${{ steps.android_toolchain.outcome }}
+          TESTS_OUTCOME: ${{ steps.android_tests.outcome }}
+          EXPORT_OUTCOME: ${{ steps.android_export.outcome }}
+          INDEPENDENT_OUTCOME: ${{ steps.android_independent.outcome }}
+          DRAFT_OUTCOME: ${{ steps.android_draft.outcome }}
+        run: python3 ci/scripts/seven-build14-native/diagnose_export.py android
       - name: Preserve bounded Android failure receipts without packages
         if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: seven-build14-android-failure-${{ github.run_id }}
           path: |
+            output/seven-build14-android/early-failure.json
             seven-source/deliverables/native/android-verification.json
-            seven-source/qa/engine-checks.json
           if-no-files-found: warn
           retention-days: 14
 
@@ -145,6 +166,8 @@ jobs:
     if: github.event_name == 'workflow_dispatch' && github.repository == 'mars-tw/taiwan-train-math' && github.ref == 'refs/heads/main'
     runs-on: macos-15-intel
     timeout-minutes: 90
+    permissions:
+      contents: write # Private, source-bound draft Release after signature verification.
     environment: game-store-seven-district-reckoning
     env:
       DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
@@ -183,36 +206,53 @@ jobs:
           with open(os.environ['GITHUB_ENV'],'a') as env:env.write('SEVEN_GODOT='+tool['godot']+'\n')
           PY
       - name: Export exact unsigned Xcode project from pinned Godot source
+        id: ios_export
         run: python3 seven-source/tools/export_mobile.py --target ios --source-only --godot "$SEVEN_GODOT"
+      - name: Preserve bounded early Godot import/export diagnostics before signing
+        if: failure() && steps.ios_export.outcome == 'failure'
+        env:
+          IOS_EXPORT_OUTCOME: ${{ steps.ios_export.outcome }}
+        run: python3 ci/scripts/seven-build14-native/diagnose_export.py ios
       - name: Bind all source files and game PCK to pinned source commit
+        id: ios_source
         run: python3 ci/scripts/seven-build14-native/prepare_ios_source.py seven-source output/seven-build14-ios
       - name: Verify Mac source and compile actual unsigned iPhone/iPad simulators
+        id: ios_sim
         shell: bash
         run: |
           set -euo pipefail
           bash ci/scripts/seven-build14-native/export_ios.sh prepare seven-source/deliverables/native/ios seven-district-reckoning output/seven-build14-ios output/seven-build14-ios/ios-source-metadata.json
           bash ci/scripts/seven-build14-native/export_ios.sh sim seven-source/deliverables/native/ios seven-district-reckoning output/seven-build14-ios output/seven-build14-ios/ios-source-metadata.json
       - name: Sign and independently verify build 14 IPA without store upload
+        id: ios_sign
         env:
           APPLE_DISTRIBUTION_P12_BASE64: ${{ secrets.APPLE_DISTRIBUTION_P12_BASE64 }}
           APPLE_DISTRIBUTION_P12_PASSWORD: ${{ secrets.APPLE_DISTRIBUTION_P12_PASSWORD }}
           APPLE_APPSTORE_PROFILE_BASE64: ${{ secrets.APPLE_APPSTORE_PROFILE_BASE64 }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: bash ci/scripts/seven-build14-native/export_ios.sh sign seven-source/deliverables/native/ios seven-district-reckoning output/seven-build14-ios output/seven-build14-ios/ios-source-metadata.json
-      - name: Preserve signed artifact and source/runtime/signature receipts
-        if: always()
+      - name: Preserve verified signed IPA and QA receipts on a private draft Release
+        id: ios_draft
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 ci/scripts/seven-build14-native/publish_draft.py ios
+      - name: Write current-run iOS failure receipt without signing logs
+        if: failure() && steps.ios_export.outcome != 'failure'
+        env:
+          IOS_EXPORT_OUTCOME: ${{ steps.ios_export.outcome }}
+          IOS_SOURCE_OUTCOME: ${{ steps.ios_source.outcome }}
+          IOS_SIM_OUTCOME: ${{ steps.ios_sim.outcome }}
+          IOS_SIGN_OUTCOME: ${{ steps.ios_sign.outcome }}
+          IOS_DRAFT_OUTCOME: ${{ steps.ios_draft.outcome }}
+        run: python3 ci/scripts/seven-build14-native/diagnose_export.py ios
+      - name: Preserve iOS failure receipts without an IPA
+        if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: seven-build14-ios-${{ github.run_id }}
+          name: seven-build14-ios-failure-${{ github.run_id }}
           path: |
-            output/seven-build14-ios/signed.ipa
-            output/seven-build14-ios/ios-source-metadata.json
-            output/seven-build14-ios/source-verification.json
-            output/seven-build14-ios/simulator-architecture.json
-            output/seven-build14-ios/simulator-verification.json
-            output/seven-build14-ios/simulator-launch.json
-            output/seven-build14-ios/verification.json
-            output/seven-build14-ios/screenshots/*.png
+            output/seven-build14-ios/early-export-failure.json
             output/seven-build14-ios/sim-build-failure.json
             seven-source/deliverables/native/ios-verification.json
           if-no-files-found: warn

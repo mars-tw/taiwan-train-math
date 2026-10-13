@@ -33,6 +33,7 @@ jobs:
           sparse-checkout-cone-mode: false
 
       - name: Verify pinned driver bytes and pure guard tests
+        id: driver_pin
         shell: bash
         run: |
           set -euo pipefail
@@ -70,7 +71,7 @@ jobs:
         run: python3 scripts/seven-build14-android-emulator/run_probe.py
 
       - name: Preserve bounded success or failure evidence on the same draft Release
-        if: always()
+        if: always() && steps.driver_pin.outcome == 'success'
         env:
           GH_TOKEN: ${{ github.token }}
         run: python3 scripts/seven-build14-android-emulator/publish_evidence.py

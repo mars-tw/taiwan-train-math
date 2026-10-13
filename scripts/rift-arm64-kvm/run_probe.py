@@ -21,9 +21,9 @@ import time
 
 
 REPO = "mars-tw/taiwan-train-math"
-REF = "refs/heads/codex/rift-arm64-kvm-r2-20261013-shaderfix"
+REF = "refs/heads/codex/rift-arm64-kvm-r3-20261013-primitivefix"
 PACKAGE = "tw.mars.riftforge3d"
-APK_SHA = "78bcddedc6099efc89bb29abe7bf52bbfa02330d1f21de9f9120d93d5b4a1da3"
+APK_SHA = "aa8cb0bbd1c0e236c415768ba0baafe646ad7db1e439f5ad4c8c09a38f80af28"
 CERT_SHA = "11e100f23b70476c3a1b02054e85c9c9681609e5604fada346dd8f3fe3df4c40"
 SYSTEM_IMAGE = "system-images;android-36;google_apis;x86_64"
 PORT = 5582
@@ -63,6 +63,15 @@ def classify(text: str) -> str:
     return "unknown"
 
 
+def critical_unity_errors(log: bytes, pid: str) -> list[str]:
+    app_error = re.compile(r"\s" + re.escape(pid) + r"\s+\d+\s+E Unity\s+:")
+    critical = ("Can't add component because class", "ArgumentNullException",
+                "NullReferenceException", "MissingReferenceException",
+                "MissingMethodException", "Fatal signal", "FATAL EXCEPTION")
+    return [line[:500] for line in log.decode("utf-8", "replace").splitlines()
+            if app_error.search(line) and any(marker in line for marker in critical)][:30]
+
+
 def self_test() -> None:
     assert classify("RIFT FORGE ENTER THE RIFT") == "title"
     assert classify("CORE 100 / 100 RIFT 1 / 4 STRIKE DODGE") == "combat"
@@ -71,6 +80,9 @@ def self_test() -> None:
     assert classify("CORE BROKEN THE FORGE AWAITS YOUR RETURN") == "defeat"
     assert classify("RIFT PAUSED RESUME") == "pause"
     assert classify("Viewing full screen To exit swipe down from the top of your screen") == "immersive_hint"
+    assert len(critical_unity_errors(
+        b"1791870996.653  2753  2885 E Unity   : Can't add component because class 'CapsuleCollider' doesn't exist!\n",
+        "2753")) == 1
     print("RIFT_KVM_PROBE_SELF_TEST_PASS")
 
 
@@ -89,7 +101,7 @@ class Probe:
         self.out = Path(os.environ["RIFT_OUTPUT"]).resolve()
         self.temp = Path(os.environ["RUNNER_TEMP"]).resolve()
         self.avd_home = Path(os.environ["ANDROID_AVD_HOME"]).resolve()
-        self.avd_name = "rift-arm64-kvm-r2-" + self.run_id
+        self.avd_name = "rift-arm64-kvm-r3-" + self.run_id
         self.avd_path = self.avd_home / (self.avd_name + ".avd")
         self.adb = str(self.sdk / "platform-tools/adb")
         self.emulator = str(self.sdk / "emulator/emulator")
@@ -121,7 +133,7 @@ class Probe:
         }
         owner = json.loads((self.out / "owned-run.json").read_text(encoding="utf-8"))
         if owner != {"runId": self.run_id, "headSha": os.environ["GITHUB_SHA"],
-                     "owner": "rift-arm64-kvm-r2"}:
+                     "owner": "rift-arm64-kvm-r3"}:
             raise RuntimeError("Evidence directory owner mismatch")
         self.save()
 
@@ -143,12 +155,12 @@ class Probe:
                             allow_failure=allow_failure)
 
     def inspect_input(self) -> None:
-        manifest = json.loads((self.temp / "rift-arm64-kvm-r2-input/manifest.json").read_text())
+        manifest = json.loads((self.temp / "rift-arm64-kvm-r3-input/manifest.json").read_text())
         if (manifest.get("repository") != REPO or manifest.get("branch") != REF.removeprefix("refs/heads/")
                 or manifest.get("appId") != PACKAGE or manifest.get("versionCode") != 1
                 or manifest.get("apk", {}).get("sha256") != APK_SHA
                 or manifest.get("apk", {}).get("certificateSha256") != CERT_SHA
-                or not self.apk.is_file() or self.apk.stat().st_size != 42_781_323
+                or not self.apk.is_file() or self.apk.stat().st_size != 57_152_389
                 or digest(self.apk.read_bytes()) != APK_SHA):
             raise RuntimeError("Exact APK/manifest identity mismatch")
         cert = self.command([self.apksigner, "verify", "--verbose", "--print-certs", str(self.apk)],
@@ -270,6 +282,43 @@ class Probe:
                            timeout=25, allow_failure=True)
         text = ocr.stdout.decode("utf-8", "replace")
         (self.out / f"{self.capture_count:03d}-{label}.ocr.txt").write_text(text)
+        # Preserve the original screenshot. Derived crops help OCR read dark
+        # lettering on brightly colored Unity buttons, which whole-frame OCR
+        # omitted in the first native render even though the button was visible.
+        content = normalized(text)
+        crops = []
+        if "RIFT FORGE" in content and "ENTER THE RIFT" not in content:
+            crops.append(("title-button", .32, .57, .36, .18))
+        if "THE FORGE" in content and "OPEN NEXT RIFT" not in content:
+            crops.append(("forge-next", .32, .77, .36, .17))
+        if "THE FORGE" in content:
+            if "EMBER EDGE" not in content:
+                crops.append(("forge-blade", .15, .445, .20, .06))
+            if "LIVING PLATE" not in content:
+                crops.append(("forge-vitality", .40, .445, .20, .06))
+        if "CORE" in content and "RIFT" in content:
+            if "STRIKE" not in content:
+                crops.append(("strike", .76, .66, .20, .24))
+            if "DODGE" not in content:
+                crops.append(("dodge", .63, .75, .19, .23))
+            if "MOVE" not in content:
+                crops.append(("move", .03, .65, .20, .30))
+        for crop_name, fx, fy, fw, fh in crops:
+            crop_file = self.out / f"{self.capture_count:03d}-{label}-{crop_name}-ocr-crop.png"
+            x, y = int(width * fx), int(height * fy)
+            cw, ch = int(width * fw), int(height * fh)
+            made = self.command(["ffmpeg", "-hide_banner", "-loglevel", "error",
+                                 "-y", "-i", str(file), "-vf",
+                                 f"crop={cw}:{ch}:{x}:{y},format=gray",
+                                 "-frames:v", "1", str(crop_file)],
+                                timeout=25, allow_failure=True)
+            if made.returncode != 0 or not crop_file.is_file():
+                raise RuntimeError("Derived button OCR crop failed: " + crop_name)
+            cropped = self.command(["tesseract", str(crop_file), "stdout",
+                                    "--psm", "7"], timeout=25, allow_failure=True)
+            crop_text = cropped.stdout.decode("utf-8", "replace")
+            (self.out / f"{self.capture_count:03d}-{label}-{crop_name}.ocr.txt").write_text(crop_text)
+            text += "\n" + crop_text
         state = classify(text)
         self.report["screenshots"].append({"file": file.name, "bytes": len(png),
             "sha256": digest(png), "width": width, "height": height,
@@ -296,7 +345,7 @@ class Probe:
 
     def start_video(self) -> None:
         self.segment += 1
-        remote = f"/sdcard/Movies/rift-arm64-kvm-r2-{self.segment}.mp4"
+        remote = f"/sdcard/Movies/rift-arm64-kvm-r3-{self.segment}.mp4"
         self.recording_started = time.monotonic()
         self.recorder = subprocess.Popen(
             [self.adb, "-s", SERIAL, "shell", "screenrecord",
@@ -324,7 +373,7 @@ class Probe:
             self.recorder.terminate()
             self.recorder.wait(timeout=10)
         self.recorder = None
-        local = self.out / f"rift-arm64-r2-native-segment-{self.segment}.mp4"
+        local = self.out / f"rift-arm64-r3-native-segment-{self.segment}.mp4"
         pulled = self.device("pull", remote, str(local), timeout=90, allow_failure=True)
         (self.out / f"video-pull-{self.segment}.txt").write_bytes(
             pulled.stdout + b"\n" + pulled.stderr)
@@ -399,6 +448,14 @@ class Probe:
         if state != "title":
             raise RuntimeError("Native launch did not render OCR-visible ENTER THE RIFT")
         self.report["coldTitleVisible"] = True
+        pregame_log = self.device("logcat", "-d", "-v", "epoch",
+                                  "--pid=" + self.app_pid, timeout=30).stdout
+        (self.out / "owned-app-logcat-before-gameplay.txt").write_bytes(pregame_log)
+        pregame_errors = critical_unity_errors(pregame_log, self.app_pid)
+        self.report["criticalUnityErrorsBeforeGameplay"] = pregame_errors
+        if pregame_errors:
+            self.save()
+            raise RuntimeError("Critical Unity errors before gameplay; no title tap")
         self.tap("ENTER THE RIFT", .50, .66, "OCR-visible cold title")
         time.sleep(2)
         state, text = self.capture("post-enter")
@@ -491,6 +548,8 @@ class Probe:
                     self.report["guestLogcatTailOnly"] = True
                 (self.out / "owned-guest-logcat.txt").write_bytes(guest)
                 self.report["guestLogcatSha256"] = digest(guest)
+                if self.app_pid:
+                    self.report["criticalUnityErrors"] = critical_unity_errors(guest, self.app_pid)
             except Exception as error:
                 self.report.setdefault("cleanupErrors", []).append("logcat: " + str(error)[:300])
         if self.process is not None:
@@ -533,6 +592,10 @@ class Probe:
             self.cleanup()
         if error is not None:
             raise error
+        if self.report.get("criticalUnityErrors"):
+            self.report["status"] = "NATIVE_APP_ERRORS_OBSERVED"
+            self.save()
+            raise RuntimeError("Critical Unity errors present in original guest logcat")
         if not self.report.get("victoryVisible") or not self.report.get("videos"):
             raise RuntimeError("Victory or original native video missing")
         print(self.report["status"])

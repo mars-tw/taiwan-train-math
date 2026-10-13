@@ -14,22 +14,24 @@ import subprocess
 HERE = Path(__file__).resolve().parent
 MANIFEST = HERE / "manifest.json"
 REPO = "mars-tw/taiwan-train-math"
-BRANCH = "codex/rift-arm64-kvm-r2-20261013-shaderfix"
+BRANCH = "codex/rift-arm64-kvm-r3-20261013-primitivefix"
 REF = "refs/heads/" + BRANCH
-TAG = "rift-android-dev-kvm-r2-20261013-78bcddec-6978eee8e47d"
-RELEASE_ID = 411325542
-ASSET_ID = 636041902
-APK_NAME = "RiftForge-dev-shader-fix.apk"
-APK_BYTES = 42_781_323
-APK_SHA = "78bcddedc6099efc89bb29abe7bf52bbfa02330d1f21de9f9120d93d5b4a1da3"
+TAG = "rift-android-dev-kvm-r3-20261013-aa8cb0bb-f4d48a85959e"
+RELEASE_ID = 411337130
+ASSET_ID = 636077860
+APK_NAME = "RiftForge-dev-primitive-fix.apk"
+APK_BYTES = 57_152_389
+APK_SHA = "aa8cb0bbd1c0e236c415768ba0baafe646ad7db1e439f5ad4c8c09a38f80af28"
 CERT_SHA = "11e100f23b70476c3a1b02054e85c9c9681609e5604fada346dd8f3fe3df4c40"
 SOURCE_COMMIT = "d75c4ee24cfa4807bb833735a4b2a98f0e0f119c"
-BUILD_SCRIPT_PATCH_SHA = "29bf31f05a3fafe87e0e7e2694b4dd2086819c9a55f9fc201888d80bd3de3a74"
+BUILD_SCRIPT_PATCH_SHA = "768b7366ceef9724c1b346a2bddd163e0ac544c4201b1783187718c67b83884a"
 RIFT_HUD_SHA = "ff61c07cc8b39aae023368ad2d00176e0366cc83aea1a7a66b27a5702fa4ca18"
 RIFT_GAME_SHA = "ad3d436c0c83ddb19c5fcae8b952602c5b2fa90f70fb1aefde674e63e541f684"
 RESOURCES_META_SHA = "d79c6e564ff741b3406c2e31e61f1453b0e5dcc967a7511fbaad9a15d295c4c3"
 RIFT_URP_LIT_SHA = "1e4e663de0cbc96dbb88d7180510c3ed358355dbeed8181fe778c2ead835c325"
 RIFT_URP_LIT_META_SHA = "91bae78f2f3ff01e6624054f7b27856ab780e05ae55209ea03dec480936ff9ed"
+LINK_XML_SHA = "0dc3e5e75226c9d2f2b0ca0088c616515225fd351154c42c2bfe5e69b5640c70"
+LINK_XML_META_SHA = "56a95644af5a38c180f0186e271d967655636fc3a4bdda872e611a0f1fe121d0"
 SYSTEM_IMAGE = "system-images;android-36;google_apis;x86_64"
 
 
@@ -58,7 +60,9 @@ def read_manifest() -> tuple[dict, bytes]:
                        "riftGameSha256": RIFT_GAME_SHA,
                        "resourcesMetaSha256": RESOURCES_META_SHA,
                        "riftUrpLitMaterialSha256": RIFT_URP_LIT_SHA,
-                       "riftUrpLitMaterialMetaSha256": RIFT_URP_LIT_META_SHA}
+                       "riftUrpLitMaterialMetaSha256": RIFT_URP_LIT_META_SHA,
+                       "linkXmlSha256": LINK_XML_SHA,
+                       "linkXmlMetaSha256": LINK_XML_META_SHA}
     expected_release = {"tag": TAG, "draft": True,
                         "releaseId": RELEASE_ID, "assetId": ASSET_ID}
     expected_runtime = {"apiLevel": 36, "image": SYSTEM_IMAGE,
@@ -131,7 +135,7 @@ def main() -> None:
     temp = Path(raw_temp)
     if temp.is_symlink():
         raise RuntimeError("Runner temp may not be linked")
-    dest = temp.resolve() / "rift-arm64-kvm-r2-input"
+    dest = temp.resolve() / "rift-arm64-kvm-r3-input"
     if dest.exists() or dest.is_symlink():
         raise RuntimeError("Owned Rift input already exists; no overwrite or retry")
     release = json.loads(gh_get(f"repos/{REPO}/releases/{RELEASE_ID}"))
@@ -170,6 +174,8 @@ def main() -> None:
         "resourcesMetaSha256": RESOURCES_META_SHA,
         "riftUrpLitMaterialSha256": RIFT_URP_LIT_SHA,
         "riftUrpLitMaterialMetaSha256": RIFT_URP_LIT_META_SHA,
+        "linkXmlSha256": LINK_XML_SHA,
+        "linkXmlMetaSha256": LINK_XML_META_SHA,
         "storeWrites": 0, "firebaseWrites": 0, "signerSecretsUsed": False,
     }
     (dest / "fetch-provenance.json").write_text(json.dumps(provenance, indent=2) + "\n", encoding="utf-8")

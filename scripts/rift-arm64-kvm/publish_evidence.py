@@ -16,7 +16,7 @@ from fetch_input import (APK_BYTES, APK_NAME, APK_SHA, ASSET_ID, BRANCH,
                          RELEASE_ID, REPO, TAG, read_manifest)
 
 
-OWNER = "rift-arm64-kvm-r2"
+OWNER = "rift-arm64-kvm-r3"
 MAX_EVIDENCE_BYTES = 512 * 1024 * 1024
 
 
@@ -152,6 +152,8 @@ def main() -> None:
                 "resourcesMetaSha256": manifest["source"]["resourcesMetaSha256"],
                 "riftUrpLitMaterialSha256": manifest["source"]["riftUrpLitMaterialSha256"],
                 "riftUrpLitMaterialMetaSha256": manifest["source"]["riftUrpLitMaterialMetaSha256"],
+                "linkXmlSha256": manifest["source"]["linkXmlSha256"],
+                "linkXmlMetaSha256": manifest["source"]["linkXmlMetaSha256"],
                 "atUtc": datetime.now(timezone.utc).isoformat(),
                 "storeWrites": 0, "firebaseWrites": 0,
                 "physicalDeviceTested": False, "storeReady": False}

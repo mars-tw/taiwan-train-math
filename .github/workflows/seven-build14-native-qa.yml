@@ -1,0 +1,164 @@
+name: Seven District build 14 source-bound native QA (manual, no store upload)
+
+'on':
+  workflow_dispatch: null
+
+permissions:
+  contents: read
+
+concurrency:
+  group: seven-build14-native-qa-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  android:
+    if: github.event_name == 'workflow_dispatch' && github.repository == 'mars-tw/taiwan-train-math' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - name: Read reviewed CI and exact Seven source commit
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          path: ci
+          persist-credentials: false
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          repository: mars-tw/seven-district-reckoning
+          ref: a5cc913f566189d13ecf39b4229848fec8a43df1
+          path: seven-source
+          persist-credentials: false
+      - name: Verify exact source, clean checkout and build identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C seven-source rev-parse HEAD)" = a5cc913f566189d13ecf39b4229848fec8a43df1
+          test -z "$(git -C seven-source status --porcelain)"
+          python3 - <<'PY'
+          import json,pathlib
+          root=pathlib.Path('seven-source')
+          cfg=json.loads((root/'native/build-config.json').read_text())
+          assert (cfg['appId'],cfg['nativeVersion'],cfg['nativeBuild'],cfg['engineVersion'])==('tw.mars.sevendistrictreckoning','1.0.0',14,'4.7.2')
+          preset=(root/'godot/export_presets.cfg').read_text()
+          assert preset.count('version/code=14')==2 and preset.count('application/version="14"')==1
+          PY
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Install verified official Godot 4.7.2 templates and Android build tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 seven-source/tools/install_native_toolchain.py --output "$RUNNER_TEMP/seven-build14-toolchain" --android-sdk "$ANDROID_HOME"
+          python3 - <<'PY'
+          import json,os,pathlib
+          tool=json.loads((pathlib.Path(os.environ['RUNNER_TEMP'])/'seven-build14-toolchain/toolchain.json').read_text())
+          with open(os.environ['GITHUB_ENV'],'a') as env:
+              env.write('SEVEN_GODOT='+tool['godot']+'\nSEVEN_BUNDLETOOL='+tool['bundletool']+'\n')
+          PY
+      - name: Parse and test pinned game on Linux
+        run: python3 seven-source/tools/test_game.py --godot "$SEVEN_GODOT"
+      - name: Scan source for publication hazards
+        run: python3 seven-source/tools/scan_publication.py
+      - name: Export and inspect Android release APK and AAB without signing
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 seven-source/tools/export_mobile.py --target android --godot "$SEVEN_GODOT" --jdk "$JAVA_HOME" --android-sdk "$ANDROID_HOME" --bundletool "$SEVEN_BUNDLETOOL"
+          python3 - <<'PY'
+          import json,pathlib
+          p=pathlib.Path('seven-source/deliverables/native/android-verification.json')
+          r=json.loads(p.read_text())
+          assert (r['sourceSha'],r['appId'],r['nativeBuild'],r['status'],r['signed'],r['uploaded'])==('a5cc913f566189d13ecf39b4229848fec8a43df1','tw.mars.sevendistrictreckoning',14,'unsigned-android-verified',False,False)
+          assert len(r['packages'])==2
+          print(json.dumps({'sourceSha':r['sourceSha'],'build':r['nativeBuild'],'packages':r['packages']}))
+          PY
+      - name: Preserve unsigned native packages and exact source receipts
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: seven-build14-android-${{ github.run_id }}
+          path: |
+            seven-source/deliverables/native/native-unsigned.apk
+            seven-source/deliverables/native/native-unsigned.aab
+            seven-source/deliverables/native/android-verification.json
+            seven-source/qa/engine-checks.json
+          if-no-files-found: warn
+          retention-days: 14
+
+  ios:
+    if: github.event_name == 'workflow_dispatch' && github.repository == 'mars-tw/taiwan-train-math' && github.ref == 'refs/heads/main'
+    runs-on: macos-15-intel
+    timeout-minutes: 90
+    environment: game-store-seven-district-reckoning
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
+    steps:
+      - name: Read reviewed CI and exact Seven source commit
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          path: ci
+          persist-credentials: false
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          repository: mars-tw/seven-district-reckoning
+          ref: a5cc913f566189d13ecf39b4229848fec8a43df1
+          path: seven-source
+          persist-credentials: false
+      - name: Verify exact clean game source before running its export tool
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C seven-source rev-parse HEAD)" = a5cc913f566189d13ecf39b4229848fec8a43df1
+          test -z "$(git -C seven-source status --porcelain)"
+          python3 - <<'PY'
+          import json,pathlib
+          root=pathlib.Path('seven-source')
+          cfg=json.loads((root/'native/build-config.json').read_text())
+          assert (cfg['appId'],cfg['nativeVersion'],cfg['nativeBuild'],cfg['engineVersion'])==('tw.mars.sevendistrictreckoning','1.0.0',14,'4.7.2')
+          PY
+      - name: Install verified official Godot 4.7.2 iOS export template
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 seven-source/tools/install_native_toolchain.py --output "$RUNNER_TEMP/seven-build14-toolchain"
+          python3 - <<'PY'
+          import json,os,pathlib
+          tool=json.loads((pathlib.Path(os.environ['RUNNER_TEMP'])/'seven-build14-toolchain/toolchain.json').read_text())
+          with open(os.environ['GITHUB_ENV'],'a') as env:env.write('SEVEN_GODOT='+tool['godot']+'\n')
+          PY
+      - name: Export exact unsigned Xcode project from pinned Godot source
+        run: python3 seven-source/tools/export_mobile.py --target ios --source-only --godot "$SEVEN_GODOT"
+      - name: Bind all source files and game PCK to pinned source commit
+        run: python3 ci/scripts/seven-build14-native/prepare_ios_source.py seven-source output/seven-build14-ios
+      - name: Verify Mac source and compile actual unsigned iPhone/iPad simulators
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash ci/scripts/seven-build14-native/export_ios.sh prepare seven-source/deliverables/native/ios seven-district-reckoning output/seven-build14-ios output/seven-build14-ios/ios-source-metadata.json
+          bash ci/scripts/seven-build14-native/export_ios.sh sim seven-source/deliverables/native/ios seven-district-reckoning output/seven-build14-ios output/seven-build14-ios/ios-source-metadata.json
+      - name: Sign and independently verify build 14 IPA without store upload
+        env:
+          APPLE_DISTRIBUTION_P12_BASE64: ${{ secrets.APPLE_DISTRIBUTION_P12_BASE64 }}
+          APPLE_DISTRIBUTION_P12_PASSWORD: ${{ secrets.APPLE_DISTRIBUTION_P12_PASSWORD }}
+          APPLE_APPSTORE_PROFILE_BASE64: ${{ secrets.APPLE_APPSTORE_PROFILE_BASE64 }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: bash ci/scripts/seven-build14-native/export_ios.sh sign seven-source/deliverables/native/ios seven-district-reckoning output/seven-build14-ios output/seven-build14-ios/ios-source-metadata.json
+      - name: Preserve signed artifact and source/runtime/signature receipts
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: seven-build14-ios-${{ github.run_id }}
+          path: |
+            output/seven-build14-ios/signed.ipa
+            output/seven-build14-ios/ios-source-metadata.json
+            output/seven-build14-ios/source-verification.json
+            output/seven-build14-ios/simulator-architecture.json
+            output/seven-build14-ios/simulator-verification.json
+            output/seven-build14-ios/simulator-launch.json
+            output/seven-build14-ios/verification.json
+            output/seven-build14-ios/screenshots/*.png
+            output/seven-build14-ios/sim-build-failure.json
+            seven-source/deliverables/native/ios-verification.json
+          if-no-files-found: warn
+          retention-days: 14

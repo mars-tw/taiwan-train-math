@@ -17,6 +17,7 @@ import stat
 import struct
 import subprocess
 import sys
+import time
 import zipfile
 
 REPO = "mars-tw/taiwan-train-math"
@@ -339,14 +340,38 @@ def collect(stage: pathlib.Path, output: pathlib.Path, commit: str, outcome: str
 
 
 def release() -> dict:
-    result = subprocess.run(["gh", "api", "--method", "GET", f"repos/{REPO}/releases/{RELEASE_ID}"],
-                            capture_output=True, timeout=60)
-    if result.returncode:
-        fail("Draft Release read failed; raw output withheld")
-    value = json.loads(result.stdout)
-    if (value.get("id"), value.get("tag_name"), value.get("draft")) != (RELEASE_ID, TAG, True):
-        fail("Original draft Release identity/state differs")
-    return value
+    command = ["gh", "api", "--method", "GET", f"repos/{REPO}/releases/{RELEASE_ID}"]
+    for attempt in range(1, 4):
+        status = None
+        try:
+            result = subprocess.run(command, capture_output=True, timeout=60)
+        except subprocess.TimeoutExpired:
+            category, retryable = "PROCESS_TIMEOUT", True
+        else:
+            if result.returncode:
+                # GitHub CLI commonly reports HTTP status on stderr. Never publish
+                # stderr, response bodies, headers, or tokens in diagnostic logs.
+                match = re.search(rb"\bHTTP\s+([1-5][0-9]{2})\b", result.stderr[:8192], re.I)
+                status = int(match.group(1)) if match else None
+                category = "HTTP_ERROR" if status else "CLI_NONZERO"
+                retryable = status is None or status in (408, 429) or status >= 500
+            else:
+                try:
+                    value = json.loads(result.stdout)
+                except (UnicodeDecodeError, json.JSONDecodeError):
+                    category, retryable = "MALFORMED_JSON", True
+                else:
+                    if (not isinstance(value, dict) or
+                            (value.get("id"), value.get("tag_name"), value.get("draft")) !=
+                            (RELEASE_ID, TAG, True)):
+                        fail("Original draft Release identity/state differs")
+                    return value
+        summary = f"Draft Release GET {category}; status={status or 'unknown'}; attempt={attempt}/3"
+        if not retryable or attempt == 3:
+            fail(summary)
+        print(summary + "; retrying bounded read", file=sys.stderr)
+        time.sleep(2 if attempt == 1 else 5)
+    raise AssertionError("Unreachable Draft Release retry state")
 
 
 def main() -> None:

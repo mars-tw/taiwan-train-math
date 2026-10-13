@@ -265,6 +265,11 @@ jobs:
             output/seven-build14-ios/early-export-failure.json
             output/seven-build14-ios/toolchain-layout.json
             output/seven-build14-ios/sim-build-failure.json
+            output/seven-build14-ios/sim-runtime-failure.json
+            output/seven-build14-ios/ios-source-metadata.json
+            output/seven-build14-ios/source-verification.json
+            output/seven-build14-ios/simulator-architecture.json
+            output/seven-build14-ios/simulator-verification.json
             seven-source/deliverables/native/ios-verification.json
           if-no-files-found: warn
           retention-days: 14

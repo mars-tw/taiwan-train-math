@@ -54,16 +54,44 @@ safe_cmd() {
   label="$1"; limit="$2"; shift 2
   python3 - "$scratch/$label.log" "$limit" "$phase" "$label" "$out" "$project" "$@" <<'PY'
 import json,pathlib,re,subprocess,sys
-log_path=pathlib.Path(sys.argv[1]);timed_out=False;exit_code=None
+log_path=pathlib.Path(sys.argv[1]);timed_out=False;exit_code=None;os_error=False
 try:
  with log_path.open('wb') as log:
   result=subprocess.run(sys.argv[7:],stdout=log,stderr=subprocess.STDOUT,timeout=int(sys.argv[2]))
   exit_code=result.returncode
 except subprocess.TimeoutExpired:timed_out=True
-except OSError:pass
+except OSError:os_error=True
 if exit_code==0:raise SystemExit(0)
-# Only the unsigned Simulator compiler runs before the signing secret step.
-# Publish a bounded diagnostic summary, never raw logs or signing output.
+# The Simulator phase runs before Apple secrets. Retain only bounded sanitized
+# command/phase diagnostics; never expose raw logs or signing-phase output.
+if sys.argv[3]=='sim':
+ def clean(line):
+  line=re.sub(r'\x1b\[[0-?]*[ -/]*[@-~]','',line)
+  line=re.sub(r'/(?:Users|private|var|Volumes|home)/[^\s\"\'<>]+','<path>',line)
+  line=re.sub(r'https?://[^\s\"\'<>]+','<url>',line)
+  line=re.sub(r'(?i)\b(?:authorization|token|password|secret)\s*[:=]\s*\S+','<redacted>',line)
+  return re.sub(r'[\x00-\x1f\x7f]',' ',line).strip()[:500]
+ lines=[]
+ if log_path.exists():
+  with log_path.open('rb') as log:
+   log.seek(max(0,log_path.stat().st_size-1024*1024))
+   lines=log.read().decode('utf-8','replace').splitlines()
+ selected=[]
+ for line in lines:
+  if re.search(r'error:|failed|timed out|unable|cannot|invalid|denied|exception|fatal',line,re.I):
+   value=clean(line)
+   if value and value not in selected:selected.append(value)
+   if len(selected)>=30:break
+ command=pathlib.Path(sys.argv[7]).name if len(sys.argv)>7 else None
+ subcommand=sys.argv[8] if command=='xcrun' and len(sys.argv)>8 and sys.argv[8] in ('simctl','swift') else None
+ report={'projectId':sys.argv[6],'phase':'sim','failedCommandLabel':sys.argv[4],
+         'commandBase':command,'commandSubcommand':subcommand,'exitCode':exit_code,
+         'timedOut':timed_out,'osError':os_error,'logBytes':log_path.stat().st_size if log_path.exists() else 0,
+         'selectedLines':selected,'tailLines':[value for value in (clean(line) for line in lines[-35:]) if value],
+         'rawLogsUploaded':False,'simulatorStepCompleted':False,'signatureVerified':False,'storeUploadPerformed':False}
+ (pathlib.Path(sys.argv[5])/'sim-runtime-failure.json').write_text(json.dumps(report,indent=2))
+ print(json.dumps(report))
+# Keep the narrower compiler diagnosis for existing consumers.
 if sys.argv[3:5]==['sim','sim-build']:
  diagnostics=[]
  if log_path.exists():
@@ -77,8 +105,7 @@ if sys.argv[3:5]==['sim','sim-build']:
    if 'Undefined symbols for architecture' in line:following=8
    elif following:following-=1
    if not match and not following:continue
-   line=re.sub(r'/(?:Users|private|var|Volumes|home)/[^\s\"\'<>]+','<path>',line)
-   line=re.sub(r'[\x00-\x1f\x7f]',' ',line)[:500]
+   line=clean(line)
    if line and line not in diagnostics:diagnostics.append(line)
    if len(diagnostics)>=20:break
  report={'projectId':sys.argv[6],'phase':'sim-build','exitCode':exit_code,'timedOut':timed_out,'diagnostics':diagnostics,'rawLogsUploaded':False,'macBuildCompleted':False,'simulatorExecuted':False,'signatureVerified':False,'storeUploadPerformed':False}

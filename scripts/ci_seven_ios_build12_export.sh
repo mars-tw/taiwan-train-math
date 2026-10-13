@@ -3,7 +3,7 @@
 set +x
 set -euo pipefail
 umask 077
-phase="${1:?prepare, sim or sign required}"
+phase="${1:?prepare, sim, diagnose or sign required}"
 source_root="${2:?verified extracted source root required}"
 project="${3:?explicit Godot project required}"
 out="${4:?public artifact directory required}"
@@ -15,6 +15,9 @@ case "$project" in
   seven-district-reckoning) app_id='tw.mars.sevendistrictreckoning'; name='SevenDistrict' ;;
   *) echo 'Unknown Godot project'; exit 2 ;;
 esac
+if [[ "$phase" == diagnose ]]; then
+  [[ -z "${GH_TOKEN:-}" && -z "${GITHUB_TOKEN:-}" ]] || { echo 'Diagnostic build refuses GitHub tokens'; exit 2; }
+fi
 source_root="$(cd "$source_root" && pwd)"
 mkdir -p "$out"; out="$(cd "$out" && pwd)"
 scratch="$(mktemp -d "$RUNNER_TEMP/godot-ios-$project-$phase.XXXXXXXX")"
@@ -23,6 +26,17 @@ cleanup() {
   status=$?
   trap - EXIT INT TERM
   set +e
+  if [[ "$phase" == diagnose && "$status" -ne 0 ]]; then
+    python3 - "$out" "$project" "$status" <<'PY'
+import json,pathlib,sys
+out=pathlib.Path(sys.argv[1]);receipt=out/'diagnostic-failure.json'
+if not receipt.exists():
+ out.mkdir(parents=True,exist_ok=True)
+ receipt.write_text(json.dumps({'projectId':sys.argv[2],'phase':'diagnose',
+  'failureCode':'DIAGNOSTIC_PHASE_FAILED','exitCode':int(sys.argv[3]),
+  'rawLogsPublished':False,'appleSecretsUsed':False,'storeUploadPerformed':False},indent=2)+'\n')
+PY
+  fi
   for device in ${devices[@]+"${devices[@]}"}; do
     if [[ "$device" =~ ^[A-Fa-f0-9-]{36}$ ]]; then xcrun simctl shutdown "$device" >/dev/null 2>&1; xcrun simctl delete "$device" >/dev/null 2>&1; fi
   done
@@ -64,7 +78,7 @@ except OSError:pass
 if exit_code==0:raise SystemExit(0)
 # Only the unsigned Simulator compiler runs before the signing secret step.
 # Publish a bounded diagnostic summary, never raw logs or signing output.
-if sys.argv[3:5]==['sim','sim-build']:
+if sys.argv[3] in ('sim','diagnose') and sys.argv[4]=='sim-build':
  diagnostics=[]
  if log_path.exists():
   with log_path.open('rb') as log:
@@ -84,6 +98,15 @@ if sys.argv[3:5]==['sim','sim-build']:
  report={'projectId':sys.argv[6],'phase':'sim-build','exitCode':exit_code,'timedOut':timed_out,'diagnostics':diagnostics,'rawLogsUploaded':False,'macBuildCompleted':False,'simulatorExecuted':False,'signatureVerified':False,'storeUploadPerformed':False}
  (pathlib.Path(sys.argv[5])/'sim-build-failure.json').write_text(json.dumps(report,indent=2))
  print(json.dumps(report))
+if sys.argv[3]=='diagnose':
+ label=sys.argv[4]
+ if not re.fullmatch(r'[a-z0-9-]{1,80}',label):label='unknown-diagnostic-command'
+ receipt=pathlib.Path(sys.argv[5])/'diagnostic-failure.json'
+ with receipt.open('x',encoding='utf-8') as output:
+  json.dump({'projectId':sys.argv[6],'phase':'diagnose','failureCode':'COMMAND_TIMEOUT' if timed_out else 'COMMAND_FAILED',
+   'commandLabel':label,'exitCode':exit_code,'timedOut':timed_out,'rawLogsPublished':False,
+   'appleSecretsUsed':False,'storeUploadPerformed':False},output,indent=2)
+  output.write('\n')
 raise SystemExit('Godot CI command failed; raw/private logs are not uploaded')
 PY
 }
@@ -96,7 +119,7 @@ if not re.fullmatch(r'Xcode 26\.3\s+Build version 17C529\s*',pathlib.Path(sys.ar
 PY
 if [[ "$phase" == prepare ]]; then echo "Verified $project source; Mac build/sign/simulator not performed in prepare."; exit 0; fi
 
-if [[ "$phase" == sim ]]; then
+if [[ "$phase" == sim || "$phase" == diagnose ]]; then
   [[ "$(uname -m)" == x86_64 ]] || { echo 'The verified Godot x86_64 Simulator library requires the actual Intel runner'; exit 2; }
   python3 - "$source_root" "$name" "$out" "$project" <<'PY'
 import hashlib,json,pathlib,platform,subprocess,sys
@@ -142,6 +165,14 @@ PY
     safe_cmd "$kind-bootstatus" 600 xcrun simctl bootstatus "$device" -b
     safe_cmd "$kind-status" 60 xcrun simctl status_bar "$device" override --time 9:41 --batteryState charged --batteryLevel 100
     safe_cmd "$kind-install" 360 xcrun simctl install "$device" "$app"
+    if [[ "$phase" == diagnose ]]; then
+      safe_cmd "$kind-cold-readiness" 750 python3 "$tools/ci_seven_build12_readiness.py" \
+        --device "$device" --moment "$kind-cold" --output "$out/readiness"
+      safe_cmd "$kind-relaunch-readiness" 750 python3 "$tools/ci_seven_build12_readiness.py" \
+        --device "$device" --moment "$kind-relaunch" --output "$out/readiness"
+      safe_cmd "$kind-shutdown" 60 xcrun simctl shutdown "$device"
+      continue
+    fi
     safe_cmd "$kind-launch" 360 xcrun simctl launch "$device" "$app_id"
     sleep 30
     safe_cmd "$kind-cold-capture" 120 xcrun simctl io "$device" screenshot --type=png "$scratch/$kind-cold.png"
@@ -151,6 +182,28 @@ PY
     safe_cmd "$kind-warm-capture" 120 xcrun simctl io "$device" screenshot --type=png "$scratch/$kind-relaunch.png"
     safe_cmd "$kind-shutdown" 60 xcrun simctl shutdown "$device"
   done
+  if [[ "$phase" == diagnose ]]; then
+    python3 - "$out" "$project" <<'PY'
+import json,pathlib,sys
+out=pathlib.Path(sys.argv[1]);root=out/'readiness'
+names=('iphone-cold','iphone-relaunch','ipad-cold','ipad-relaunch')
+records=[json.loads((root/(name+'.json')).read_text(encoding='utf-8')) for name in names]
+if any(record.get('moment')!=name or record.get('storeUploadPerformed') is not False or
+       record.get('rawConsolePublished') is not False for name,record in zip(names,records)):
+ raise SystemExit('Exact bounded diagnostic receipts are required')
+summary={'projectId':sys.argv[2],'version':'1.0.0','build':12,
+         'sourcePckSha256':json.loads((out/'source-verification.json').read_text())['pckSha256'],
+         'deviceMoments':[{'moment':record['moment'],'status':record['diagnosticStatus'],
+                           'titleMarkerAtSeconds':record['titleMarkerAtSeconds'],
+                           'typedMarkerCount':len(record['typedMarkers']),
+                           'screenshotCount':len(record['screenshots'])} for record in records],
+         'uiReady':False,'visualReviewPending':True,'interactiveGameplayTested':False,
+         'physicalDeviceTested':False,'appleSecretsUsed':False,'storeUploadPerformed':False}
+(out/'diagnostic-summary.json').write_text(json.dumps(summary,indent=2)+'\n',encoding='utf-8')
+PY
+    echo 'Bounded Seven diagnostic receipts created; title/UI readiness requires visual review.'
+    exit 0
+  fi
   cat > "$scratch/rgb.swift" <<'SWIFT'
 import Foundation
 import CoreGraphics

@@ -1,0 +1,106 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {};
+	objectVersion = 56;
+	objects = {
+		A0000000000000000000000C /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000006 /* AppDelegate.swift */; };
+		A0000000000000000000000D /* SevenDistrictUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000007 /* SevenDistrictUITests.swift */; };
+
+		A00000000000000000000011 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A00000000000000000000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A0000000000000000000000E;
+			remoteInfo = SevenProbeHost;
+		};
+
+		A00000000000000000000006 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		A00000000000000000000007 /* SevenDistrictUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SevenDistrictUITests.swift; sourceTree = "<group>"; };
+		A00000000000000000000008 /* SevenProbeHost.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SevenProbeHost.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A00000000000000000000009 /* SevenDistrictUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SevenDistrictUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+
+		A00000000000000000000002 = {
+			isa = PBXGroup;
+			children = (
+				A00000000000000000000004 /* SevenProbeHost */,
+				A00000000000000000000005 /* SevenDistrictUITests */,
+				A00000000000000000000003 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		A00000000000000000000003 /* Products */ = {
+			isa = PBXGroup;
+			children = (A00000000000000000000008 /* SevenProbeHost.app */, A00000000000000000000009 /* SevenDistrictUITests.xctest */);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		A00000000000000000000004 /* SevenProbeHost */ = {
+			isa = PBXGroup;
+			children = (A00000000000000000000006 /* AppDelegate.swift */);
+			path = SevenProbeHost;
+			sourceTree = "<group>";
+		};
+		A00000000000000000000005 /* SevenDistrictUITests */ = {
+			isa = PBXGroup;
+			children = (A00000000000000000000007 /* SevenDistrictUITests.swift */);
+			path = SevenDistrictUITests;
+			sourceTree = "<group>";
+		};
+
+		A0000000000000000000000E /* SevenProbeHost */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A00000000000000000000019 /* Build configuration list for SevenProbeHost */;
+			buildPhases = (A0000000000000000000000A /* Sources */);
+			buildRules = ();
+			dependencies = ();
+			name = SevenProbeHost;
+			productName = SevenProbeHost;
+			productReference = A00000000000000000000008 /* SevenProbeHost.app */;
+			productType = "com.apple.product-type.application";
+		};
+		A0000000000000000000000F /* SevenDistrictUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A0000000000000000000001A /* Build configuration list for SevenDistrictUITests */;
+			buildPhases = (A0000000000000000000000B /* Sources */);
+			buildRules = ();
+			dependencies = (A00000000000000000000010 /* PBXTargetDependency */);
+			name = SevenDistrictUITests;
+			productName = SevenDistrictUITests;
+			productReference = A00000000000000000000009 /* SevenDistrictUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+
+		A00000000000000000000001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {LastUpgradeCheck = 2630; TargetAttributes = {A0000000000000000000000E = {CreatedOnToolsVersion = 26.3; }; A0000000000000000000000F = {CreatedOnToolsVersion = 26.3; TestTargetID = A0000000000000000000000E; }; }; };
+			buildConfigurationList = A00000000000000000000018 /* Build configuration list for PBXProject */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (en, Base);
+			mainGroup = A00000000000000000000002;
+			productRefGroup = A00000000000000000000003 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (A0000000000000000000000E /* SevenProbeHost */, A0000000000000000000000F /* SevenDistrictUITests */);
+		};
+
+		A0000000000000000000000A /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A0000000000000000000000C /* AppDelegate.swift in Sources */); runOnlyForDeploymentPostprocessing = 0; };
+		A0000000000000000000000B /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A0000000000000000000000D /* SevenDistrictUITests.swift in Sources */); runOnlyForDeploymentPostprocessing = 0; };
+
+		A00000000000000000000010 /* PBXTargetDependency */ = {isa = PBXTargetDependency; target = A0000000000000000000000E /* SevenProbeHost */; targetProxy = A00000000000000000000011 /* PBXContainerItemProxy */; };
+
+		A00000000000000000000012 /* Debug */ = {isa = XCBuildConfiguration; buildSettings = {CLANG_ENABLE_MODULES = YES; IPHONEOS_DEPLOYMENT_TARGET = 15.0; SDKROOT = iphoneos; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = "1,2"; }; name = Debug; };
+		A00000000000000000000013 /* Release */ = {isa = XCBuildConfiguration; buildSettings = {CLANG_ENABLE_MODULES = YES; IPHONEOS_DEPLOYMENT_TARGET = 15.0; SDKROOT = iphoneos; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = "1,2"; }; name = Release; };
+		A00000000000000000000014 /* Debug */ = {isa = XCBuildConfiguration; buildSettings = {CODE_SIGN_STYLE = Automatic; GENERATE_INFOPLIST_FILE = YES; INFOPLIST_KEY_CFBundleDisplayName = SevenProbeHost; IPHONEOS_DEPLOYMENT_TARGET = 15.0; PRODUCT_BUNDLE_IDENTIFIER = tw.mars.sevendistrictprobehost; PRODUCT_NAME = "$(TARGET_NAME)"; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = "1,2"; }; name = Debug; };
+		A00000000000000000000015 /* Release */ = {isa = XCBuildConfiguration; buildSettings = {CODE_SIGN_STYLE = Automatic; GENERATE_INFOPLIST_FILE = YES; INFOPLIST_KEY_CFBundleDisplayName = SevenProbeHost; IPHONEOS_DEPLOYMENT_TARGET = 15.0; PRODUCT_BUNDLE_IDENTIFIER = tw.mars.sevendistrictprobehost; PRODUCT_NAME = "$(TARGET_NAME)"; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = "1,2"; }; name = Release; };
+		A00000000000000000000016 /* Debug */ = {isa = XCBuildConfiguration; buildSettings = {CODE_SIGN_STYLE = Automatic; GENERATE_INFOPLIST_FILE = YES; IPHONEOS_DEPLOYMENT_TARGET = 15.0; LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@loader_path/Frameworks", "@executable_path/Frameworks"); PRODUCT_BUNDLE_IDENTIFIER = tw.mars.sevendistrictprobehost.uitests; PRODUCT_NAME = "$(TARGET_NAME)"; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = "1,2"; TEST_TARGET_NAME = SevenProbeHost; }; name = Debug; };
+		A00000000000000000000017 /* Release */ = {isa = XCBuildConfiguration; buildSettings = {CODE_SIGN_STYLE = Automatic; GENERATE_INFOPLIST_FILE = YES; IPHONEOS_DEPLOYMENT_TARGET = 15.0; LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@loader_path/Frameworks", "@executable_path/Frameworks"); PRODUCT_BUNDLE_IDENTIFIER = tw.mars.sevendistrictprobehost.uitests; PRODUCT_NAME = "$(TARGET_NAME)"; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = "1,2"; TEST_TARGET_NAME = SevenProbeHost; }; name = Release; };
+
+		A00000000000000000000018 /* Build configuration list for PBXProject */ = {isa = XCConfigurationList; buildConfigurations = (A00000000000000000000012 /* Debug */, A00000000000000000000013 /* Release */); defaultConfigurationIsVisible = 0; defaultConfigurationName = Debug; };
+		A00000000000000000000019 /* Build configuration list for SevenProbeHost */ = {isa = XCConfigurationList; buildConfigurations = (A00000000000000000000014 /* Debug */, A00000000000000000000015 /* Release */); defaultConfigurationIsVisible = 0; defaultConfigurationName = Debug; };
+		A0000000000000000000001A /* Build configuration list for SevenDistrictUITests */ = {isa = XCConfigurationList; buildConfigurations = (A00000000000000000000016 /* Debug */, A00000000000000000000017 /* Release */); defaultConfigurationIsVisible = 0; defaultConfigurationName = Debug; };
+	};
+	rootObject = A00000000000000000000001 /* Project object */;
+}

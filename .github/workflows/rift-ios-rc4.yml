@@ -1,0 +1,209 @@
+name: Rift Forge iOS withheld non-Development build 4 (manual, no store upload)
+on:
+  workflow_dispatch:
+permissions:
+  contents: write # fixed draft Release input/evidence only
+concurrency:
+  group: rift-ios-rc4-cd9a6e3-${{ github.repository }}
+  cancel-in-progress: false
+jobs:
+  sign-withheld:
+    if: github.event_name == 'workflow_dispatch' && github.repository == 'mars-tw/taiwan-train-math' && github.ref == 'refs/heads/main'
+    runs-on: macos-15
+    timeout-minutes: 60
+    environment: game-store-rift-forge-3d
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
+      SOURCE_TAG: rift-ios-rc4-cd9a6e3-build4-20261014
+      SOURCE_ZIP: RiftForge-iOS-rc4-source-cd9a6e3.zip
+      SOURCE_MANIFEST: RiftForge-iOS-rc4-source-manifest-cd9a6e3.json
+      SOURCE_BRAND: RiftForge-ios-rc4-brand-transform.json
+      SOURCE_DIFF: RiftForge-ios-rc4-worktree-diff.patch
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+
+      - name: Verify fixed Mac and reviewed RC4 scripts before secrets
+        run: |
+          set -euo pipefail
+          test -x "$DEVELOPER_DIR/usr/bin/xcodebuild" || { echo 'Pinned Xcode 26.3 unavailable'; exit 1; }
+          xcodebuild -version
+          python3 - <<'PY'
+          import hashlib,pathlib
+          files={
+            'scripts/rift_ios_rc4_verify.py':'24a42ae4f5ec7d10ffc96d6451c740a454bd7fd9b3dcf7e2e1ae26b79616640c',
+            'scripts/rift-ios-rc4-sign.sh':'00350ac805f2aa696b5d02f64ae8d18b861b39c458412c7fbe18d95f57b5c795'}
+          for name,expected in files.items():
+              path=pathlib.Path(name)
+              if not path.is_file() or path.is_symlink() or hashlib.sha256(path.read_bytes()).hexdigest()!=expected:
+                  raise SystemExit('Reviewed RC4 script missing or changed: '+name)
+          print('Reviewed RC4 verifier and signer pinned')
+          PY
+          python3 -m py_compile scripts/rift_ios_rc4_verify.py
+          bash -n scripts/rift-ios-rc4-sign.sh
+
+      - name: Verify exact draft Release source inventory
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release view "$SOURCE_TAG" --repo "$GITHUB_REPOSITORY" --json databaseId,isDraft,tagName,assets > "$RUNNER_TEMP/rift-rc4-release-before.json"
+          python3 - <<'PY'
+          import json,os,pathlib
+          release=json.loads((pathlib.Path(os.environ['RUNNER_TEMP'])/'rift-rc4-release-before.json').read_text())
+          expected={
+            'RiftForge-iOS-rc4-source-cd9a6e3.zip':(246663282,'99f8dddbabc300b064d47ba7a83338e2dbcc8d61a5bb50552167d97518ef266b'),
+            'RiftForge-iOS-rc4-source-manifest-cd9a6e3.json':(698195,'a159d8db441c15ab53a6eca9a4d5904949a912e0d2e49929312881a60d21c4cb'),
+            'RiftForge-ios-rc4-brand-transform.json':(670,'e75475f36953f519a470aaa7ee27284470226a8708b2caa81816c18f3ce2c265'),
+            'RiftForge-ios-rc4-worktree-diff.patch':(32977,'32f89df5143e3d59d7172031086b76e1a9f847973e1c9e230d049504a82f75f5'),
+            'unity-ios-rc4-export.log':(735194,'8778a9b1c7ba7c7c304deec0f703dfb204cbadc6c9837f7c6a779f2839546497'),
+            'RiftIosReleaseCandidateBuild.cs':(4693,'2c0219b0b9f9f6e3234b7cdf9afc6869d084021216d5d199c3d7fd6674a58e1c'),
+            'package_rc4_xcode.py':(10024,'9edef718ed03110476c735ea65c1ac84fb6a803817a6938cd09f8daf6b87dd3f')}
+          assets={item['name']:item for item in release.get('assets',[])}
+          if (release.get('tagName')!='rift-ios-rc4-cd9a6e3-build4-20261014'
+              or release.get('isDraft') is not True
+              or not isinstance(release.get('databaseId'),int)
+              or set(assets)!=set(expected)):
+              raise SystemExit('Draft RC4 Release identity or source inventory differs')
+          for name,(size,sha) in expected.items():
+              if assets[name].get('size')!=size or assets[name].get('digest')!='sha256:'+sha:
+                  raise SystemExit('Draft RC4 source asset changed: '+name)
+          print('One exact withheld RC4 draft Release source set verified')
+          PY
+
+      - name: Download and verify every unsigned Xcode source file
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/rift-rc4-input"
+          for name in "$SOURCE_ZIP" "$SOURCE_MANIFEST" "$SOURCE_BRAND" "$SOURCE_DIFF"; do
+            gh release download "$SOURCE_TAG" --repo "$GITHUB_REPOSITORY" --pattern "$name" --dir "$RUNNER_TEMP/rift-rc4-input"
+          done
+          python3 scripts/rift_ios_rc4_verify.py source \
+            --zip "$RUNNER_TEMP/rift-rc4-input/$SOURCE_ZIP" \
+            --manifest "$RUNNER_TEMP/rift-rc4-input/$SOURCE_MANIFEST" \
+            --brand "$RUNNER_TEMP/rift-rc4-input/$SOURCE_BRAND" \
+            --diff "$RUNNER_TEMP/rift-rc4-input/$SOURCE_DIFF" \
+            --destination "$RUNNER_TEMP/rift-rc4-xcode" \
+            --receipt "$RUNNER_TEMP/rift-rc4-source-verification.json"
+
+      - name: Recheck pinned inputs and reserve one signing attempt
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib,json,os,pathlib,re,subprocess
+          root=pathlib.Path(os.environ['RUNNER_TEMP'])
+          tag=os.environ['SOURCE_TAG']; repo=os.environ['GITHUB_REPOSITORY']; run_id=os.environ['GITHUB_RUN_ID']
+          if repo!='mars-tw/taiwan-train-math' or not re.fullmatch(r'[1-9][0-9]*',run_id):
+              raise SystemExit('Repository or run identity differs')
+          checks={
+            'RiftForge-iOS-rc4-source-cd9a6e3.zip':'99f8dddbabc300b064d47ba7a83338e2dbcc8d61a5bb50552167d97518ef266b',
+            'RiftForge-iOS-rc4-source-manifest-cd9a6e3.json':'a159d8db441c15ab53a6eca9a4d5904949a912e0d2e49929312881a60d21c4cb',
+            'RiftForge-ios-rc4-brand-transform.json':'e75475f36953f519a470aaa7ee27284470226a8708b2caa81816c18f3ce2c265',
+            'RiftForge-ios-rc4-worktree-diff.patch':'32f89df5143e3d59d7172031086b76e1a9f847973e1c9e230d049504a82f75f5'}
+          for name,sha in checks.items():
+              path=root/'rift-rc4-input'/name
+              if not path.is_file() or path.is_symlink() or hashlib.sha256(path.read_bytes()).hexdigest()!=sha:
+                  raise SystemExit('Signing input changed before secrets: '+name)
+          source=json.loads((root/'rift-rc4-source-verification.json').read_text())
+          if (source.get('sourceVerified') is not True
+              or source.get('sourceCommit')!='cd9a6e3d3a8f7a63dca22fbb05d5d32d48f774f7'
+              or source.get('sourceZipSha256')!=checks['RiftForge-iOS-rc4-source-cd9a6e3.zip']
+              or source.get('fileCount')!=3281 or source.get('build')!=4
+              or source.get('developmentBuild') is not False
+              or source.get('storeReady') is not False
+              or source.get('status')!='WITHHELD_NOT_UPLOAD_READY'):
+              raise SystemExit('Verified RC4 source receipt differs')
+          def release():
+              p=subprocess.run(['gh','release','view',tag,'--repo',repo,'--json','databaseId,isDraft,tagName,assets'],
+                               capture_output=True,text=True,check=True,timeout=60)
+              return json.loads(p.stdout)
+          before=release()
+          if before.get('isDraft') is not True or before.get('tagName')!=tag or len(before.get('assets',[]))!=7:
+              raise SystemExit('Draft RC4 Release changed before signing')
+          marker=root/'rift-rc4-attempt-marker.json'
+          value={'state':'RESERVED_BEFORE_SIGNING','runId':run_id,'releaseDatabaseId':before['databaseId'],
+                 'sourceCommit':source['sourceCommit'],'sourceZipSha256':source['sourceZipSha256'],
+                 'status':'WITHHELD_NOT_UPLOAD_READY'}
+          with marker.open('x') as stream:
+              json.dump(value,stream,indent=2);stream.write('\n');stream.flush();os.fsync(stream.fileno())
+          marker_sha=hashlib.sha256(marker.read_bytes()).hexdigest()
+          subprocess.run(['gh','release','upload',tag,str(marker),'--repo',repo],check=True,timeout=900)
+          after=release(); marker_asset={a['name']:a for a in after.get('assets',[])}.get(marker.name)
+          if (after.get('databaseId')!=before['databaseId'] or after.get('isDraft') is not True
+              or len(after.get('assets',[]))!=8 or marker_asset is None
+              or marker_asset.get('size')!=marker.stat().st_size
+              or marker_asset.get('digest')!='sha256:'+marker_sha):
+              raise SystemExit('RC4 signing marker upload uncertain; inspect Release, do not retry')
+          print('Single withheld RC4 signing attempt reserved; no App Store upload')
+          PY
+
+      - name: Sign non-Development RC4 IPA for later device QA
+        env:
+          APPLE_DISTRIBUTION_P12_BASE64: ${{ secrets.APPLE_DISTRIBUTION_P12_BASE64 }}
+          APPLE_DISTRIBUTION_P12_PASSWORD: ${{ secrets.APPLE_DISTRIBUTION_P12_PASSWORD }}
+          APPLE_APPSTORE_PROFILE_BASE64: ${{ secrets.APPLE_APPSTORE_PROFILE_BASE64 }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          RIFT_PROJECT_DIR: ${{ runner.temp }}/rift-rc4-xcode
+          RIFT_OUTPUT_DIR: ${{ runner.temp }}/rift-rc4-output
+          RIFT_VERIFY_SCRIPT: ${{ github.workspace }}/scripts/rift_ios_rc4_verify.py
+          RIFT_SOURCE_MANIFEST: ${{ runner.temp }}/rift-rc4-input/RiftForge-iOS-rc4-source-manifest-cd9a6e3.json
+        run: bash scripts/rift-ios-rc4-sign.sh
+
+      - name: Verify exact-run withheld evidence and upload once to draft Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib,json,os,pathlib,subprocess,zipfile
+          root=pathlib.Path(os.environ['RUNNER_TEMP']); out=root/'rift-rc4-output'
+          source=json.loads((root/'rift-rc4-source-verification.json').read_text())
+          result=json.loads((out/'verification.json').read_text())
+          structure=json.loads((out/'ipa-structure-verification.json').read_text())
+          marker=json.loads((root/'rift-rc4-attempt-marker.json').read_text())
+          manifest=json.loads((root/'rift-rc4-input'/os.environ['SOURCE_MANIFEST']).read_text())
+          ipa=out/'signed-rc4.ipa'; sha=hashlib.sha256(ipa.read_bytes()).hexdigest()
+          if (result.get('status')!='SIGNED_WITHHELD_RC4_IPA_VERIFIED' or result.get('build')!=4
+              or result.get('sourceCommit')!=source.get('sourceCommit')
+              or result.get('sourceZipSha256')!=source.get('sourceZipSha256')
+              or result.get('ipaSha256')!=sha or result.get('ipaBytes')!=ipa.stat().st_size
+              or result.get('bootConfigSha256')!=manifest.get('bootConfigSha256')
+              or result.get('codesignVerified') is not True
+              or result.get('entitlementsVerified') is not True
+              or result.get('arm64Verified') is not True
+              or result.get('developmentBuild') is not False
+              or result.get('physicalDeviceTested') is not False
+              or result.get('storeUploaded') is not False or result.get('storeReady') is not False
+              or result.get('releaseStatus')!='WITHHELD_NOT_UPLOAD_READY'
+              or structure.get('build')!=4 or structure.get('ipaSha256')!=sha
+              or structure.get('bootConfigSha256')!=manifest.get('bootConfigSha256')
+              or structure.get('releaseStatus')!='WITHHELD_NOT_UPLOAD_READY'
+              or marker.get('state')!='RESERVED_BEFORE_SIGNING'
+              or marker.get('runId')!=os.environ['GITHUB_RUN_ID']):
+              raise SystemExit('Signed withheld RC4 evidence differs')
+          members={'signed-rc4.ipa':ipa,'verification.json':out/'verification.json',
+                   'ipa-structure-verification.json':out/'ipa-structure-verification.json',
+                   'source-verification.json':root/'rift-rc4-source-verification.json',
+                   'attempt-marker.json':root/'rift-rc4-attempt-marker.json',
+                   'codesign-verify.log':out/'codesign-verify.log'}
+          evidence=out/'rift-rc4-signed-evidence.zip'
+          with zipfile.ZipFile(evidence,'x',compression=zipfile.ZIP_STORED) as package:
+              for name,path in sorted(members.items()):
+                  package.write(path,name)
+          evidence_sha=hashlib.sha256(evidence.read_bytes()).hexdigest()
+          tag=os.environ['SOURCE_TAG'];repo=os.environ['GITHUB_REPOSITORY']
+          subprocess.run(['gh','release','upload',tag,str(evidence),'--repo',repo],check=True,timeout=900)
+          p=subprocess.run(['gh','release','view',tag,'--repo',repo,'--json','databaseId,isDraft,tagName,assets'],
+                           capture_output=True,text=True,check=True,timeout=60)
+          release=json.loads(p.stdout); asset={a['name']:a for a in release.get('assets',[])}.get(evidence.name)
+          if (release.get('databaseId')!=marker['releaseDatabaseId'] or release.get('isDraft') is not True
+              or len(release.get('assets',[]))!=9 or asset is None
+              or asset.get('size')!=evidence.stat().st_size or asset.get('digest')!='sha256:'+evidence_sha):
+              raise SystemExit('RC4 evidence upload uncertain; inspect Release, do not retry')
+          print('Signed RC4 IPA retained in draft Release evidence ZIP only; WITHHELD_NOT_UPLOAD_READY')
+          PY

@@ -105,8 +105,16 @@ def ios_files(workspace: Path) -> dict[str, Path]:
     metadata = json.loads((out / "ios-source-metadata.json").read_text(encoding="utf-8"))
     source_verification = json.loads((out / "source-verification.json").read_text(encoding="utf-8"))
     godot_export = json.loads((source / "deliverables/native/ios-verification.json").read_text(encoding="utf-8"))
+    toolchain = json.loads((out / "toolchain-layout.json").read_text(encoding="utf-8"))
     sim = json.loads((out / "simulator-launch.json").read_text(encoding="utf-8"))
     ipa = out / "signed.ipa"
+    if (toolchain.get("engineVersion"), toolchain.get("officialEditorExecuted"),
+            toolchain.get("publisherDigestsVerified"), toolchain.get("selfContainedMarker"),
+            toolchain.get("editorData"), toolchain.get("iosTemplatePresent")) != (
+                "4.7.2", True, True, "beside-Godot.app", "beside-Godot.app", True):
+        raise ValueError("Official macOS portable Godot template layout differs")
+    if not re.fullmatch(r"[0-9a-f]{64}", toolchain.get("iosTemplateSha256", "")):
+        raise ValueError("Official iOS template digest is missing")
     if (godot_export.get("sourceSha"), godot_export.get("appId"), godot_export.get("nativeVersion"),
             godot_export.get("nativeBuild"), godot_export.get("status"), godot_export.get("signed"),
             godot_export.get("uploaded")) != (SOURCE_SHA, APP_ID, "1.0.0", BUILD,
@@ -142,6 +150,7 @@ def ios_files(workspace: Path) -> dict[str, Path]:
              "simulator-verification.json": out / "simulator-verification.json",
              "simulator-launch.json": out / "simulator-launch.json",
              "verification.json": out / "verification.json",
+             "toolchain-layout.json": out / "toolchain-layout.json",
              "ios-verification.json": source / "deliverables/native/ios-verification.json"}
     for shot in shots:
         name = shot.get("file", "")
@@ -151,7 +160,7 @@ def ios_files(workspace: Path) -> dict[str, Path]:
         if sha(path) != shot.get("sha256"):
             raise ValueError("Simulator capture digest differs")
         files[name] = path
-    if len(files) != 12:
+    if len(files) != 13:
         raise ValueError("Simulator capture set is duplicate or incomplete")
     return files
 

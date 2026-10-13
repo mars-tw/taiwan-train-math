@@ -1,7 +1,14 @@
 name: Seven District build 14 source-bound native QA (manual, no store upload)
 
 'on':
-  workflow_dispatch: null
+  workflow_dispatch:
+    inputs:
+      target:
+        description: 'Explicitly select a platform; hold performs no native job'
+        required: true
+        type: choice
+        default: hold
+        options: [hold, ios-only, android-only, both]
 
 permissions:
   contents: read
@@ -12,7 +19,7 @@ concurrency:
 
 jobs:
   android:
-    if: github.event_name == 'workflow_dispatch' && github.repository == 'mars-tw/taiwan-train-math' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'workflow_dispatch' && github.repository == 'mars-tw/taiwan-train-math' && github.ref == 'refs/heads/main' && (inputs.target == 'android-only' || inputs.target == 'both')
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     permissions:
@@ -163,7 +170,7 @@ jobs:
           retention-days: 14
 
   ios:
-    if: github.event_name == 'workflow_dispatch' && github.repository == 'mars-tw/taiwan-train-math' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'workflow_dispatch' && github.repository == 'mars-tw/taiwan-train-math' && github.ref == 'refs/heads/main' && (inputs.target == 'ios-only' || inputs.target == 'both')
     runs-on: macos-15-intel
     timeout-minutes: 90
     permissions:
@@ -200,6 +207,9 @@ jobs:
         run: |
           set -euo pipefail
           python3 seven-source/tools/install_native_toolchain.py --output "$RUNNER_TEMP/seven-build14-toolchain"
+          python3 ci/scripts/seven-build14-native/prepare_macos_toolchain.py \
+            "$RUNNER_TEMP/seven-build14-toolchain/toolchain.json" \
+            output/seven-build14-ios/toolchain-layout.json
           python3 - <<'PY'
           import json,os,pathlib
           tool=json.loads((pathlib.Path(os.environ['RUNNER_TEMP'])/'seven-build14-toolchain/toolchain.json').read_text())
@@ -253,6 +263,7 @@ jobs:
           name: seven-build14-ios-failure-${{ github.run_id }}
           path: |
             output/seven-build14-ios/early-export-failure.json
+            output/seven-build14-ios/toolchain-layout.json
             output/seven-build14-ios/sim-build-failure.json
             seven-source/deliverables/native/ios-verification.json
           if-no-files-found: warn

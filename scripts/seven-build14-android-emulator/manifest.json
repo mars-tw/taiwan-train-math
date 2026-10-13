@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 1,
+  "status": "READY_FIXED_DRAFT_RELEASE",
+  "projectId": "seven-district-reckoning",
+  "repository": "mars-tw/taiwan-train-math",
+  "branch": "main",
+  "appId": "tw.mars.sevendistrictreckoning",
+  "versionName": "1.0.0",
+  "versionCode": 14,
+  "apk": {
+    "file": "seven-build14-signed.apk",
+    "bytes": 42734360,
+    "sha256": "bd72d2697dc91b995ba55f59d82d4b5c5764e2401f6ec48012ec910257de73e7",
+    "certificateSha256": "1dd3cc96a02e4555e8d91a42d749a019ee5c4781d4d7510947ae48c865e21110"
+  },
+  "signingReceipt": {
+    "file": "verification.json",
+    "bytes": 2125,
+    "sha256": "e77d06696aa2452650f3cd91ebcc31613231c9053d3f1cf43060d7ae0f0a6e3e",
+    "assetId": 638148545
+  },
+  "approvalManifest": {
+    "file": "emulator-input-manifest.json",
+    "bytes": 1204,
+    "sha256": "70fe49b8212ac707484c3f56a7b6370e96fa8ec4fb8f6e959ebb748d16c9b17e",
+    "assetId": 638148547
+  },
+  "source": {
+    "sourceCommit": "a5cc913f566189d13ecf39b4229848fec8a43df1",
+    "sourceFingerprint": "bd3709e4363ac957b9316863a8896eed3739611531fa86c487ac24050f061d80",
+    "buildValidationSha256": "cba46710fe015c5d11a4fe291d4cc2998666152c3093ebc360f4e8807f3cc67d"
+  },
+  "release": {
+    "tag": "seven-build14-android-emulator-qa-20261014-bd72d269",
+    "draft": true,
+    "releaseId": 412073733,
+    "assetId": 638148548
+  },
+  "runtime": {
+    "apiLevel": 36,
+    "image": "system-images;android-36;google_apis;x86_64",
+    "imageRevision": 7,
+    "abi": "x86_64,arm64-v8a",
+    "bridge": "libndk_translation.so",
+    "gpu": "swangle",
+    "emulatorVersion": "37.2.12",
+    "buildToolsVersion": "36.1.0"
+  },
+  "policy": {
+    "manualOnly": true,
+    "oneShotAttempt": true,
+    "runner": "ubuntu-24.04",
+    "licensedSdkFromRunner": true,
+    "sdkmanagerLicenseAcceptance": false,
+    "storeWrites": 0,
+    "firebaseWrites": 0,
+    "payment": false,
+    "physicalDevice": false
+  }
+}

@@ -1,0 +1,85 @@
+name: Seven build14 Android emulator gameplay QA (manual)
+
+'on':
+  workflow_dispatch: null
+
+permissions:
+  contents: read
+
+concurrency:
+  group: seven-build14-android-emulator-qa-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  observe:
+    if: github.event_name == 'workflow_dispatch' && github.repository == 'mars-tw/taiwan-train-math' && github.ref == 'refs/heads/main' && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: write # Download exact draft APK and append one evidence ZIP; no store credentials.
+    steps:
+      - name: Read this exact reviewed manual workflow commit
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          sparse-checkout: |
+            scripts/seven-build14-android-emulator/bootstrap_sdk.py
+            scripts/seven-build14-android-emulator/fetch_input.py
+            scripts/seven-build14-android-emulator/publish_evidence.py
+            scripts/seven-build14-android-emulator/run_probe.py
+            scripts/seven-build14-android-emulator/manifest.json
+            scripts/seven-build14-android-emulator/fixtures/api36-build14-title-foreground.txt
+          sparse-checkout-cone-mode: false
+
+      - name: Verify pinned driver bytes and pure guard tests
+        id: driver_pin
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha256sum --check <<'SHA256SUMS'
+          2361064be373cb1ab0acd07b6cfe3500c6cb4395405cb1b897695ffd5956da9d  scripts/seven-build14-android-emulator/bootstrap_sdk.py
+          85a6dab70c706c8868e56e5546b18dd467fb167f0d949bde949e9ce1a3b989a3  scripts/seven-build14-android-emulator/fetch_input.py
+          1514a141163b10840802901c68e3b6bd06cdf4f458bdf2fb9d54d180c3d14a9d  scripts/seven-build14-android-emulator/publish_evidence.py
+          6546acae29274b86d3c8ba13e79b5b33e365ac2839891980616f05b35f3e87a7  scripts/seven-build14-android-emulator/run_probe.py
+          371f985b76dc785b8c64f513a38fd38d6a2deeede75744c03f7ed9d9b5b99d43  scripts/seven-build14-android-emulator/manifest.json
+          d1476fdac6b51429fcd8ef37b2b3430e847ba46c4c06e40cf865bc302b2c3ecf  scripts/seven-build14-android-emulator/fixtures/api36-build14-title-foreground.txt
+          SHA256SUMS
+          python3 scripts/seven-build14-android-emulator/run_probe.py --self-test
+
+      - name: Fetch exact source-bound signed APK from dedicated draft Release
+        id: fetch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/seven-build14-android-emulator/fetch_input.py
+
+      - name: Verify KVM and install observation-only packages
+        id: kvm
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -c /dev/kvm
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-seven-build14-android-emulator.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          test -r /dev/kvm && test -w /dev/kvm
+          sudo apt-get update -qq
+          sudo apt-get install --yes --no-install-recommends python3-pil python3-opencv libvulkan1 libgl1 libpulse0 tesseract-ocr tesseract-ocr-chi-tra ffmpeg
+
+      - name: Provision pinned official API36 ARM64-bridge emulator from existing runner licenses
+        id: bootstrap
+        run: python3 scripts/seven-build14-android-emulator/bootstrap_sdk.py
+
+      - name: Capture original title, MAIN-001, observed input, and first objective attempt
+        id: probe
+        run: python3 scripts/seven-build14-android-emulator/run_probe.py
+
+      - name: Preserve bounded success or failure evidence on the same draft Release
+        if: ${{ always() && !cancelled() && steps.driver_pin.outcome == 'success' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FETCH_OUTCOME: ${{ steps.fetch.outcome }}
+          KVM_OUTCOME: ${{ steps.kvm.outcome }}
+          BOOTSTRAP_OUTCOME: ${{ steps.bootstrap.outcome }}
+          PROBE_OUTCOME: ${{ steps.probe.outcome }}
+        run: python3 scripts/seven-build14-android-emulator/publish_evidence.py

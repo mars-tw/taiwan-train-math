@@ -21,7 +21,7 @@ import time
 
 
 REPO = "mars-tw/taiwan-train-math"
-REF = "refs/heads/codex/rift-arm64-kvm-r4-20261013-ui-proof"
+REF = "refs/heads/codex/rift-arm64-kvm-r5-20261013-fastcombat"
 PACKAGE = "tw.mars.riftforge3d"
 APK_SHA = "aa8cb0bbd1c0e236c415768ba0baafe646ad7db1e439f5ad4c8c09a38f80af28"
 CERT_SHA = "11e100f23b70476c3a1b02054e85c9c9681609e5604fada346dd8f3fe3df4c40"
@@ -29,7 +29,7 @@ SYSTEM_IMAGE = "system-images;android-36;google_apis;x86_64"
 PORT = 5582
 SERIAL = f"emulator-{PORT}"
 MAX_SECONDS = 650
-MAX_CAPTURE_COUNT = 90
+MAX_CAPTURE_COUNT = 150
 
 
 def now() -> str:
@@ -101,7 +101,7 @@ class Probe:
         self.out = Path(os.environ["RIFT_OUTPUT"]).resolve()
         self.temp = Path(os.environ["RUNNER_TEMP"]).resolve()
         self.avd_home = Path(os.environ["ANDROID_AVD_HOME"]).resolve()
-        self.avd_name = "rift-arm64-kvm-r4-" + self.run_id
+        self.avd_name = "rift-arm64-kvm-r5-" + self.run_id
         self.avd_path = self.avd_home / (self.avd_name + ".avd")
         self.adb = str(self.sdk / "platform-tools/adb")
         self.emulator = str(self.sdk / "emulator/emulator")
@@ -133,7 +133,7 @@ class Probe:
         }
         owner = json.loads((self.out / "owned-run.json").read_text(encoding="utf-8"))
         if owner != {"runId": self.run_id, "headSha": os.environ["GITHUB_SHA"],
-                     "owner": "rift-arm64-kvm-r4"}:
+                     "owner": "rift-arm64-kvm-r5"}:
             raise RuntimeError("Evidence directory owner mismatch")
         self.save()
 
@@ -155,7 +155,7 @@ class Probe:
                             allow_failure=allow_failure)
 
     def inspect_input(self) -> None:
-        manifest = json.loads((self.temp / "rift-arm64-kvm-r4-input/manifest.json").read_text())
+        manifest = json.loads((self.temp / "rift-arm64-kvm-r5-input/manifest.json").read_text())
         if (manifest.get("repository") != REPO or manifest.get("branch") != REF.removeprefix("refs/heads/")
                 or manifest.get("appId") != PACKAGE or manifest.get("versionCode") != 1
                 or manifest.get("apk", {}).get("sha256") != APK_SHA
@@ -363,6 +363,49 @@ class Probe:
         self.save()
         return state, normalized(text)
 
+    def fast_observe(self, label: str) -> str:
+        """Save the original PNG and check fixed UI colors without slow OCR."""
+        if self.capture_count >= MAX_CAPTURE_COUNT:
+            raise RuntimeError("Screenshot budget exhausted")
+        self.capture_count += 1
+        file = self.out / f"{self.capture_count:03d}-{label}.png"
+        png = self.device("exec-out", "screencap", "-p", timeout=30).stdout
+        if not png.startswith(b"\x89PNG\r\n\x1a\n") or png[12:16] != b"IHDR":
+            raise RuntimeError("Original fast guest screenshot is not PNG")
+        file.write_bytes(png)
+        self.width, self.height = struct.unpack(">II", png[16:24])
+        if self.width <= self.height:
+            raise RuntimeError("Fast guest screenshot not landscape")
+        strike = self.pixel_rgb(file, .86, .695)
+        dodge = self.pixel_rgb(file, .72, .8125)
+        strike_ok = strike[0] < 120 and strike[1] > 170 and strike[2] > 170
+        dodge_ok = dodge[0] > 190 and 110 < dodge[1] < 220 and dodge[2] < 130
+        next_rgb = None
+        blade_rgb = None
+        vitality_rgb = None
+        next_ok = blade_ok = vitality_ok = False
+        if not (strike_ok and dodge_ok):
+            next_rgb = self.pixel_rgb(file, .50, .81)
+            blade_rgb = self.pixel_rgb(file, .25, .42)
+            vitality_rgb = self.pixel_rgb(file, .50, .42)
+            next_ok = next_rgb[0] > 190 and 110 < next_rgb[1] < 220 and next_rgb[2] < 130
+            blade_ok = blade_rgb[0] < 120 and blade_rgb[1] > 170 and blade_rgb[2] > 170
+            vitality_ok = vitality_rgb[0] > 190 and 110 < vitality_rgb[1] < 220 and vitality_rgb[2] < 130
+        state = "combat" if strike_ok and dodge_ok else (
+            "forge" if next_ok and blade_ok and vitality_ok else "unknown")
+        self.report["screenshots"].append({
+            "file": file.name, "bytes": len(png), "sha256": digest(png),
+            "width": self.width, "height": self.height, "state": state,
+            "captureMode": "original PNG with immediate source-anchored pixel checks",
+            "controlColorProof": {"strikeRgb": strike, "dodgeRgb": dodge,
+                "strikePass": strike_ok, "dodgePass": dodge_ok},
+            "forgeColorProof": {"nextRgb": next_rgb, "bladeRgb": blade_rgb,
+                "vitalityRgb": vitality_rgb, "nextPass": next_ok,
+                "bladePass": blade_ok, "vitalityPass": vitality_ok},
+            "atUtc": now()})
+        self.save()
+        return state
+
     def tap(self, name: str, x_fraction: float, y_fraction: float, evidence: str) -> None:
         x, y = int(self.width * x_fraction), int(self.height * y_fraction)
         self.device("shell", "input", "tap", str(x), str(y), timeout=15)
@@ -382,7 +425,7 @@ class Probe:
 
     def start_video(self) -> None:
         self.segment += 1
-        remote = f"/sdcard/Movies/rift-arm64-kvm-r4-{self.segment}.mp4"
+        remote = f"/sdcard/Movies/rift-arm64-kvm-r5-{self.segment}.mp4"
         self.recording_started = time.monotonic()
         self.recorder = subprocess.Popen(
             [self.adb, "-s", SERIAL, "shell", "screenrecord",
@@ -410,7 +453,7 @@ class Probe:
             self.recorder.terminate()
             self.recorder.wait(timeout=10)
         self.recorder = None
-        local = self.out / f"rift-arm64-r4-native-segment-{self.segment}.mp4"
+        local = self.out / f"rift-arm64-r5-native-segment-{self.segment}.mp4"
         pulled = self.device("pull", remote, str(local), timeout=90, allow_failure=True)
         (self.out / f"video-pull-{self.segment}.txt").write_bytes(
             pulled.stdout + b"\n" + pulled.stderr)
@@ -575,7 +618,171 @@ class Probe:
         self.save()
         raise RuntimeError("Bounded native battle loop ended without victory")
 
+    def fast_launch_and_play(self, alias: str) -> None:
+        """React to combat in seconds; inspect static forge/outcome screens slowly."""
+        self.device("logcat", "-c", timeout=20)
+        self.start_video()
+        started = self.device("shell", "am", "start", "-W", "-n", alias,
+                              timeout=60, allow_failure=True)
+        (self.out / "owned-am-start.txt").write_bytes(started.stdout + b"\n" + started.stderr)
+        if started.returncode != 0:
+            raise RuntimeError("Native MAIN activity launch failed")
+        for _ in range(20):
+            pid = self.device("shell", "pidof", PACKAGE, allow_failure=True).stdout.decode().strip()
+            if re.fullmatch(r"[1-9][0-9]*", pid):
+                self.app_pid = pid
+                break
+            time.sleep(2)
+        if self.app_pid is None:
+            raise RuntimeError("Unity app did not acquire a native process PID")
+        self.report["nativeAppPid"] = self.app_pid
+        self.save()
+
+        state = "unknown"
+        dismissed_hint = False
+        title_frames = 0
+        for attempt in range(16):
+            time.sleep(3 if attempt else 1)
+            state, _ = self.capture(f"cold-title-{attempt}")
+            if state == "immersive_hint":
+                if dismissed_hint:
+                    raise RuntimeError("Android immersive hint remained after one owned Got it tap")
+                self.tap("ANDROID FULLSCREEN GOT IT", .80, .53,
+                         "OCR-visible Android immersive hint on owned emulator")
+                dismissed_hint = True
+                title_frames = 0
+                time.sleep(1)
+                continue
+            if state == "title":
+                title_frames += 1
+                if title_frames >= 2:
+                    break
+            else:
+                title_frames = 0
+        if state != "title":
+            raise RuntimeError("Native launch did not render OCR-visible ENTER THE RIFT")
+        self.report["coldTitleVisible"] = True
+        pregame_log = self.device("logcat", "-d", "-v", "epoch",
+                                  "--pid=" + self.app_pid, timeout=30).stdout
+        (self.out / "owned-app-logcat-before-gameplay.txt").write_bytes(pregame_log)
+        pregame_errors = critical_unity_errors(pregame_log, self.app_pid)
+        self.report["criticalUnityErrorsBeforeGameplay"] = pregame_errors
+        if pregame_errors:
+            self.save()
+            raise RuntimeError("Critical Unity errors before gameplay; no title tap")
+
+        self.tap("ENTER THE RIFT", .50, .66, "OCR-visible cold title")
+        self.report["fastCombatMode"] = True
+        self.report["moveTouchDeferredForCombatSurvival"] = True
+        time.sleep(.4)
+        for attempt in range(6):
+            state = self.fast_observe(f"post-enter-fast-{attempt}")
+            if state == "combat":
+                break
+            time.sleep(.4)
+        if state != "combat":
+            slow_state, _ = self.capture("post-enter-slow-diagnostic")
+            raise RuntimeError("Fast original PNG did not prove combat controls: " + slow_state)
+        self.report["combatStarted"] = True
+        self.save()
+
+        forges = 0
+        bursts = 0
+        unexpected = 0
+        while time.monotonic() < self.deadline and bursts < 50:
+            self.ensure_video_window()
+            if state == "combat":
+                bursts += 1
+                source_file = self.report["screenshots"][-1]["file"]
+                self.report["combatObservations"].append({
+                    "burst": bursts, "beforeScreenshot": source_file,
+                    "controlColorProof": self.report["screenshots"][-1]["controlColorProof"],
+                    "atUtc": now()})
+                # A fresh exact-APK PNG confirmed both source-defined buttons.
+                # Six sub-second taps avoid the 36-second OCR delay of R4.
+                for _ in range(6):
+                    self.tap("STRIKE", .86, .77,
+                             "Fresh original PNG cyan STRIKE control at source anchor")
+                    time.sleep(.52)
+                state = self.fast_observe(f"after-strike-burst-{bursts}")
+                self.report["combatObservations"][-1]["afterScreenshot"] = (
+                    self.report["screenshots"][-1]["file"])
+                self.save()
+                if state == "combat" and bursts % 2 == 0:
+                    self.tap("DODGE", .72, .86,
+                             "Fresh original PNG orange DODGE control at source anchor")
+                    time.sleep(.35)
+                continue
+
+            if state == "forge":
+                forges += 1
+                if forges > 3:
+                    raise RuntimeError("Unexpected fourth forge before victory")
+                slow_state, text = self.capture(f"forge-{forges}-arrival")
+                if slow_state != "forge":
+                    raise RuntimeError("Fast forge colors did not match slow original PNG")
+                self.report["forges"].append({
+                    "ordinal": forges,
+                    "beforeScreenshot": self.report["screenshots"][-1]["file"],
+                    "beforeOcr": text[:500], "atUtc": now()})
+                self.save()
+                # Every cleared wave pays for one Vitality and one Blade level.
+                self.tap("LIVING PLATE", .50, .53,
+                         "Original forge PNG with orange Vitality card")
+                time.sleep(.35)
+                self.tap("EMBER EDGE", .25, .53,
+                         "Original forge PNG with cyan Blade card")
+                time.sleep(.35)
+                after_state, after_text = self.capture(f"forge-{forges}-after-two-upgrades")
+                if after_state != "forge":
+                    raise RuntimeError("Forge upgrades left the forge view")
+                self.report["forges"][-1]["afterScreenshot"] = (
+                    self.report["screenshots"][-1]["file"])
+                self.report["forges"][-1]["afterOcr"] = after_text[:500]
+                self.tap("OPEN NEXT RIFT", .50, .85,
+                         "Original forge PNG with orange NEXT button")
+                time.sleep(.4)
+                for attempt in range(6):
+                    state = self.fast_observe(f"after-forge-{forges}-next-{attempt}")
+                    if state == "combat":
+                        break
+                    time.sleep(.4)
+                if state != "combat":
+                    slow_state, _ = self.capture(f"forge-{forges}-next-diagnostic")
+                    raise RuntimeError("Forge NEXT did not reach fast combat: " + slow_state)
+                self.report["forges"][-1]["nextCombatScreenshot"] = (
+                    self.report["screenshots"][-1]["file"])
+                self.save()
+                continue
+
+            # Outcome overlays have neither combat nor forge control colors.
+            slow_state, _ = self.capture(f"outcome-after-burst-{bursts}")
+            if slow_state == "victory":
+                self.report["victoryVisible"] = True
+                self.report["status"] = ("FOUR_RIFTS_VICTORY_OBSERVED"
+                                         if forges == 3 else "VICTORY_WITH_MISSING_FORGE_PROOF")
+                self.save()
+                if forges != 3:
+                    raise RuntimeError("Victory without three observed forge transitions")
+                return
+            if slow_state == "defeat":
+                self.report["status"] = "NATIVE_DEFEAT_OBSERVED_BEFORE_FOUR_RIFTS"
+                self.save()
+                raise RuntimeError("Native run ended in defeat before victory")
+            if slow_state in ("combat", "forge"):
+                state = slow_state
+                continue
+            unexpected += 1
+            if unexpected >= 3:
+                raise RuntimeError("Three unclassified original native frames")
+            time.sleep(.5)
+            state = self.fast_observe(f"retry-state-{unexpected}")
+        self.report["status"] = "PARTIAL_NATIVE_GAMEPLAY_ONLY"
+        self.save()
+        raise RuntimeError("Bounded native fast battle loop ended without victory")
+
     def cleanup(self) -> None:
+        # Native evidence finalization also runs after a partial gameplay result.
         try:
             self.finish_video()
         except Exception as error:
@@ -623,7 +830,7 @@ class Probe:
             self.inspect_input()
             self.boot()
             alias = self.install()
-            self.launch_and_play(alias)
+            self.fast_launch_and_play(alias)
         except Exception as problem:
             error = problem
             self.report["status"] = self.report.get("status") if self.report.get("status") not in ("STARTED", "") else "FAILED_NATIVE_OBSERVATION"

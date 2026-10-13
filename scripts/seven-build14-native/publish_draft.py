@@ -29,7 +29,10 @@ def sha(path: Path) -> str:
 
 
 def gh(*args: str, timeout: int = 180) -> bytes:
-    result = subprocess.run(["gh", *args], capture_output=True, timeout=timeout)
+    try:
+        result = subprocess.run(["gh", *args], capture_output=True, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        raise RuntimeError("GitHub draft operation timed out; provider output withheld") from None
     if result.returncode:
         raise RuntimeError("GitHub draft operation failed; provider output withheld")
     return result.stdout
@@ -190,6 +193,25 @@ def publish(archive: Path, manifest: dict) -> None:
         raise RuntimeError("Draft Release asset readback differs")
     if assets[0].get("digest") not in (None, "sha256:" + digest):
         raise RuntimeError("Draft Release asset digest differs")
+    readback = Path(os.environ["RUNNER_TEMP"]).resolve() / (tag + "-readback")
+    if readback.exists() or readback.is_symlink():
+        raise RuntimeError("Draft asset readback directory is not fresh")
+    readback.mkdir()
+    downloaded = readback / archive.name
+    for attempt in range(3):
+        try:
+            gh("release", "download", tag, "--repo", REPO, "--pattern", archive.name,
+               "--dir", str(readback), timeout=360)
+            if (not downloaded.is_file() or downloaded.is_symlink()
+                    or downloaded.stat().st_size != archive.stat().st_size
+                    or sha(downloaded) != digest):
+                raise RuntimeError("Draft asset download differs from locally verified bundle")
+            break
+        except RuntimeError:
+            downloaded.unlink(missing_ok=True)
+            if attempt == 2:
+                raise
+            time.sleep(3)
     print(json.dumps({"status": "DRAFT_RELEASE_VERIFIED", "kind": kind, "runId": run_id,
                       "sourceSha": SOURCE_SHA, "ciSha": ci_sha, "releaseId": release["id"],
                       "assetId": assets[0]["id"], "assetBytes": archive.stat().st_size,

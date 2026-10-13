@@ -39,20 +39,22 @@ jobs:
           set -euo pipefail
           sha256sum --check <<'SHA256SUMS'
           2361064be373cb1ab0acd07b6cfe3500c6cb4395405cb1b897695ffd5956da9d  scripts/seven-build14-android-emulator/bootstrap_sdk.py
-          956cfdeb45a058ae91e970be14621d086cfaf8b3117e0c000c24f3224ae28a6d  scripts/seven-build14-android-emulator/fetch_input.py
-          6c768c50aea2bf5ad7919265236739f69f07e6bf8e2083c54c4ffae9b0638909  scripts/seven-build14-android-emulator/publish_evidence.py
-          9a40477fee7c27b331fe9eb6f2af22e247126ee778262934dc52477a1c00ce01  scripts/seven-build14-android-emulator/run_probe.py
-          8bfd94dc9d59dd48e707a03d67246fa883ba6a7c92bbc81f916b0b143f3891d9  scripts/seven-build14-android-emulator/manifest.json
+          85a6dab70c706c8868e56e5546b18dd467fb167f0d949bde949e9ce1a3b989a3  scripts/seven-build14-android-emulator/fetch_input.py
+          1514a141163b10840802901c68e3b6bd06cdf4f458bdf2fb9d54d180c3d14a9d  scripts/seven-build14-android-emulator/publish_evidence.py
+          6546acae29274b86d3c8ba13e79b5b33e365ac2839891980616f05b35f3e87a7  scripts/seven-build14-android-emulator/run_probe.py
+          371f985b76dc785b8c64f513a38fd38d6a2deeede75744c03f7ed9d9b5b99d43  scripts/seven-build14-android-emulator/manifest.json
           d1476fdac6b51429fcd8ef37b2b3430e847ba46c4c06e40cf865bc302b2c3ecf  scripts/seven-build14-android-emulator/fixtures/api36-build14-title-foreground.txt
           SHA256SUMS
           python3 scripts/seven-build14-android-emulator/run_probe.py --self-test
 
       - name: Fetch exact source-bound signed APK from dedicated draft Release
+        id: fetch
         env:
           GH_TOKEN: ${{ github.token }}
         run: python3 scripts/seven-build14-android-emulator/fetch_input.py
 
       - name: Verify KVM and install observation-only packages
+        id: kvm
         shell: bash
         run: |
           set -euo pipefail
@@ -65,13 +67,19 @@ jobs:
           sudo apt-get install --yes --no-install-recommends python3-pil python3-opencv libvulkan1 libgl1 libpulse0 tesseract-ocr tesseract-ocr-chi-tra ffmpeg
 
       - name: Provision pinned official API36 ARM64-bridge emulator from existing runner licenses
+        id: bootstrap
         run: python3 scripts/seven-build14-android-emulator/bootstrap_sdk.py
 
       - name: Capture original title, MAIN-001, observed input, and first objective attempt
+        id: probe
         run: python3 scripts/seven-build14-android-emulator/run_probe.py
 
       - name: Preserve bounded success or failure evidence on the same draft Release
-        if: always() && steps.driver_pin.outcome == 'success'
+        if: ${{ always() && !cancelled() && steps.driver_pin.outcome == 'success' }}
         env:
           GH_TOKEN: ${{ github.token }}
+          FETCH_OUTCOME: ${{ steps.fetch.outcome }}
+          KVM_OUTCOME: ${{ steps.kvm.outcome }}
+          BOOTSTRAP_OUTCOME: ${{ steps.bootstrap.outcome }}
+          PROBE_OUTCOME: ${{ steps.probe.outcome }}
         run: python3 scripts/seven-build14-android-emulator/publish_evidence.py

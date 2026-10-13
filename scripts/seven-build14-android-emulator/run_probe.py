@@ -36,6 +36,8 @@ APK_BYTES = 42_734_360
 APK_SHA = "bd72d2697dc91b995ba55f59d82d4b5c5764e2401f6ec48012ec910257de73e7"
 CERT_SHA = "1dd3cc96a02e4555e8d91a42d749a019ee5c4781d4d7510947ae48c865e21110"
 SIGNING_RECEIPT_SHA = "e77d06696aa2452650f3cd91ebcc31613231c9053d3f1cf43060d7ae0f0a6e3e"
+APPROVAL_MANIFEST_SHA = "70fe49b8212ac707484c3f56a7b6370e96fa8ec4fb8f6e959ebb748d16c9b17e"
+UNSIGNED_BUNDLE_SHA = "8d54def5d07c8b9818a8ac8e2401f8e8d72f36c8169bc9b0e52004dd9d3df62b"
 SOURCE_PINS = {
     "sourceCommit": "a5cc913f566189d13ecf39b4229848fec8a43df1",
     "sourceFingerprint": "bd3709e4363ac957b9316863a8896eed3739611531fa86c487ac24050f061d80",
@@ -106,6 +108,9 @@ def verify_manifest(manifest: dict) -> None:
     if manifest.get("signingReceipt") != {"file": "verification.json", "bytes": 2125,
                                           "sha256": SIGNING_RECEIPT_SHA, "assetId": 638148545}:
         raise RuntimeError("Prepared manifest signed source receipt mismatch")
+    if manifest.get("approvalManifest") != {"file": "emulator-input-manifest.json", "bytes": 1204,
+                                           "sha256": APPROVAL_MANIFEST_SHA, "assetId": 638148547}:
+        raise RuntimeError("Prepared manifest approved source manifest mismatch")
     source = manifest.get("source")
     if not isinstance(source, dict) or any(source.get(k) != v for k, v in SOURCE_PINS.items()):
         raise RuntimeError("Prepared manifest source identity mismatch")
@@ -132,6 +137,9 @@ def verify_provenance(provenance: dict, manifest: dict) -> None:
         "releaseDraft": True,
         "signingReceiptSha256": SIGNING_RECEIPT_SHA,
         "signingReceiptAssetId": 638148545,
+        "approvalManifestSha256": APPROVAL_MANIFEST_SHA,
+        "approvalManifestAssetId": 638148547,
+        "unsignedBundleSha256": UNSIGNED_BUNDLE_SHA,
         **SOURCE_PINS,
     }
     for key, value in exact.items():
@@ -228,6 +236,39 @@ def label_box(tsv: str, caption: str) -> list[int] | None:
     return matches[0] if matches else None
 
 
+def main001_box(tsv: str) -> list[int] | None:
+    """Require one bounded MAIN-001 token, never MAIN-002, MENU or a longer ID."""
+    lines: dict[tuple[str, ...], list[dict]] = {}
+    for row in csv.DictReader(io.StringIO(tsv), delimiter="\t", quoting=csv.QUOTE_NONE):
+        if row.get("level") != "5" or not normalized(row.get("text", "")):
+            continue
+        try:
+            if float(row["conf"]) < 25:
+                continue
+            key = tuple(row[k] for k in ("page_num", "block_num", "par_num", "line_num"))
+            lines.setdefault(key, []).append(row)
+        except (ValueError, KeyError):
+            continue
+    matches = []
+    for words in lines.values():
+        words.sort(key=lambda word: int(word["left"]))
+        text, spans = "", []
+        for word in words:
+            start = len(text)
+            text += normalized(word["text"])
+            spans.append((start, len(text), word))
+        for match in re.finditer(r"(?<![a-z0-9])main001(?![a-z0-9])", text):
+            contributors = [word for start, end, word in spans
+                            if end > match.start() and start < match.end()]
+            matches.append([min(int(word["left"]) for word in contributors),
+                            min(int(word["top"]) for word in contributors),
+                            max(int(word["left"]) + int(word["width"]) for word in contributors),
+                            max(int(word["top"]) + int(word["height"]) for word in contributors)])
+    if len(matches) > 1:
+        raise RuntimeError("Ambiguous MAIN-001 OCR token; no gameplay acceptance")
+    return matches[0] if matches else None
+
+
 def action_button_box(tsv: str, caption: str, width: int, height: int) -> list[int] | None:
     """Require one exact button label in the native lower-right control region."""
     lines: dict[tuple[str, ...], list[dict]] = {}
@@ -314,11 +355,13 @@ def systemui_notice_from_frame(xml: str, tsv: str, width: int, height: int) -> d
             "panelBounds": panel, "titleOCRBounds": title, "instructionOCRBounds": instruction}
 
 
-def world_ready_events(log: str) -> list[dict]:
+def world_ready_events(log: str, start_epoch: float) -> list[dict]:
+    """Accept only owned world-ready events logged after the observed Start tap."""
     events = []
     for line in log.splitlines():
+        timestamp = re.match(r"^\s*(\d{10}(?:\.\d+)?)\s+", line)
         marker = line.find("SEVEN_STARTUP ")
-        if marker < 0:
+        if marker < 0 or not timestamp or float(timestamp.group(1)) < start_epoch:
             continue
         try:
             sample = json.loads(line[marker + len("SEVEN_STARTUP "):])
@@ -330,7 +373,7 @@ def world_ready_events(log: str) -> list[dict]:
                 and sample["render_frames_drawn"] >= 2
                 and sample.get("draw_counter_available") is True
                 and sample.get("owner_visible_in_tree") is True):
-            events.append(sample)
+            events.append({**sample, "logcatEpoch": float(timestamp.group(1))})
     return events
 
 
@@ -509,12 +552,32 @@ def self_test() -> None:
         pass
     else:
         raise AssertionError("Duplicate OCR caption accepted")
+    hud_tsv = "level\tpage_num\tblock_num\tpar_num\tline_num\tleft\ttop\twidth\theight\tconf\ttext\n"
+    hud_tsv += "5\t1\t1\t1\t1\t20\t20\t100\t22\t95\tMAIN-001\n"
+    hud_tsv += "5\t1\t2\t1\t1\t950\t600\t90\t35\t95\t攻擊\n"
+    hud_tsv += "5\t1\t3\t1\t1\t1050\t600\t90\t35\t95\t暫停\n"
+    assert main001_box(hud_tsv) == [20, 20, 120, 42]
+    assert Probe.hud_visible(hud_tsv)
+    for wrong in ("MAIN-002", "MAIN MENU", "MAIN-0010", "XMAIN-001", "MAIN-001A"):
+        candidate = hud_tsv.replace("MAIN-001", wrong)
+        assert main001_box(candidate) is None and not Probe.hud_visible(candidate)
+    repeated_main = hud_tsv + "5\t1\t4\t1\t1\t20\t70\t100\t22\t95\tMAIN-001\n"
+    try:
+        main001_box(repeated_main)
+    except RuntimeError:
+        pass
+    else:
+        raise AssertionError("Repeated MAIN-001 OCR token accepted")
     sample = {"event": "complete", "phase": "world_ready", "ready": True,
               "render_frames_drawn": 3, "draw_counter_available": True,
               "owner_visible_in_tree": True}
-    assert len(world_ready_events("I/Godot: SEVEN_STARTUP " + json.dumps(sample))) == 1
+    before_start = "1000000000.000 I Godot: SEVEN_STARTUP " + json.dumps(sample)
+    after_start = "1000000000.500 I Godot: SEVEN_STARTUP " + json.dumps(sample)
+    assert not world_ready_events(before_start, 1000000000.100)
+    assert len(world_ready_events(after_start, 1000000000.100)) == 1
+    assert not world_ready_events("I/Godot: SEVEN_STARTUP " + json.dumps(sample), 1000000000.100)
     sample["owner_visible_in_tree"] = False
-    assert not world_ready_events("I/Godot: SEVEN_STARTUP " + json.dumps(sample))
+    assert not world_ready_events("1000000000.500 I Godot: SEVEN_STARTUP " + json.dumps(sample), 1000000000.100)
     fps_a = {**sample, "owner_visible_in_tree": True, "loading_layer_visible": False,
              "render_frames_drawn": 100, "elapsed_ms": 1000}
     fps_b = {**fps_a, "render_frames_drawn": 130, "elapsed_ms": 1500}
@@ -599,6 +662,8 @@ def self_test() -> None:
                 "certificateSha256": CERT_SHA},
         "signingReceipt": {"file": "verification.json", "bytes": 2125,
                            "sha256": SIGNING_RECEIPT_SHA, "assetId": 638148545},
+        "approvalManifest": {"file": "emulator-input-manifest.json", "bytes": 1204,
+                             "sha256": APPROVAL_MANIFEST_SHA, "assetId": 638148547},
         "source": dict(SOURCE_PINS),
         "release": {"tag": RELEASE_TAG, "draft": True, "releaseId": None, "assetId": None},
         "runtime": {"apiLevel": 36, "abi": "x86_64,arm64-v8a",
@@ -615,6 +680,9 @@ def self_test() -> None:
                   "releaseDraft": True,
                   "signingReceiptSha256": SIGNING_RECEIPT_SHA,
                   "signingReceiptAssetId": 638148545,
+                  "approvalManifestSha256": APPROVAL_MANIFEST_SHA,
+                  "approvalManifestAssetId": 638148547,
+                  "unsignedBundleSha256": UNSIGNED_BUNDLE_SHA,
                   "releaseId": 123, "assetId": 456, **SOURCE_PINS}
     verify_provenance(provenance, manifest)
     try:
@@ -652,10 +720,25 @@ class Probe:
         if (signing_report.get("status"), signing_report.get("sourceCommit"),
                 signing_report.get("signed", {}).get("apk", {}).get("sha256"),
                 signing_report.get("certificateSha256"), signing_report.get("payloadEquivalent"),
-                signing_report.get("storeUploadPerformed")) != (
+                signing_report.get("unsignedBundleSha256"), signing_report.get("storeUploadPerformed")) != (
                     "VERIFIED_SIGNED_ANDROID_BUILD14_LOCAL_ONLY", SOURCE_PINS["sourceCommit"],
-                    APK_SHA, CERT_SHA, True, False):
+                    APK_SHA, CERT_SHA, True, UNSIGNED_BUNDLE_SHA, False):
             raise RuntimeError("Fetched signed build14 receipt claims differ")
+        approved = self.input_dir / "emulator-input-manifest.json"
+        if (approved.is_symlink() or not approved.is_file() or approved.stat().st_size != 1204
+                or digest(approved) != APPROVAL_MANIFEST_SHA):
+            raise RuntimeError("Fetched approved source manifest bytes/SHA mismatch")
+        approved_manifest = read_small_json(approved)
+        if (approved_manifest.get("source", {}).get("sourceCommit"),
+                approved_manifest.get("source", {}).get("sourceFingerprint"),
+                approved_manifest.get("source", {}).get("buildValidationSha256"),
+                approved_manifest.get("source", {}).get("unsignedBundleSha256"),
+                approved_manifest.get("apk", {}).get("sha256"),
+                approved_manifest.get("signingReceipt", {}).get("sha256")) != (
+                    SOURCE_PINS["sourceCommit"], SOURCE_PINS["sourceFingerprint"],
+                    SOURCE_PINS["buildValidationSha256"], UNSIGNED_BUNDLE_SHA,
+                    APK_SHA, SIGNING_RECEIPT_SHA):
+            raise RuntimeError("Fetched approved source manifest claims differ")
         if (self.workspace / "output").is_symlink() or self.out.is_symlink():
             raise RuntimeError("Evidence output may not be a symlink")
         if not self.out.is_dir():
@@ -956,7 +1039,7 @@ class Probe:
 
     @staticmethod
     def hud_visible(tsv: str) -> bool:
-        return all(label_box(tsv, text) for text in ("MAIN", "攻擊", "暫停"))
+        return bool(main001_box(tsv) and label_box(tsv, "攻擊") and label_box(tsv, "暫停"))
 
     def wait_gameplay_hud(self) -> tuple[object, str, str] | None:
         """Observe playable core before waiting for the outer world stream."""
@@ -971,7 +1054,8 @@ class Probe:
                 self.report["gameplayHudObserved"] = True
                 self.report["coreGameplayObserved"] = True
                 self.report["gameplayHudProof"] = {"basisNativeFrame": frame,
-                                                    "ocrLabels": ["MAIN", "攻擊", "暫停"],
+                                                    "ocrLabels": ["MAIN-001", "攻擊", "暫停"],
+                                                    "missionOcrBounds": main001_box(tsv),
                                                     "observedAtUtc": utc_now(),
                                                     "observedAtEpochSeconds": self.core_hud_epoch,
                                                     "observedAtMonotonicSeconds": time.monotonic(),
@@ -985,6 +1069,8 @@ class Probe:
         return None
 
     def observe_world(self) -> tuple[object, str, str]:
+        if self.start_tap_epoch is None:
+            raise RuntimeError("World readiness cannot precede observed Start tap")
         until = self.world_until or self.deadline
         began = time.monotonic()
         observed_hud = None
@@ -1004,7 +1090,8 @@ class Probe:
                     self.report["gameplayHudObserved"] = True
                     self.report["coreGameplayObserved"] = True
                     self.report["gameplayHudProof"] = {"basisNativeFrame": frame,
-                                                        "ocrLabels": ["MAIN", "攻擊", "暫停"],
+                                                        "ocrLabels": ["MAIN-001", "攻擊", "暫停"],
+                                                        "missionOcrBounds": main001_box(tsv),
                                                         "observedAtUtc": utc_now(),
                                                         "observedAtEpochSeconds": self.core_hud_epoch,
                                                         "observedAfterEarlyHudWait": True}
@@ -1019,7 +1106,7 @@ class Probe:
                 self.report["postHudEmulatorFpsDiagnostic"] = post_start_emulator_fps(log, self.core_hud_epoch)
                 self.report["postHudEmulatorFpsDiagnostic"]["sourceFile"] = "owned-app-logcat-current.txt"
                 self.report["postHudEmulatorFpsDiagnostic"]["sourceSha256"] = self.report["appLogcatRetainedSha256"]
-            events = world_ready_events(log)
+            events = world_ready_events(log, self.start_tap_epoch)
             if events:
                 sample = events[-1]
                 self.report["worldReadyEventObserved"] = True

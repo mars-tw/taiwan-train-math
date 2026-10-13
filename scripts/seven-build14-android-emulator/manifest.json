@@ -19,6 +19,12 @@
     "sha256": "e77d06696aa2452650f3cd91ebcc31613231c9053d3f1cf43060d7ae0f0a6e3e",
     "assetId": 638148545
   },
+  "approvalManifest": {
+    "file": "emulator-input-manifest.json",
+    "bytes": 1204,
+    "sha256": "70fe49b8212ac707484c3f56a7b6370e96fa8ec4fb8f6e959ebb748d16c9b17e",
+    "assetId": 638148547
+  },
   "source": {
     "sourceCommit": "a5cc913f566189d13ecf39b4229848fec8a43df1",
     "sourceFingerprint": "bd3709e4363ac957b9316863a8896eed3739611531fa86c487ac24050f061d80",

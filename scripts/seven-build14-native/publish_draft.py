@@ -103,8 +103,22 @@ def ios_files(workspace: Path) -> dict[str, Path]:
     source = workspace / "seven-source"
     verification = json.loads((out / "verification.json").read_text(encoding="utf-8"))
     metadata = json.loads((out / "ios-source-metadata.json").read_text(encoding="utf-8"))
+    source_verification = json.loads((out / "source-verification.json").read_text(encoding="utf-8"))
+    godot_export = json.loads((source / "deliverables/native/ios-verification.json").read_text(encoding="utf-8"))
     sim = json.loads((out / "simulator-launch.json").read_text(encoding="utf-8"))
     ipa = out / "signed.ipa"
+    if (godot_export.get("sourceSha"), godot_export.get("appId"), godot_export.get("nativeVersion"),
+            godot_export.get("nativeBuild"), godot_export.get("status"), godot_export.get("signed"),
+            godot_export.get("uploaded")) != (SOURCE_SHA, APP_ID, "1.0.0", BUILD,
+                                             "ios-xcode-source-created-not-compiled", False, False):
+        raise ValueError("Godot iOS source-only export receipt differs")
+    if (source_verification.get("projectId"), source_verification.get("appId"),
+            source_verification.get("version"), source_verification.get("build"),
+            source_verification.get("pckSha256"), source_verification.get("sourceMetadataSha256"),
+            source_verification.get("sourceVerified"), source_verification.get("storeUploadPerformed")) != (
+                "seven-district-reckoning", APP_ID, "1.0.0", BUILD,
+                metadata.get("pckSha256"), sha(out / "ios-source-metadata.json"), True, False):
+        raise ValueError("iOS source verifier receipt or metadata digest differs")
     if (verification.get("projectId"), verification.get("appId"), verification.get("version"),
             verification.get("build"), verification.get("pckSha256"),
             verification.get("signatureVerified"), verification.get("profileVerified"),

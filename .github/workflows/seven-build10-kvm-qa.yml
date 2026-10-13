@@ -1,0 +1,60 @@
+name: Seven build10 source-bound Android KVM gameplay QA
+
+on:
+  push:
+    branches: [codex/seven-build10-native-qa]
+    paths:
+      - .github/workflows/seven-build10-kvm-qa.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: seven-build10-kvm-qa-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  observe:
+    if: >-
+      github.repository == 'mars-tw/taiwan-train-math' &&
+      github.ref == 'refs/heads/codex/seven-build10-native-qa' &&
+      github.event.created == true &&
+      github.run_attempt == 1 &&
+      github.event.head_commit.message == 'RUN_ONCE Seven build10 KVM QA a052ec9e'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60 # Reserves time beyond the bounded SDK/probe phases for evidence upload.
+    permissions:
+      contents: write # Read the pinned draft APK and add one uniquely named QA evidence ZIP.
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Fetch exact signed test APK from the unique draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/seven-build10-kvm/fetch_input.py
+
+      - name: Verify KVM and install observation-only packages
+        run: |
+          set -euo pipefail
+          test -c /dev/kvm
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-seven-build10-kvm.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          test -r /dev/kvm && test -w /dev/kvm
+          sudo apt-get update -qq
+          sudo apt-get install --yes --no-install-recommends python3-pil python3-opencv libvulkan1 libgl1 libpulse0 tesseract-ocr tesseract-ocr-chi-tra ffmpeg
+
+      - name: Provision pinned official API36 ARM64-bridge emulator from existing runner licenses
+        run: python3 scripts/seven-build10-kvm/bootstrap_sdk.py
+
+      - name: Capture actual Start, gameplay input and long world-build cadence
+        run: python3 scripts/seven-build10-kvm/run_probe.py
+
+      - name: Preserve uniquely named native evidence even after a bounded test failure
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/seven-build10-kvm/publish_evidence.py

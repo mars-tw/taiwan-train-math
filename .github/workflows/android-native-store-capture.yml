@@ -6,14 +6,14 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: crack-code2-android-kvm-runtime
+  group: crack-code2-android-kvm-runtime-r10
   cancel-in-progress: false
 
 jobs:
   fixture:
-    if: github.repository == 'mars-tw/taiwan-train-math' && github.ref == 'refs/heads/codex/ashes-simulator-recording'
+    if: github.repository == 'mars-tw/taiwan-train-math' && github.ref == 'refs/heads/codex/crack2-kvm-qa-20261013-r10'
     runs-on: ubuntu-24.04
-    timeout-minutes: 8
+    timeout-minutes: 15
     permissions:
       contents: read
       actions: read
@@ -26,7 +26,12 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update -qq
-          sudo apt-get install --yes --no-install-recommends python3-pil python3-opencv tesseract-ocr tesseract-ocr-chi-tra
+          sudo apt-get install --yes --no-install-recommends tesseract-ocr tesseract-ocr-chi-tra
+          python3 -m venv "$RUNNER_TEMP/crack-ocr-venv"
+          "$RUNNER_TEMP/crack-ocr-venv/bin/python" -m pip install --disable-pip-version-check --no-cache-dir Pillow==11.3.0 numpy==2.2.6 opencv-python-headless==4.11.0.86
+          "$RUNNER_TEMP/crack-ocr-venv/bin/python" -c 'import cv2, numpy, PIL; print(cv2.__version__, numpy.__version__, PIL.__version__)'
+          echo "$RUNNER_TEMP/crack-ocr-venv/bin" >> "$GITHUB_PATH"
+          tesseract --list-langs
       - name: Fixed menu/map PNG caption/ROI/original-coordinate fixtures plus original raw TSV quote regression; no game executed
         env:
           GH_TOKEN: ${{ github.token }}
@@ -42,7 +47,7 @@ jobs:
 
   fetch:
     needs: fixture
-    if: github.repository == 'mars-tw/taiwan-train-math' && github.ref == 'refs/heads/codex/ashes-simulator-recording'
+    if: github.repository == 'mars-tw/taiwan-train-math' && github.ref == 'refs/heads/codex/crack2-kvm-qa-20261013-r10'
     runs-on: ubuntu-24.04
     timeout-minutes: 8
     permissions:
@@ -66,7 +71,7 @@ jobs:
   observe:
     needs: fetch
     runs-on: ubuntu-24.04
-    timeout-minutes: 35
+    timeout-minutes: 50
     permissions:
       contents: read
       actions: read
@@ -88,7 +93,12 @@ jobs:
           sudo udevadm trigger --name-match=kvm
           test -r /dev/kvm && test -w /dev/kvm
           sudo apt-get update -qq
-          sudo apt-get install --yes --no-install-recommends python3-pil python3-opencv libvulkan1 libgl1 libpulse0 tesseract-ocr tesseract-ocr-chi-tra
+          sudo apt-get install --yes --no-install-recommends libvulkan1 libgl1 libpulse0 tesseract-ocr tesseract-ocr-chi-tra
+          python3 -m venv "$RUNNER_TEMP/crack-ocr-venv"
+          "$RUNNER_TEMP/crack-ocr-venv/bin/python" -m pip install --disable-pip-version-check --no-cache-dir Pillow==11.3.0 numpy==2.2.6 opencv-python-headless==4.11.0.86
+          "$RUNNER_TEMP/crack-ocr-venv/bin/python" -c 'import cv2, numpy, PIL; print(cv2.__version__, numpy.__version__, PIL.__version__)'
+          echo "$RUNNER_TEMP/crack-ocr-venv/bin" >> "$GITHUB_PATH"
+          tesseract --list-langs
       - name: Provision one isolated canonical official SDK; no owner SDK changes
         run: python3 scripts/crack-android-runtime/bootstrap_sdk.py
       - name: One explicitSWANGLE KVM boot and normal UI-input session; no game-state injection

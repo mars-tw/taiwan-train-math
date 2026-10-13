@@ -16,7 +16,7 @@ SHA1 = "cd7362ea55dfb86a418958138dc396e74165dd01"
 def main():
     if (os.environ.get("GITHUB_ACTIONS") != "true"
             or os.environ.get("GITHUB_REPOSITORY") != "mars-tw/taiwan-train-math"
-            or os.environ.get("GITHUB_REF") != "refs/heads/codex/ashes-simulator-recording"):
+            or os.environ.get("GITHUB_REF") != "refs/heads/codex/crack2-kvm-qa-20261013-r10"):
         raise RuntimeError("Fixed Crack QA branch only")
     temp = Path(os.environ["RUNNER_TEMP"]).resolve()
     sdk = temp / "crack-code2-sdk"

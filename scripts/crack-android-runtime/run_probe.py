@@ -33,6 +33,9 @@ SOURCE_SKILL_CAPTIONS = ("旋", "斬")
 SOURCE_CAPTION_CONTRACT = {"hudSourceSha256":"4822ed136c3fc7a3127ba1f86b0f4020913e120c00b152af0d6c49b97f7360a3",
     "levelFormats":["Lv.%d", "等級 %d", "等級 %d   經驗 %d/%d"], "abilityButtonTexts":["旋", "斬"],
     "sourceLines":{"Lv":1304,"fallbackLevel":1713,"abilityButton":1917}}
+SLASH_TEMPLATE_BOX = (1766, 912, 1857, 999)
+SLASH_TEMPLATE_SHA = "c4ec576a55a7e69105481d6a4d1f9fae02c1e1050f5a01cd631f96fef3749352"
+SLASH_TEMPLATE_SOURCE_FRAME_SHA = "3ce1721883d301a5458b81ca8963c4f8dc7976f82a6f15f6bc6911882643eb33"
 SOURCE_OPTION_CAPTIONS = ('事件穹網', '五人滿編', '五分鐘防線', '偏壓改裝', '共鳴火花', '共鳴聖歌', '分裂燼彈', '剃界盾輪', '剪界星環', '單線協定', '回影追斬', '回收磁場', '回收餘波', '契約擴展', '契約槽 +1', '守門者倒下', '定向改裝', '帷幕王庭', '帷幕護盾', '招募：', '星環共鳴', '星盾和聲', '星盾重衛', '星裂貫槍', '星雷珠', '星雷羽鷹', '星霜聖域', '時輪刃衛', '時輪工坊', '曜砂王陵', '曜砂甲蟲', '月華靈森', '月華靈火', '武器覺醒', '殲滅 500', '流星雨', '深層急救', '深潮歌妖', '漸強和聲', '潮生祝禱', '灼星烙印', '焰尾靈狐', '焰爆術士', '燼脈聯爆', '燼雨連爆', '牧長裂約', '獵隙導引', '獵隙蜂群', '玻璃磁界', '珊潮遺都', '珊瑚巨衛', '疾步校準', '疾閃目擊', '短路超載', '砂影獵手', '磁暴回收', '磁滯目擊', '空槽', '精英信標', '精英餌標', '精英首獵', '緊急整補', '緋星熔庭', '縫獵協議', '翠晶花園', '翠玉靈兔', '脈衝餘燼', '蒼月空庭', '虛空錨點', '血稅', '裂光校準', '裂殖目擊', '裂線分叉', '裂群召喚師', '裂錨定駐', '裂隙急救', '裂隙扇編', '裂隙拾荒', '裂隙護甲', '裂隙過載', '裂隙韌性', '起始選擇 +1', '超載新星', '返刃共振', '追影刃', '逐金魔靈', '重整庫存', '金饑', '鏡裂群牧', '雷爪獵將', '雷鏈過載', '雷霆浮島', '霜晶槍', '霜環守望者', '靜幕', '餘燼井')
 
 
@@ -79,6 +82,32 @@ def locate_visible_joystick(image):
     if len(verified) != 1:
         raise RuntimeError("Multiple spatial native joystick candidates with visible knobs; no gesture guessed")
     return geometric, verified[0]
+
+
+def source_bound_slash_template(image):
+    """Narrow fallback for OCR-missed 斬: compare the actual R10 button glyph.
+
+    The template is a hash-bound crop of an original native frame whose 斬
+    region was independently located by OCR. Fixed 1920x1080 geometry and a
+    strict score fail closed for any other button state or layout.
+    """
+    if image.size != (1920, 1080):
+        raise RuntimeError("Unexpected native frame size for slash template")
+    template_path = Path(__file__).resolve().parent / "fixtures/skill-slash-r10.png"
+    template_raw = template_path.read_bytes()
+    if hashlib.sha256(template_raw).hexdigest() != SLASH_TEMPLATE_SHA:
+        raise RuntimeError("Original native slash template hash mismatch")
+    template = np.asarray(Image.open(io.BytesIO(template_raw)).convert("L"))
+    target = np.asarray(image.crop(SLASH_TEMPLATE_BOX).convert("L"))
+    if template.shape != target.shape == (87, 91):
+        raise RuntimeError("Original native slash template geometry mismatch")
+    score = float(cv2.matchTemplate(target, template, cv2.TM_CCOEFF_NORMED)[0, 0])
+    return {"matched": bool(np.isfinite(score) and score >= .94), "score": score,
+            "threshold": .94, "nativeBox": list(SLASH_TEMPLATE_BOX),
+            "templateSha256": SLASH_TEMPLATE_SHA,
+            "sourceRunId": 38344629894,
+            "sourceFrameSha256": SLASH_TEMPLATE_SOURCE_FRAME_SHA,
+            "sourceCaption": "斬", "fixedFrameSize": [1920, 1080]}
 
 
 def verify_swangle_gpu_help(stdout, stderr, exit_code):
@@ -318,7 +347,7 @@ def verify_avd_registry(ini, data, name, names, allowed_root):
 def main():
     if (os.environ.get("GITHUB_ACTIONS") != "true"
             or os.environ.get("GITHUB_REPOSITORY") != "mars-tw/taiwan-train-math"
-            or os.environ.get("GITHUB_REF") != "refs/heads/codex/crack2-kvm-qa-20261013-r11"):
+            or os.environ.get("GITHUB_REF") != "refs/heads/codex/crack2-kvm-qa-20261013-r12"):
         raise RuntimeError("Fixed Crack QA branch only")
     temp = Path(os.environ["RUNNER_TEMP"]).resolve()
     sdk = Path(os.environ["CRACK_SDK"]).resolve()
@@ -555,6 +584,13 @@ def main():
                 choice = source_skill_box(context, image.size)
                 if not choice:raise RuntimeError("Derived skill glyph lacks unique native-region proof")
                 return choice
+        proof = source_bound_slash_template(image)
+        proof["basisNativeFrame"] = basis
+        proof["basisFrameSha256"] = hashlib.sha256((frames / basis).read_bytes()).hexdigest()
+        report["sourceBoundSlashFallback"] = proof
+        save()
+        if proof["matched"]:
+            return "斬", proof["nativeBox"]
         raise RuntimeError("Unique source lower-right 旋/斬 glyph not observed; no tap guessed")
 
     def hud(label):

@@ -1,0 +1,186 @@
+name: Seven District build 13 iOS startup diagnosis (manual, no signing)
+
+'on':
+  workflow_dispatch: null
+
+permissions:
+  contents: write
+
+concurrency:
+  group: seven-build13-ios-readiness-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  diagnose:
+    if: github.event_name == 'workflow_dispatch' && github.repository == 'mars-tw/taiwan-train-math' && github.ref == 'refs/heads/main'
+    runs-on: macos-15-intel
+    timeout-minutes: 90
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
+      SOURCE_PIN: b975e22cae4e7f7259e76b5b71e3dce5400a5739e6599a428b09d20015d81e1b
+    steps:
+      - name: Read only reviewed diagnostic tools from this main commit
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          sparse-checkout: |
+            scripts/ci_seven_ios_build13_export.sh
+            scripts/ci_seven_build13_readiness.py
+            scripts/ci_seven_build13_diagnostic_package.py
+            scripts/ci_verify_seven_build13.py
+          sparse-checkout-cone-mode: false
+      - name: Fetch original exact build 13 source without Apple secrets
+        id: fetch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CI_INPUT: ${{ runner.temp }}/seven-build13-diagnostic-input
+          APP_SOURCE: ${{ runner.temp }}/seven-build13-diagnostic-source
+          PUBLIC_OUTPUT: ${{ runner.temp }}/seven-build13-diagnostic-output
+        run: |
+          python3 - <<'PY'
+          import hashlib,json,os,pathlib,re,subprocess,zipfile
+          repo='mars-tw/taiwan-train-math';tag='seven-build13-ios-qa-20261013';release_id=411789919
+          expected={'SHA256SUMS':'b975e22cae4e7f7259e76b5b71e3dce5400a5739e6599a428b09d20015d81e1b',
+            'SevenDistrict-1.0.0-build13-unsigned-source.zip':'c56dc5479a8a88adc2f407542114fbc38a290b4ae0f29d3d90863865859035d6',
+            'seven-district-reckoning-build13-source-verification.json':'7565bcb7faad7b883ebf9b70f897d4a2abf2a2f806c7f98e9a5570b91bf422ca',
+            'ci_verify_seven_build13.py':'4aefa929be7e149e6006f068fd32fa8b1832f5fab42ac66129ab92bc59a95eb0'}
+          if (os.environ['GITHUB_REPOSITORY'],os.environ['GITHUB_REF'],os.environ['GITHUB_EVENT_NAME'])!=(repo,'refs/heads/main','workflow_dispatch'):
+              raise SystemExit('Trusted manual main run required')
+          def gh(*args,timeout=90):
+              result=subprocess.run(['gh',*args],capture_output=True,timeout=timeout)
+              if result.returncode:raise SystemExit('Pinned draft read/download failed; output withheld')
+              return result.stdout
+          release=json.loads(gh('api','--method','GET',f'repos/{repo}/releases/{release_id}'))
+          if release.get('id')!=release_id or release.get('tag_name')!=tag or release.get('draft') is not True:
+              raise SystemExit('Original approved draft Release differs')
+          assets={item.get('name'):item for item in release.get('assets',[]) if isinstance(item,dict)}
+          if not set(expected).issubset(assets):raise SystemExit('Original source assets are missing')
+          stage=pathlib.Path(os.environ['CI_INPUT'])
+          if stage.exists() or stage.is_symlink():raise SystemExit('Fresh diagnostic stage required')
+          stage.mkdir(mode=0o700)
+          for name,digest in expected.items():
+              asset=assets[name]
+              gh('release','download',tag,'--repo',repo,'--pattern',name,'--dir',str(stage),timeout=300)
+              file=stage/name
+              maximum=1024**3 if name.endswith('.zip') else 1024**2
+              if (not file.is_file() or file.is_symlink() or not 0<file.stat().st_size<=maximum
+                  or file.stat().st_size!=asset.get('size') or asset.get('digest')!='sha256:'+digest):
+                  raise SystemExit('Original draft asset metadata differs')
+              with file.open('rb') as data:
+                  if hashlib.file_digest(data,'sha256').hexdigest()!=digest:
+                      raise SystemExit('Original draft asset SHA differs')
+          entries={}
+          for line in (stage/'SHA256SUMS').read_text(encoding='ascii').splitlines():
+              match=re.fullmatch(r'([0-9a-f]{64})  ([A-Za-z0-9][A-Za-z0-9._-]{0,150})',line)
+              if not match or match[2] in entries:raise SystemExit('Malformed approved source manifest')
+              entries[match[2]]=match[1]
+          if any(entries.get(name)!=sha for name,sha in expected.items() if name!='SHA256SUMS'):
+              raise SystemExit('Original source manifest tuple differs')
+          signed_name='seven-build13-ios-evidence-38417996013.zip'
+          signed_asset=assets.get(signed_name)
+          signed_sha='500e29b06681bdd071d8c423c70f19d8ee35402fc7fecea56585f03105db8887'
+          ipa_sha='75d348b547cc128643f8a2c7235dc28d55756cb5c087654cbd919e61450c16c8'
+          pck_sha='adb2466826ce250b8b357b706b3520c9e69792a2fceb06da5bbd3f724a9f9439'
+          if (not signed_asset or signed_asset.get('id')!=637418576
+              or signed_asset.get('state')!='uploaded' or signed_asset.get('size')!=38078133
+              or signed_asset.get('digest')!='sha256:'+signed_sha):
+              raise SystemExit('Signed build 13 evidence asset differs')
+          gh('release','download',tag,'--repo',repo,'--pattern',signed_name,'--dir',str(stage),timeout=300)
+          signed_zip=stage/signed_name
+          if not signed_zip.is_file() or signed_zip.is_symlink() or signed_zip.stat().st_size!=38078133:
+              raise SystemExit('Signed build 13 evidence download differs')
+          with signed_zip.open('rb') as data:
+              if hashlib.file_digest(data,'sha256').hexdigest()!=signed_sha:
+                  raise SystemExit('Signed build 13 evidence ZIP SHA differs')
+          with zipfile.ZipFile(signed_zip) as archive:
+              if archive.testzip() is not None:
+                  raise SystemExit('Signed build 13 evidence CRC differs')
+              signed_manifest=json.loads(archive.read('release-payload-manifest.json'))
+              signed_receipt=json.loads(archive.read('signed/verification.json'))
+              if (signed_manifest.get('runId'),signed_manifest.get('releaseId'),
+                  signed_manifest.get('sourceCommit'),signed_manifest.get('sourcePin'),
+                  signed_manifest.get('pckSha256'),signed_manifest.get('ipaSha256'),
+                  signed_manifest.get('storeUploadPerformed'))!=(
+                    '38417996013',release_id,'b9377588c91b95bba81e98c343e51886f3d38b01',
+                    expected['SHA256SUMS'],pck_sha,ipa_sha,False):
+                  raise SystemExit('Signed build 13 lineage differs from diagnostic source')
+              if (signed_receipt.get('build'),signed_receipt.get('pckSha256'),
+                  signed_receipt.get('ipaSha256'),signed_receipt.get('signatureVerified'),
+                  signed_receipt.get('profileVerified'))!=(13,pck_sha,ipa_sha,True,True):
+                  raise SystemExit('Signed IPA receipt differs from diagnostic source')
+              if hashlib.sha256(archive.read('signed/signed.ipa')).hexdigest()!=ipa_sha:
+                  raise SystemExit('Signed IPA member differs from exact build 13 pin')
+          tool_hashes={
+            'scripts/ci_seven_ios_build13_export.sh':'776fa5a36dec5145292cd597118872a48991b7f2692a2139e8b661774702fcd5',
+            'scripts/ci_seven_build13_readiness.py':'a991e1cb2e91b8af6269f56337cfa120e554b06a76ad9ada8e3fabdb0185e14d',
+            'scripts/ci_seven_build13_diagnostic_package.py':'ca4cc4a4126b66a8aa03c278e82c2cf109bebe122b6addc8cfbc0876a14ca9c2',
+            'scripts/ci_verify_seven_build13.py':'4aefa929be7e149e6006f068fd32fa8b1832f5fab42ac66129ab92bc59a95eb0'}
+          if not re.fullmatch(r'[0-9a-f]{40}',os.environ['GITHUB_SHA']):
+              raise SystemExit('Exact diagnostic tools commit required')
+          for name,digest in tool_hashes.items():
+              file=pathlib.Path(name)
+              if not file.is_file() or file.is_symlink():
+                  raise SystemExit('Checked-out diagnostic tool is missing or linked')
+              with file.open('rb') as data:
+                  if hashlib.file_digest(data,'sha256').hexdigest()!=digest:
+                      raise SystemExit('Checked-out diagnostic tool differs from reviewed SHA-256')
+          if tool_hashes['scripts/ci_verify_seven_build13.py']!=expected['ci_verify_seven_build13.py']:
+              raise SystemExit('Checked-out verifier differs from approved Release helper')
+          provenance={'repository':repo,'releaseTag':tag,'releaseId':release_id,
+            'sourcePin':expected['SHA256SUMS'],
+            'sourceCommit':'b9377588c91b95bba81e98c343e51886f3d38b01',
+            'signedRunId':38417996013,'signedIpaSha256':ipa_sha,
+            'signedEvidenceSha256':signed_sha,'signedEvidenceAssetId':637418576,
+            'captureToolsCommit':os.environ['GITHUB_SHA'],'captureToolSha256':tool_hashes,
+            'appleSecretsUsed':False,'storeUploadPerformed':False}
+          (stage/'diagnostic-provenance.json').write_text(json.dumps(provenance,indent=2)+'\n',encoding='utf-8')
+          with pathlib.Path(os.environ['GITHUB_ENV']).open('a',encoding='utf-8') as env:
+              for key in ('CI_INPUT','APP_SOURCE','PUBLIC_OUTPUT'):
+                  env.write(key+'='+os.environ[key]+'\n')
+          with pathlib.Path(os.environ['GITHUB_OUTPUT']).open('a',encoding='utf-8') as output:
+              output.write('source_verified=true\n')
+          print('Original 47-file build 13 source, signed IPA lineage and verifier pinned; no signer secrets used')
+          PY
+      - name: Extract and verify the unchanged 47-file source
+        id: extract
+        run: |
+          unset GH_TOKEN GITHUB_TOKEN
+          mkdir -p "$PUBLIC_OUTPUT"
+          python3 scripts/ci_verify_seven_build13.py source \
+            --zip "$CI_INPUT/SevenDistrict-1.0.0-build13-unsigned-source.zip" \
+            --metadata "$CI_INPUT/seven-district-reckoning-build13-source-verification.json" \
+            --project seven-district-reckoning --root "$APP_SOURCE" \
+            --output "$PUBLIC_OUTPUT/source-verification.json"
+      - name: Build unsigned Simulator and observe bounded cold and relaunch startup
+        id: capture
+        env:
+          GH_TOKEN: ''
+          GITHUB_TOKEN: ''
+        run: |
+          unset GH_TOKEN GITHUB_TOKEN
+          bash scripts/ci_seven_ios_build13_export.sh diagnose "$APP_SOURCE" \
+            seven-district-reckoning "$PUBLIC_OUTPUT/diagnostic" \
+            "$CI_INPUT/seven-district-reckoning-build13-source-verification.json"
+      - name: Preserve bounded success or failure evidence on the same draft Release
+        if: ${{ always() && steps.fetch.outputs.source_verified == 'true' && steps.extract.outcome == 'success' && (steps.capture.outcome == 'success' || steps.capture.outcome == 'failure') }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CAPTURE_OUTCOME: ${{ steps.capture.outcome }}
+        run: |
+          python3 scripts/ci_seven_build13_diagnostic_package.py \
+            --input "$CI_INPUT" --output "$PUBLIC_OUTPUT" \
+            --capture-outcome "$CAPTURE_OUTCOME" --run-id "$GITHUB_RUN_ID" \
+            --commit "$GITHUB_SHA" --upload
+      - name: Remove only this diagnostic job's temporary source and input
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import os,pathlib,shutil
+          parent=pathlib.Path(os.environ['RUNNER_TEMP']).resolve()
+          for name in ('seven-build13-diagnostic-input','seven-build13-diagnostic-source'):
+              target=parent/name
+              if target.is_symlink() or target.resolve()==parent or not target.resolve().is_relative_to(parent):
+                  raise SystemExit('Unsafe diagnostic cleanup path')
+              shutil.rmtree(target,ignore_errors=True)
+          PY

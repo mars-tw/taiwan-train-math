@@ -32,14 +32,14 @@ cleanup() {
   if [[ "$status" -ne 0 ]]; then
     python3 - "$out" "$scratch" <<'PY'
 import hashlib,json,pathlib,re,shutil,struct,sys
+from collections import deque
 root=pathlib.Path(sys.argv[1]);scratch=pathlib.Path(sys.argv[2]);label=scratch/'last-phase'
 text=label.read_text().strip() if label.exists() else 'unknown'
 code='GAMEPLAY_'+re.sub('[^A-Z0-9]+','_',text.upper()).strip('_')+'_FAILED'
-diagnostics=[]
+progress=deque(maxlen=8);critical=deque(maxlen=12);fallback=deque(maxlen=10)
 logs=[scratch/(text+'.log')]
 if text in ('iphone-probe','ipad-probe'):
  logs.insert(0,scratch/text/'xcodebuild-ui-test.log')
-fallback=[]
 for log in logs:
  if not log.is_file():continue
  with log.open('rb') as stream:
@@ -51,35 +51,53 @@ for log in logs:
   line=re.sub(r'[\x00-\x1f\x7f]',' ',line)[:500]
   if not line:continue
   fallback.append(line)
-  if re.search(r'error:|failed|failure|XCTAssert|No visible|Start tap|BUILD FAILED|TEST FAILED',line,re.I):
-   if line not in diagnostics:diagnostics.append(line)
-  if len(diagnostics)>=20:break
- if len(diagnostics)>=20:break
-if not diagnostics:diagnostics=fallback[-10:]
+  if 'Failed to send CA Event' in line:continue
+  if 'SEVEN_' in line:progress.append(line)
+  if re.search(r'error:|failed|failure|XCTAssert|No visible|Start tap|BUILD FAILED|TEST FAILED|UI test exited|Timed out waiting|Native screenshot geometry',line,re.I):
+   critical.append(line)
+diagnostics=list(progress)
+diagnostics.extend(line for line in critical if line not in diagnostics)
+if not diagnostics:diagnostics=list(fallback)
 receipt=root/'gameplay-failure.json'
 if not receipt.exists():
- partial=[]
- for kind,expected in [('iphone',(2622,1206)),('ipad',(2752,2064))]:
+ partial=[];total=0;probe_exits=[]
+ sources=[('activation','activation-simctl-raw.png'),
+  ('activation-failure','activation-failure-simctl-raw.png'),
+  ('title-wait-t120','title-wait-t120-simctl-raw.png'),
+  ('title-wait-t240','title-wait-t240-simctl-raw.png'),
+  ('title-wait-t360','title-wait-t360-simctl-raw.png'),
+  ('title-wait-final','title-wait-final-simctl-raw.png'),
+  ('title','title-simctl-raw.png'),('main001','main001-simctl-raw.png')]
+ for kind in ('iphone','ipad'):
   probe=scratch/(kind+'-probe')
-  for phase,source in [('title','title-simctl-raw.png'),('main001','main001-simctl-raw.png')]:
+  exit_path=probe/'probe-exit.json'
+  if exit_path.is_file() and not exit_path.is_symlink() and exit_path.stat().st_size<=4096:
+   value=json.loads(exit_path.read_text())
+   probe_exits.append({'kind':kind,'phase':str(value.get('phase',''))[:80],
+                       'exitCode':value.get('exitCode')})
+  for phase,source in sources:
    image=probe/source
    if not image.is_file() or image.is_symlink() or not 0<image.stat().st_size<=24*1024**2:
     continue
    with image.open('rb') as stream:head=stream.read(26)
    if (len(head)!=26 or head[:8]!=b'\x89PNG\r\n\x1a\n' or head[12:16]!=b'IHDR'
-       or struct.unpack('>II',head[16:24])!=expected):
+       or total+image.stat().st_size>150*1024**2):
     continue
+   width,height=struct.unpack('>II',head[16:24])
+   if not 0<width<=4096 or not 0<height<=4096:continue
    target=root/'partial'/(kind+'-'+phase+'.png')
    target.parent.mkdir(exist_ok=True)
    shutil.copyfile(image,target)
+   total+=target.stat().st_size
    with target.open('rb') as stream:sha=hashlib.file_digest(stream,'sha256').hexdigest()
    partial.append({'file':'partial/'+target.name,'bytes':target.stat().st_size,
-                   'sha256':sha,'width':expected[0],'height':expected[1],
+                   'sha256':sha,'width':width,'height':height,
+                   'listingCandidate':False,
                    'provenance':'raw simctl screenshot from bounded XCUITest probe before failure'})
  receipt.write_text(json.dumps({'projectId':'seven-district-reckoning','phase':'gameplay-capture',
   'failureCode':code[:80],'rawLogsPublished':False,'appleSecretsUsed':False,
   'storeUploadPerformed':False,'diagnostics':diagnostics,
-  'partialScreenshots':partial},indent=2)+'\n',encoding='utf-8')
+  'probeExitReceipts':probe_exits,'partialScreenshots':partial},indent=2)+'\n',encoding='utf-8')
 PY
   fi
   for device in "${devices[@]}"; do
@@ -204,12 +222,14 @@ PY
   python3 - "$scratch/$kind-probe" "$out/raw" "$kind" <<'PY'
 import pathlib,shutil,sys
 probe=pathlib.Path(sys.argv[1]);out=pathlib.Path(sys.argv[2]);kind=sys.argv[3]
-for source,target in [('title-simctl-raw.png',f'{kind}-title.png'),
+for source,target in [('activation-simctl-raw.png',f'{kind}-activation.png'),
+                      ('title-simctl-raw.png',f'{kind}-title.png'),
                       ('main001-simctl-raw.png',f'{kind}-main001.png')]:
  p=probe/source
  if not p.is_file() or p.is_symlink():raise SystemExit('Real simctl capture missing')
  shutil.copyfile(p,out/target)
-for source,target in [('title-simctl-evidence.json',f'{kind}-title-evidence.json'),
+for source,target in [('activation-simctl-evidence.json',f'{kind}-activation-evidence.json'),
+                      ('title-simctl-evidence.json',f'{kind}-title-evidence.json'),
                       ('main001-simctl-evidence.json',f'{kind}-main001-evidence.json')]:
  p=probe/source
  if not p.is_file() or p.is_symlink():raise SystemExit('Real simctl receipt missing')
@@ -254,9 +274,11 @@ if models.get('iphone')!='iPhone 17 Pro' or not models.get('ipad','').startswith
 captures=[]
 for kind in ('iphone','ipad'):
  expected=(2622,1206) if kind=='iphone' else (2752,2064)
+ activation=json.loads((root/f'{kind}-activation-evidence.json').read_text())
  title=json.loads((root/f'{kind}-title-evidence.json').read_text())
  play=json.loads((root/f'{kind}-main001-evidence.json').read_text())
- files={'titleRaw':root/'raw'/f'{kind}-title.png',
+ files={'activationRaw':root/'raw'/f'{kind}-activation.png',
+        'titleRaw':root/'raw'/f'{kind}-title.png',
         'gameplayRaw':root/'raw'/f'{kind}-main001.png',
         'listingCandidate':root/'candidates'/f'{kind}-main001.png'}
  hashes={}
@@ -267,18 +289,29 @@ for kind in ('iphone','ipad'):
    raise SystemExit('Native orientation, PNG or opaque RGB candidate differs')
   hashes[key]=hashlib.sha256(raw).hexdigest()
  orientation='landscapeLeft' if kind=='iphone' else 'landscapeRight'
- if (title.get('sha256')!=hashes['titleRaw'] or play.get('sha256')!=hashes['gameplayRaw']
+ if (activation.get('sha256')!=hashes['activationRaw']
+     or title.get('sha256')!=hashes['titleRaw'] or play.get('sha256')!=hashes['gameplayRaw']
+     or (activation.get('width'),activation.get('height'))!=expected
      or (title.get('width'),title.get('height'))!=expected
      or (play.get('width'),play.get('height'))!=expected
+     or 'phase=activated' not in activation.get('uiTestGate','')
+     or 'orientation='+orientation not in activation.get('uiTestGate','')
+     or activation.get('nativeGeometryAccepted') is not True
+     or title.get('nativeGeometryAccepted') is not True
+     or play.get('nativeGeometryAccepted') is not True
      or 'bundle=tw.mars.sevendistrictreckoning' not in title.get('uiTestGate','')
      or 'orientation='+orientation not in title.get('uiTestGate','')
      or 'orientation='+orientation not in play.get('uiTestGate','')
      or 'startVisible=true' not in title.get('uiTestGate','')
+     or 'startOCRBox=' not in title.get('uiTestGate','')
+     or 'startXCUIScreenPoint=' not in title.get('uiTestGate','')
+     or 'startCoordinateErrorPoints=' not in title.get('uiTestGate','')
      or 'mission=MAIN-001' not in play.get('uiTestGate','')
      or 'startTapNormalized=' not in play.get('uiTestGate','')):
   raise SystemExit('XCUITest title/tap/MAIN-001 handshake differs')
  captures.append({'kind':kind,'model':models[kind],'deviceId':ids[kind],
   'orientation':orientation,
+  'activationRaw':f'raw/{kind}-activation.png','activationRawSha256':hashes['activationRaw'],
   'titleRaw':f'raw/{kind}-title.png','titleRawSha256':hashes['titleRaw'],
   'gameplayRaw':f'raw/{kind}-main001.png','gameplayRawSha256':hashes['gameplayRaw'],
   'listingCandidate':f'candidates/{kind}-main001.png',

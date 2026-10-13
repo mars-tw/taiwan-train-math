@@ -68,6 +68,20 @@ def png(path: pathlib.Path, expected: tuple[int, int], *, opaque: bool) -> dict:
     return {"width": size[0], "height": size[1], "bytes": path.stat().st_size, "sha256": sha(path)}
 
 
+def diagnostic_png(path: pathlib.Path) -> dict:
+    if not path.is_file() or path.is_symlink() or not 0 < path.stat().st_size <= 24 * 1024**2:
+        fail("Missing or unsafe native diagnostic PNG")
+    with path.open("rb") as stream:
+        head = stream.read(26)
+    if (len(head) != 26 or head[:8] != b"\x89PNG\r\n\x1a\n" or head[12:16] != b"IHDR"
+            or head[24] not in (1, 2, 4, 8, 16)):
+        fail("Diagnostic frame is not a bounded PNG")
+    width, height = struct.unpack(">II", head[16:24])
+    if not 0 < width <= 4096 or not 0 < height <= 4096:
+        fail("Unbounded diagnostic screenshot geometry")
+    return {"width": width, "height": height, "bytes": path.stat().st_size, "sha256": sha(path)}
+
+
 def safe_file(root: pathlib.Path, name: str) -> pathlib.Path:
     if (not isinstance(name, str) or not re.fullmatch(r"[A-Za-z0-9._/-]{1,150}", name)
             or name.startswith("/") or any(part in ("", ".", "..") for part in name.split("/"))):
@@ -156,30 +170,40 @@ def collect(stage: pathlib.Path, output: pathlib.Path, commit: str, outcome: str
                     or row.get("cropApplied") is not False
                     or row.get("syntheticContentAdded") is not False):
                 fail("Gameplay interaction or native-frame provenance differs")
+            activation_name = f"raw/{kind}-activation.png"
             title_name = f"raw/{kind}-title.png"
             game_name = f"raw/{kind}-main001.png"
             candidate_name = f"candidates/{kind}-main001.png"
-            if (row.get("titleRaw") != title_name or row.get("gameplayRaw") != game_name
+            if (row.get("activationRaw") != activation_name
+                    or row.get("titleRaw") != title_name or row.get("gameplayRaw") != game_name
                     or row.get("listingCandidate") != candidate_name):
-                fail("Exact title/gameplay screenshot names required")
+                fail("Exact activation/title/gameplay screenshot names required")
+            activation_evidence_name = f"{kind}-activation-evidence.json"
             title_evidence_name = f"{kind}-title-evidence.json"
             gameplay_evidence_name = f"{kind}-main001-evidence.json"
+            activation_evidence = obj(game / activation_evidence_name)
             title_evidence = obj(game / title_evidence_name)
             gameplay_evidence = obj(game / gameplay_evidence_name)
-            if (title_evidence.get("source") != "xcrun simctl io <UDID> screenshot --type=png"
+            if (activation_evidence.get("source") != "xcrun simctl io <UDID> screenshot --type=png"
+                    or title_evidence.get("source") != activation_evidence.get("source")
                     or gameplay_evidence.get("source") != title_evidence.get("source")
+                    or "phase=activated" not in activation_evidence.get("uiTestGate", "")
                     or "phase=title" not in title_evidence.get("uiTestGate", "")
                     or "mission=MAIN-001" not in gameplay_evidence.get("uiTestGate", "")):
-                fail("Actual simctl title/gameplay handshake differs")
+                fail("Actual simctl activation/title/gameplay handshake differs")
+            files["gameplay/" + activation_evidence_name] = game / activation_evidence_name
             files["gameplay/" + title_evidence_name] = game / title_evidence_name
             files["gameplay/" + gameplay_evidence_name] = game / gameplay_evidence_name
-            for name, opaque, hash_field in ((title_name, False, "titleRawSha256"),
+            for name, opaque, hash_field in ((activation_name, False, "activationRawSha256"),
+                                             (title_name, False, "titleRawSha256"),
                                              (game_name, False, "gameplayRawSha256"),
                                              (candidate_name, True, "listingCandidateSha256")):
                 path = safe_file(game, name)
                 frame = png(path, SIZES[kind], opaque=opaque)
                 if row.get(hash_field) != frame["sha256"]:
                     fail("Screenshot hash in gameplay receipt differs")
+                if name == activation_name and activation_evidence.get("sha256") != frame["sha256"]:
+                    fail("Raw activation frame does not match simctl receipt")
                 if name == title_name and title_evidence.get("sha256") != frame["sha256"]:
                     fail("Raw title does not match simctl receipt")
                 if name == game_name and gameplay_evidence.get("sha256") != frame["sha256"]:
@@ -206,21 +230,28 @@ def collect(stage: pathlib.Path, output: pathlib.Path, commit: str, outcome: str
         if (not isinstance(diagnostics, list) or len(diagnostics) > 20
                 or any(not isinstance(line, str) or len(line) > 500 for line in diagnostics)):
             fail("Unsafe bounded gameplay diagnostics")
+        exits = failure.get("probeExitReceipts", [])
+        if (not isinstance(exits, list) or len(exits) > 2
+                or any(not isinstance(row, dict) or row.get("kind") not in MODELS
+                       or not isinstance(row.get("phase"), str) or len(row["phase"]) > 80
+                       for row in exits)):
+            fail("Unsafe probe exit receipt")
         partial = failure.get("partialScreenshots", [])
-        if (not isinstance(partial, list) or len(partial) > 4
+        if (not isinstance(partial, list) or len(partial) > 16
                 or len({row.get("file") for row in partial if isinstance(row, dict)}) != len(partial)):
             fail("Unsafe partial gameplay screenshot list")
         for row in partial:
             if not isinstance(row, dict):
                 fail("Invalid partial gameplay screenshot record")
             name = row.get("file", "")
-            match = re.fullmatch(r"partial/(iphone|ipad)-(title|main001)\.png", name)
+            match = re.fullmatch(r"partial/(iphone|ipad)-(activation|activation-failure|title-wait-t120|title-wait-t240|title-wait-t360|title-wait-final|title|main001)\.png", name)
             if not match:
                 fail("Unexpected partial screenshot name")
             path = safe_file(game, name)
-            frame = png(path, SIZES[match[1]], opaque=False)
+            frame = diagnostic_png(path)
             if (row.get("bytes"), row.get("sha256"), row.get("width"), row.get("height")) != (
-                    frame["bytes"], frame["sha256"], frame["width"], frame["height"]):
+                    frame["bytes"], frame["sha256"], frame["width"], frame["height"]) \
+                    or row.get("listingCandidate") is not False:
                 fail("Partial native screenshot hash or geometry differs")
             files["gameplay/" + name] = path
     if len(files) > 24 or sum(p.stat().st_size for p in files.values()) > 200 * 1024**2:

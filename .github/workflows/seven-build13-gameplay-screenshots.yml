@@ -14,7 +14,7 @@ jobs:
   capture-gameplay:
     if: github.event_name == 'workflow_dispatch' && github.repository == 'mars-tw/taiwan-train-math' && github.ref == 'refs/heads/main'
     runs-on: macos-15-intel
-    timeout-minutes: 90
+    timeout-minutes: 210
     env:
       DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
       SOURCE_PIN: b975e22cae4e7f7259e76b5b71e3dce5400a5739e6599a428b09d20015d81e1b
@@ -116,13 +116,13 @@ jobs:
               if hashlib.sha256(archive.read('signed/signed.ipa')).hexdigest()!=ipa_sha:
                   raise SystemExit('Signed IPA member differs from exact build 13 pin')
           tool_hashes={
-            'scripts/ci_seven_build13_gameplay_capture.sh':'f5992fbdc32770119d105f4dfe7655e7967ae7296ffe5fc4dce219518f797714',
-            'scripts/ci_seven_build13_gameplay_package.py':'4b505f493814cf7dd7231d2f82862f36827b7d43c8f57fa432eddef32ecb25c6',
-            'scripts/seven_build13_gameplay_probe/run_probe.sh':'d77f44431e99f3270c3cb04ea84ed51b493730c6bd39035652d5817951ea1d4b',
+            'scripts/ci_seven_build13_gameplay_capture.sh':'12dfa6d2612d280eebef4b6cf0f8a5cc513ed6746262f5fd93f1e700ba15b5a2',
+            'scripts/ci_seven_build13_gameplay_package.py':'67b81023479e4e70900f90a51c394492425472dca7b43ba29bace0a9d9b8477a',
+            'scripts/seven_build13_gameplay_probe/run_probe.sh':'5d88bfe389a180074dc95cd3a025dddf298f0a69d056521fe4359aca98725c6b',
             'scripts/seven_build13_gameplay_probe/SevenProbe.xcodeproj/project.pbxproj':'bccf76b66877afe50a0fa8b90436f4d8c7d340d65c61d284339f8e603c97e56e',
             'scripts/seven_build13_gameplay_probe/SevenProbe.xcodeproj/xcshareddata/xcschemes/SevenProbe.xcscheme':'bad98331b001ded41301d327bca1dba92fbde8b32dd8031bf38fd0bdf2caa727',
             'scripts/seven_build13_gameplay_probe/SevenProbeHost/AppDelegate.swift':'f82ed3fc4df1f7080a499a1a332f839e67e86201d3168705a1331b9b269ef5cf',
-            'scripts/seven_build13_gameplay_probe/SevenDistrictUITests/SevenDistrictUITests.swift':'c1562099a129f3ed2cb2817d95f8b2ae36ddd760bdffd4f2486b841f3453ceed',
+            'scripts/seven_build13_gameplay_probe/SevenDistrictUITests/SevenDistrictUITests.swift':'26dfd7db393e3260fb5b9dd729ef1a4c2907cd5d0dcdeca429825c41c5e1cdae',
             'scripts/ci_verify_seven_build13.py':'4aefa929be7e149e6006f068fd32fa8b1832f5fab42ac66129ab92bc59a95eb0'}
           if not re.fullmatch(r'[0-9a-f]{40}',os.environ['GITHUB_SHA']):
               raise SystemExit('Exact gameplay tools commit required')

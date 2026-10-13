@@ -10,6 +10,13 @@ import sys
 SOURCE_SHA = "a5cc913f566189d13ecf39b4229848fec8a43df1"
 
 
+def sanitized(line: str) -> str:
+    line = re.sub(r"/(?:Users|home|private|var)/[^\s\"'<>]+", "<runner-path>", line)
+    line = re.sub(r"https?://[^\s\"'<>]+", "<url>", line)
+    line = re.sub(r"(?i)\b(?:authorization|token|password|secret)\s*[:=]\s*\S+", "<redacted>", line)
+    return line.replace("\x00", " ").strip()[:400]
+
+
 def excerpt(path: Path) -> dict:
     if not path.is_file() or path.is_symlink():
         return {"present": False, "selectedLines": []}
@@ -20,16 +27,25 @@ def excerpt(path: Path) -> dict:
     for line in lines:
         if not re.search(r"SCRIPT ERROR:|Parse Error:|ERROR:|export.*fail|failed|exception|fatal", line, re.I):
             continue
-        line = re.sub(r"/(?:Users|home|private|var)/[^\s\"'<>]+", "<runner-path>", line)
-        line = re.sub(r"https?://[^\s\"'<>]+", "<url>", line)
-        line = re.sub(r"(?i)\b(?:authorization|token|password|secret)\s*[:=]\s*\S+", "<redacted>", line)
-        line = line.replace("\x00", " ").strip()[:400]
+        line = sanitized(line)
         if line and line not in selected:
             selected.append(line)
         if len(selected) >= 35:
             break
+    tail = [value for value in (sanitized(line) for line in lines[-30:]) if value]
     return {"present": True, "bytes": path.stat().st_size, "selectedLines": selected,
+            "tailLines": tail,
             "rawLogUploaded": False}
+
+
+def receipt_status(path: Path) -> dict:
+    if not path.is_file() or path.is_symlink():
+        return {"present": False}
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+        return {"present": True, "status": value.get("status"), "sourceSha": value.get("sourceSha")}
+    except (OSError, UnicodeError, ValueError, TypeError):
+        return {"present": True, "readable": False}
 
 
 def main() -> None:
@@ -50,10 +66,7 @@ def main() -> None:
         report["stepOutcomes"] = {key: os.environ.get(key + "_OUTCOME", "unknown")
                                   for key in ("TOOLCHAIN", "TESTS", "EXPORT", "INDEPENDENT", "DRAFT")}
         source_receipt = workspace / "seven-source/deliverables/native/android-verification.json"
-        if source_receipt.is_file():
-            value = json.loads(source_receipt.read_text(encoding="utf-8"))
-            report["nativeExportStatus"] = value.get("status")
-            report["nativeExportSourceSha"] = value.get("sourceSha")
+        report["nativeExportReceipt"] = receipt_status(source_receipt)
         destination = out / "early-failure.json"
     else:
         native = workspace / "seven-source/deliverables/native"
@@ -66,10 +79,7 @@ def main() -> None:
         report["xcodeProjectPresentAtFailure"] = project.is_dir()
         report["pckPresentAtFailure"] = pck.is_file()
         source_receipt = native / "ios-verification.json"
-        if source_receipt.is_file():
-            value = json.loads(source_receipt.read_text(encoding="utf-8"))
-            report["nativeExportStatus"] = value.get("status")
-            report["nativeExportSourceSha"] = value.get("sourceSha")
+        report["nativeExportReceipt"] = receipt_status(source_receipt)
         destination = out / "early-export-failure.json"
     destination.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(report))

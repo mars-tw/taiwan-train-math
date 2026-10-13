@@ -116,13 +116,13 @@ jobs:
               if hashlib.sha256(archive.read('signed/signed.ipa')).hexdigest()!=ipa_sha:
                   raise SystemExit('Signed IPA member differs from exact build 13 pin')
           tool_hashes={
-            'scripts/ci_seven_build13_gameplay_capture.sh':'12dfa6d2612d280eebef4b6cf0f8a5cc513ed6746262f5fd93f1e700ba15b5a2',
-            'scripts/ci_seven_build13_gameplay_package.py':'67b81023479e4e70900f90a51c394492425472dca7b43ba29bace0a9d9b8477a',
-            'scripts/seven_build13_gameplay_probe/run_probe.sh':'5d88bfe389a180074dc95cd3a025dddf298f0a69d056521fe4359aca98725c6b',
+            'scripts/ci_seven_build13_gameplay_capture.sh':'c22b5c70a37ff9d33d07741b1332099925e8151a96bb19a5502ffd103c77a7cd',
+            'scripts/ci_seven_build13_gameplay_package.py':'6ad5db32b16b1f187001d9577cb789c4849a0e7b59d05d5282e0383d7d13ccd9',
+            'scripts/seven_build13_gameplay_probe/run_probe.sh':'2ddc44449b54b1fc606e039337f95288432f3bac92b4a6d16b6fe362cd988b9a',
             'scripts/seven_build13_gameplay_probe/SevenProbe.xcodeproj/project.pbxproj':'bccf76b66877afe50a0fa8b90436f4d8c7d340d65c61d284339f8e603c97e56e',
             'scripts/seven_build13_gameplay_probe/SevenProbe.xcodeproj/xcshareddata/xcschemes/SevenProbe.xcscheme':'bad98331b001ded41301d327bca1dba92fbde8b32dd8031bf38fd0bdf2caa727',
             'scripts/seven_build13_gameplay_probe/SevenProbeHost/AppDelegate.swift':'f82ed3fc4df1f7080a499a1a332f839e67e86201d3168705a1331b9b269ef5cf',
-            'scripts/seven_build13_gameplay_probe/SevenDistrictUITests/SevenDistrictUITests.swift':'26dfd7db393e3260fb5b9dd729ef1a4c2907cd5d0dcdeca429825c41c5e1cdae',
+            'scripts/seven_build13_gameplay_probe/SevenDistrictUITests/SevenDistrictUITests.swift':'59638ef512a0b98d40066ca5207f1f7816d788d46743f570f8881fc12bcadd61',
             'scripts/ci_verify_seven_build13.py':'4aefa929be7e149e6006f068fd32fa8b1832f5fab42ac66129ab92bc59a95eb0'}
           if not re.fullmatch(r'[0-9a-f]{40}',os.environ['GITHUB_SHA']):
               raise SystemExit('Exact gameplay tools commit required')

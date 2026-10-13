@@ -1,0 +1,328 @@
+name: Farm R79 build 4 signed iOS IPA (manual, no store upload)
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: farm-r79-build4-ios-${{ github.repository }}
+  cancel-in-progress: false
+jobs:
+  build:
+    if: github.event_name == 'workflow_dispatch' && github.repository == 'mars-tw/taiwan-train-math' && github.ref_name == 'main'
+    runs-on: macos-15
+    timeout-minutes: 70
+    environment: game-store-pixel-idle-farm-skill
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
+      CI_INPUT: ${{ github.workspace }}/farm-r79-build4-source
+      APP_SOURCE: ${{ github.workspace }}/farm-r79-build4-app
+      PUBLIC_OUTPUT: ${{ github.workspace }}/output/farm-r79-build4-ios
+      PROJECT_ID: pixel-idle-farm-skill
+    steps:
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with: {node-version: '24'}
+      - name: Fetch and hash only the pinned Farm draft Release inputs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import hashlib,json,os,pathlib,re,subprocess
+          repo='mars-tw/taiwan-train-math'
+          tag='farm-r79-build4-20261013'
+          release_id=411689622
+          pin='f233724d1dee1f6f0a99ff17d5bc96f8bc9ebbc3038a8044c084f7b3c53c1c41'
+          project='pixel-idle-farm-skill'
+          if os.environ['GITHUB_REPOSITORY']!=repo:
+              raise SystemExit('Unexpected repository')
+          result=subprocess.run(['gh','api','--method','GET',f'repos/{repo}/releases/{release_id}'],capture_output=True,timeout=60)
+          if result.returncode:
+              raise SystemExit('Pinned source draft Release is unavailable')
+          release=json.loads(result.stdout)
+          if release.get('id')!=release_id or release.get('tag_name')!=tag or release.get('draft') is not True:
+              raise SystemExit('Unexpected source Release identity or state')
+          resolved=subprocess.run(['gh','release','view',tag,'--repo',repo,'--json','isDraft,tagName'],capture_output=True,timeout=60)
+          if resolved.returncode:
+              raise SystemExit('gh CLI cannot resolve this draft Release by tag')
+          cli=json.loads(resolved.stdout)
+          if cli.get('isDraft') is not True or cli.get('tagName')!=tag:
+              raise SystemExit('gh CLI resolved an unexpected draft Release')
+          required={'SHA256SUMS','ci_ios_export.sh','ci_verify_ios.py',project+'-ios-source.zip'}
+          if not required.issubset({item.get('name') for item in release.get('assets',[]) if isinstance(item,dict)}):
+              raise SystemExit('Pinned Release is missing a source input')
+          stage=pathlib.Path(os.environ['CI_INPUT'])
+          stage.mkdir(mode=0o700)
+          for name in sorted(required):
+              result=subprocess.run(['gh','release','download',tag,'--repo',repo,'--pattern',name,'--dir',str(stage),'--clobber'],capture_output=True,timeout=240)
+              target=stage/name
+              limit=1024**3 if name.endswith('.zip') else 1024**2
+              if result.returncode or not target.is_file() or target.is_symlink() or not 0<target.stat().st_size<=limit:
+                  raise SystemExit('Pinned Release input download failed')
+          sums=stage/'SHA256SUMS'
+          if hashlib.sha256(sums.read_bytes()).hexdigest()!=pin:
+              raise SystemExit('Source checksum manifest differs from reviewed pin')
+          expected={}
+          for line in sums.read_text(encoding='utf-8').splitlines():
+              match=re.fullmatch(r'([0-9a-f]{64})  ([A-Za-z0-9][A-Za-z0-9._-]{0,150})',line)
+              if not match or match[2] in expected:
+                  raise SystemExit('Malformed source checksum manifest')
+              expected[match[2]]=match[1]
+          if set(expected)!=required-{'SHA256SUMS'}:
+              raise SystemExit('Unexpected source checksum records')
+          for name,sha in expected.items():
+              with (stage/name).open('rb') as source:
+                  if hashlib.file_digest(source,'sha256').hexdigest()!=sha:
+                      raise SystemExit('Source asset differs from pinned digest')
+          provenance={'repository':repo,'releaseTag':tag,'releaseId':release_id,'releaseDraft':True,
+                      'projectId':project,'checksumManifestSha256':pin,'helpersExecuted':False,
+                      'gameExecuted':False,'appleSecretsUsed':False}
+          (stage/'input-provenance.json').write_text(json.dumps(provenance,indent=2)+'\n',encoding='utf-8')
+          print('Public Farm R79/build4 inputs pinned and verified before Apple secrets')
+          PY
+      - name: Recheck archive provenance and extract only Farm build 4
+        run: |
+          python3 - <<'PY'
+          import hashlib,json,os,pathlib,re
+          stage=pathlib.Path(os.environ['CI_INPUT'])
+          required={'SHA256SUMS','ci_ios_export.sh','ci_verify_ios.py','pixel-idle-farm-skill-ios-source.zip','input-provenance.json'}
+          pin='f233724d1dee1f6f0a99ff17d5bc96f8bc9ebbc3038a8044c084f7b3c53c1c41'
+          if not stage.is_dir() or {path.name for path in stage.iterdir()}!=required:
+              raise SystemExit('Source staging differs from the expected files')
+          proof=json.loads((stage/'input-provenance.json').read_text(encoding='utf-8'))
+          if proof.get('repository')!='mars-tw/taiwan-train-math' or proof.get('releaseTag')!='farm-r79-build4-20261013' or proof.get('releaseDraft') is not True or proof.get('releaseId')!=411689622 or proof.get('projectId')!='pixel-idle-farm-skill' or proof.get('checksumManifestSha256')!=pin or any(proof.get(key) is not False for key in ('helpersExecuted','gameExecuted','appleSecretsUsed')):
+              raise SystemExit('Farm source provenance differs from pinned Release')
+          sums=stage/'SHA256SUMS'
+          if hashlib.sha256(sums.read_bytes()).hexdigest()!=pin:
+              raise SystemExit('Farm source checksum pin mismatch')
+          expected={}
+          for line in sums.read_text(encoding='utf-8').splitlines():
+              match=re.fullmatch(r'([0-9a-f]{64})  ([A-Za-z0-9][A-Za-z0-9._-]{0,150})',line)
+              if not match or match[2] in expected:
+                  raise SystemExit('Malformed Farm checksum manifest')
+              expected[match[2]]=match[1]
+          if set(expected)!=required-{'SHA256SUMS','input-provenance.json'}:
+              raise SystemExit('Unexpected Farm source files')
+          for name,sha in expected.items():
+              with (stage/name).open('rb') as source:
+                  if hashlib.file_digest(source,'sha256').hexdigest()!=sha:
+                      raise SystemExit('Relayed Farm source differs from pinned digest')
+          PY
+          python3 "$CI_INPUT/ci_verify_ios.py" extract --zip "$CI_INPUT/pixel-idle-farm-skill-ios-source.zip" --destination "$APP_SOURCE"
+          python3 - <<'PY'
+          import json,os,pathlib
+          source=pathlib.Path(os.environ['APP_SOURCE'])
+          proof=json.loads((source/'source-provenance.json').read_text(encoding='utf-8'))
+          manifest=json.loads((source/'bundle-manifest.json').read_text(encoding='utf-8'))
+          if proof.get('sourceHead')!='a22d9517f573a9b9fc37041eabfd5a56a651b66a' or proof.get('workingPayloadBundleManifestSha256')!='0ffea15d4f31b93ea0d0c57bf3f4f25a9bb01569040cf5bfa7f8070792c211ff' or (manifest.get('version'),manifest.get('build'))!=('1.0.1',4) or 'r79-20261013-1' not in (source/'web/index.html').read_text(encoding='utf-8'):
+              raise SystemExit('Extracted Farm source is not reviewed R79/build4')
+          PY
+          python3 "$CI_INPUT/ci_verify_ios.py" source --root "$APP_SOURCE" --project "$PROJECT_ID" --output "$PUBLIC_OUTPUT/source-verification.json"
+      - name: Install pinned dependencies and synchronize iOS
+        run: bash "$CI_INPUT/ci_ios_export.sh" prepare "$APP_SOURCE" "$PROJECT_ID" "$PUBLIC_OUTPUT"
+      - name: Compile and capture fresh iPhone and iPad simulators
+        run: bash "$CI_INPUT/ci_ios_export.sh" sim "$APP_SOURCE" "$PROJECT_ID" "$PUBLIC_OUTPUT"
+      - name: Reverify public helpers and game source before exposing Apple secrets
+        run: |
+          python3 - <<'PY'
+          import hashlib,json,os,pathlib,re
+          stage=pathlib.Path(os.environ['CI_INPUT'])
+          pin='f233724d1dee1f6f0a99ff17d5bc96f8bc9ebbc3038a8044c084f7b3c53c1c41'
+          required={'ci_ios_export.sh','ci_verify_ios.py','pixel-idle-farm-skill-ios-source.zip'}
+          sums=stage/'SHA256SUMS'
+          if not sums.is_file() or sums.is_symlink() or hashlib.sha256(sums.read_bytes()).hexdigest()!=pin:
+              raise SystemExit('Farm source pin changed before Apple signing')
+          expected={}
+          for line in sums.read_text(encoding='utf-8').splitlines():
+              match=re.fullmatch(r'([0-9a-f]{64})  ([A-Za-z0-9][A-Za-z0-9._-]{0,150})',line)
+              if not match or match[2] in expected:
+                  raise SystemExit('Invalid signing-input checksum record')
+              expected[match[2]]=match[1]
+          if set(expected)!=required:
+              raise SystemExit('Unexpected signing-input file set')
+          for name,sha in expected.items():
+              file=stage/name
+              if not file.is_file() or file.is_symlink():
+                  raise SystemExit('Missing or linked signing input')
+              with file.open('rb') as data:
+                  if hashlib.file_digest(data,'sha256').hexdigest()!=sha:
+                      raise SystemExit('Signing input changed after source verification')
+          out=pathlib.Path(os.environ['PUBLIC_OUTPUT'])
+          source=json.loads((out/'source-verification.json').read_text(encoding='utf-8'))
+          simulator=json.loads((out/'simulator-verification.json').read_text(encoding='utf-8'))
+          manifest_sha='0ffea15d4f31b93ea0d0c57bf3f4f25a9bb01569040cf5bfa7f8070792c211ff'
+          if source.get('sourceVerified') is not True or source.get('manifestSha256')!=manifest_sha or simulator.get('payloadManifestSha256')!=manifest_sha or (source.get('version'),source.get('build'))!=('1.0.1',4) or (simulator.get('version'),simulator.get('build'))!=('1.0.1',4):
+              raise SystemExit('Pre-sign Farm source/simulator receipts mismatch')
+          print('Pinned Farm helper, source, and receipts reverified before Apple secret step')
+          PY
+          python3 "$CI_INPUT/ci_verify_ios.py" source --root "$APP_SOURCE" --project "$PROJECT_ID" --output "$PUBLIC_OUTPUT/source-verification.json"
+      - name: Sign and verify App Store IPA
+        env:
+          APPLE_DISTRIBUTION_P12_BASE64: ${{ secrets.APPLE_DISTRIBUTION_P12_BASE64 }}
+          APPLE_DISTRIBUTION_P12_PASSWORD: ${{ secrets.APPLE_DISTRIBUTION_P12_PASSWORD }}
+          APPLE_APPSTORE_PROFILE_BASE64: ${{ secrets.APPLE_APPSTORE_PROFILE_BASE64 }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          python3 - <<'PY'
+          import hashlib,os,pathlib
+          stage=pathlib.Path(os.environ['CI_INPUT'])
+          expected={'ci_ios_export.sh':'0d687014e006813daf4531ad6d8db6c775194873503026224c020258268f1dcf',
+                    'ci_verify_ios.py':'3bc02ec4d4888844c8800f93eaf540d3a992b547ccce71202d5c6c23a5b95cc3',
+                    'pixel-idle-farm-skill-ios-source.zip':'12ed9a919974891c9f85340e695e239d83f9c10458fc3cb39a4cd1735dca4f57'}
+          for name,sha in expected.items():
+              path=stage/name
+              if not path.is_file() or path.is_symlink():
+                  raise SystemExit('Pinned signing input unavailable')
+              with path.open('rb') as data:
+                  if hashlib.file_digest(data,'sha256').hexdigest()!=sha:
+                      raise SystemExit('Pinned signing input changed immediately before export')
+          PY
+          bash "$CI_INPUT/ci_ios_export.sh" sign "$APP_SOURCE" "$PROJECT_ID" "$PUBLIC_OUTPUT"
+      - name: Package exact-run IPA and screenshots into one draft Release asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import hashlib,json,os,pathlib,re,struct,subprocess,zipfile
+          repo='mars-tw/taiwan-train-math'
+          tag='farm-r79-build4-20261013'
+          release_id=411689622
+          pin='f233724d1dee1f6f0a99ff17d5bc96f8bc9ebbc3038a8044c084f7b3c53c1c41'
+          out=pathlib.Path(os.environ['PUBLIC_OUTPUT'])
+          stage=pathlib.Path(os.environ['CI_INPUT'])
+          provenance=json.loads((stage/'input-provenance.json').read_text(encoding='utf-8'))
+          source=json.loads((out/'source-verification.json').read_text(encoding='utf-8'))
+          simulator=json.loads((out/'simulator-verification.json').read_text(encoding='utf-8'))
+          signed=json.loads((out/'verification.json').read_text(encoding='utf-8'))
+          manifest_sha='0ffea15d4f31b93ea0d0c57bf3f4f25a9bb01569040cf5bfa7f8070792c211ff'
+          if source.get('sourceVerified') is not True or signed.get('status')!='SIGNED_AND_VERIFIED' or signed.get('appleCodeSignatureChainVerified') is not True or signed.get('profileAppAndTeamVerified') is not True or signed.get('profileCertificateMatchesSigner') is not True:
+              raise SystemExit('Signed iOS receipt is incomplete')
+          for receipt in (source,simulator,signed):
+              if (receipt.get('version'),receipt.get('build'))!=('1.0.1',4):
+                  raise SystemExit('iOS receipt version/build mismatch')
+          if source.get('manifestSha256')!=manifest_sha or simulator.get('payloadManifestSha256')!=manifest_sha or signed.get('payloadManifestSha256')!=manifest_sha:
+              raise SystemExit('iOS receipts do not match reviewed Farm payload')
+          ipa=out/'signed.ipa'
+          if not ipa.is_file() or ipa.is_symlink() or ipa.stat().st_size!=signed.get('ipaBytes'):
+              raise SystemExit('Signed IPA file/size mismatch')
+          with ipa.open('rb') as data:
+              ipa_sha=hashlib.file_digest(data,'sha256').hexdigest()
+          if ipa_sha!=signed.get('ipaSha256'):
+              raise SystemExit('Signed IPA digest differs from verification')
+          if hashlib.sha256((stage/'SHA256SUMS').read_bytes()).hexdigest()!=pin:
+              raise SystemExit('Source pin changed before upload')
+          run_id=os.environ.get('GITHUB_RUN_ID','')
+          if not re.fullmatch(r'[1-9][0-9]*',run_id):
+              raise SystemExit('An exact GitHub run ID is required for this evidence package')
+          launch=json.loads((out/'simulator-launch.json').read_text(encoding='utf-8'))
+          if launch.get('projectId')!='pixel-idle-farm-skill' or launch.get('actualSimulator') is not True or launch.get('freshDevices') is not True:
+              raise SystemExit('Fresh Farm simulator capture receipt is required')
+          expected_shots={'screenshots/iphone-cold.png':(1320,2868),'screenshots/iphone-relaunch.png':(1320,2868),
+                          'screenshots/ipad-cold.png':(2064,2752),'screenshots/ipad-relaunch.png':(2064,2752)}
+          shots=launch.get('screenshots')
+          if not isinstance(shots,list) or len(shots)!=4 or {item.get('file') for item in shots if isinstance(item,dict)}!=set(expected_shots):
+              raise SystemExit('Exactly four expected iPhone/iPad simulator screenshots are required')
+          members={'signed.ipa':ipa,'source-verification.json':out/'source-verification.json',
+                   'simulator-verification.json':out/'simulator-verification.json',
+                   'simulator-launch.json':out/'simulator-launch.json','verification.json':out/'verification.json'}
+          screenshot_hashes={}
+          for shot in shots:
+              name=shot['file'];path=out/name
+              if not path.is_file() or path.is_symlink() or not path.resolve().is_relative_to(out.resolve()) or not 0<path.stat().st_size<=20*1024**2:
+                  raise SystemExit('Missing, linked, or oversized simulator screenshot')
+              with path.open('rb') as data:
+                  header=data.read(26)
+              if len(header)!=26 or header[:8]!=b'\x89PNG\r\n\x1a\n' or header[12:16]!=b'IHDR' or header[25]!=2:
+                  raise SystemExit('Simulator screenshot must be a decoded RGB PNG')
+              dimensions=struct.unpack('>II',header[16:24])
+              if dimensions!=expected_shots[name] or (shot.get('width'),shot.get('height'))!=dimensions or shot.get('nativeResolution') is not True or shot.get('uiResized') is not False:
+                  raise SystemExit('Simulator screenshot geometry differs from capture receipt')
+              with path.open('rb') as data:
+                  sha=hashlib.file_digest(data,'sha256').hexdigest()
+              if sha!=shot.get('sha256'):
+                  raise SystemExit('Simulator screenshot hash differs from capture receipt')
+              screenshot_hashes[name]=sha;members[name]=path
+          descriptors=[]
+          for name,path in sorted(members.items()):
+              if not path.is_file() or path.is_symlink() or not path.resolve().is_relative_to(out.resolve()) or path.stat().st_size<=0 or (name.endswith('.json') and path.stat().st_size>1024**2):
+                  raise SystemExit('Missing or unsafe exact-run evidence member')
+              with path.open('rb') as data:
+                  sha=hashlib.file_digest(data,'sha256').hexdigest()
+              if name in screenshot_hashes and sha!=screenshot_hashes[name]:
+                  raise SystemExit('Simulator screenshot changed while packaging')
+              descriptors.append({'name':name,'bytes':path.stat().st_size,'sha256':sha})
+          ipa_record=next((item for item in descriptors if item['name']=='signed.ipa'),None)
+          if len(descriptors)!=9 or not ipa_record or ipa_record['sha256']!=ipa_sha:
+              raise SystemExit('Exact-run evidence member list or signed IPA changed')
+          release_manifest=out/'release-payload-manifest.json'
+          with release_manifest.open('x',encoding='utf-8') as handle:
+              handle.write(json.dumps({'projectId':'pixel-idle-farm-skill','version':'1.0.1','build':4,
+                  'runId':run_id,'sourceHead':'a22d9517f573a9b9fc37041eabfd5a56a651b66a','sourcePin':pin,
+                  'releaseId':provenance['releaseId'],'storeUploadPerformed':False,'physicalDeviceTested':False,
+                  'archiveMembers':sorted([*members,'release-payload-manifest.json']),'entries':descriptors},indent=2)+'\n')
+          members['release-payload-manifest.json']=release_manifest
+          with release_manifest.open('rb') as data:
+              descriptors.append({'name':release_manifest.name,'bytes':release_manifest.stat().st_size,
+                                  'sha256':hashlib.file_digest(data,'sha256').hexdigest()})
+          evidence=out/('farm-r79-build4-evidence-'+run_id+'.zip')
+          with zipfile.ZipFile(evidence,'x',compression=zipfile.ZIP_STORED,allowZip64=True) as archive:
+              for name,path in sorted(members.items()):
+                  archive.write(path,name)
+          with zipfile.ZipFile(evidence) as archive:
+              if len(archive.namelist())!=10 or set(archive.namelist())!=set(members):
+                  raise SystemExit('Evidence ZIP has missing, duplicate, or unexpected members')
+              for item in descriptors:
+                  info=archive.getinfo(item['name'])
+                  if info.file_size!=item['bytes'] or info.compress_type!=zipfile.ZIP_STORED:
+                      raise SystemExit('Evidence ZIP member byte count changed')
+                  digest=hashlib.sha256()
+                  with archive.open(item['name']) as data:
+                      for block in iter(lambda:data.read(1024*1024),b''):
+                          digest.update(block)
+                  if digest.hexdigest()!=item['sha256']:
+                      raise SystemExit('Evidence ZIP member SHA-256 changed')
+          if not 0<evidence.stat().st_size<250*1024**2:
+              raise SystemExit('Evidence ZIP size is outside the expected bound')
+          with evidence.open('rb') as data:
+              evidence_sha=hashlib.file_digest(data,'sha256').hexdigest()
+          expected_asset={'name':evidence.name,'bytes':evidence.stat().st_size,'sha256':evidence_sha}
+          def read_release():
+              result=subprocess.run(['gh','api','--method','GET',f'repos/{repo}/releases/{release_id}'],capture_output=True,timeout=60)
+              if result.returncode:
+                  raise SystemExit('Cannot read the same draft Release')
+              return json.loads(result.stdout)
+          before=read_release()
+          if before.get('id')!=release_id or provenance['releaseId']!=release_id or before.get('tag_name')!=tag or before.get('draft') is not True:
+              raise SystemExit('Draft Release identity/state changed')
+          resolved=subprocess.run(['gh','release','view',tag,'--repo',repo,'--json','isDraft,tagName'],capture_output=True,timeout=60)
+          if resolved.returncode:
+              raise SystemExit('gh CLI can no longer resolve the pinned draft Release by tag')
+          cli=json.loads(resolved.stdout)
+          if cli.get('isDraft') is not True or cli.get('tagName')!=tag:
+              raise SystemExit('gh CLI resolved an unexpected draft Release before upload')
+          if not os.environ.get('GH_TOKEN'):
+              raise SystemExit('Release upload credential is unavailable')
+          if expected_asset['name'] in {asset.get('name') for asset in before.get('assets',[]) if isinstance(asset,dict)}:
+              raise SystemExit('This exact-run evidence ZIP already exists; do not overwrite or retry blindly')
+          journal=out/('release-evidence-upload-once-'+run_id+'.json')
+          with journal.open('x',encoding='utf-8') as handle:
+              json.dump({'releaseId':before['id'],'tag':tag,'runId':run_id,'attempt':'ONE_SHOT',
+                         'expectedAsset':expected_asset,'archiveMembers':descriptors},handle,indent=2)
+              handle.write('\n');handle.flush();os.fsync(handle.fileno())
+          with pathlib.Path(os.environ['GITHUB_STEP_SUMMARY']).open('a',encoding='utf-8') as summary:
+              summary.write('Farm R79 build 4: one-shot exact-run evidence ZIP upload attempted. Release ID '+str(before['id'])+'; run ID '+run_id+'. Inspect the Release before any retry.\n')
+              summary.write('- ZIP '+expected_asset['name']+': '+str(expected_asset['bytes'])+' bytes; SHA-256 '+expected_asset['sha256']+'\n')
+              for record in descriptors:
+                  summary.write('  - '+record['name']+': '+str(record['bytes'])+' bytes; SHA-256 '+record['sha256']+'\n')
+          upload=subprocess.run(['gh','release','upload',tag,str(evidence),'--repo',repo],capture_output=True,timeout=900)
+          if upload.returncode:
+              raise SystemExit('Evidence ZIP upload failed or outcome is uncertain; inspect the Release before retry')
+          after=read_release()
+          if after.get('id')!=before['id'] or after.get('tag_name')!=tag or after.get('draft') is not True:
+              raise SystemExit('Release changed during upload; inspect it before any further action')
+          assets={asset.get('name'):asset for asset in after.get('assets',[]) if isinstance(asset,dict)}
+          asset=assets.get(expected_asset['name'])
+          if not asset or asset.get('state')!='uploaded' or asset.get('size')!=expected_asset['bytes'] or asset.get('digest')!='sha256:'+expected_asset['sha256']:
+              raise SystemExit('Evidence ZIP readback incomplete; inspect before any retry')
+          with pathlib.Path(os.environ['GITHUB_STEP_SUMMARY']).open('a',encoding='utf-8') as summary:
+              summary.write('Exact-run evidence ZIP state, size and SHA-256 read back from the draft Release. No App Store upload.\n')
+          print('Signed Farm IPA, five receipts and four simulator PNGs archived and uploaded once; no store upload')
+          PY

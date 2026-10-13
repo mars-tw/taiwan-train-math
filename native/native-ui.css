@@ -12,3 +12,9 @@ body.native-app { -webkit-touch-callout: none; }
 .native-app #native-parent-gate p { line-height: 1.6; margin: 8px 0; }
 .native-app .native-storage-note { padding: 12px; background: #fff1c9; color: #604923; margin: 8px 0; }
 .native-app .native-local-note { color: #607c71; font-size: 13px; line-height: 1.6; margin-top: 12px; }
+.native-app .native-parent-resources { margin: 20px 30px; border-top: 1px solid var(--line); padding-top: 12px; }
+.native-app .native-parent-resources h3 { margin: 18px 0 8px; font-size: 17px; }
+.native-app .native-parent-resources details { border-bottom: 1px solid var(--line); padding: 5px 0; }
+.native-app .native-parent-resources summary { min-height: 44px; padding: 10px 0; cursor: pointer; }
+.native-app .native-parent-resources p { font-size: 13px; margin: 8px 0; }
+.native-app .native-parent-resources a { display: block; min-height: 44px; padding: 10px 0; overflow-wrap: anywhere; font-size: 13px; }

@@ -52,6 +52,8 @@ import { createProgramPlayback } from "./program-playback.js?v=1.11.0";
 import { resolvePage } from "./navigation.js?v=1.11.0";
 import { backAction, attachNativeLifecycle } from "./native-runtime.js?v=1.11.0";
 import { encodeBackup, decodeBackup } from "./progress-backup.js?v=1.11.0";
+import { LEARNING_SOURCES } from "./learning-content.js?v=1.11.0";
+import { photoCreditsMarkup, trainSourceLinkMarkup, parentResourcesMarkup } from "./parent-resources.js?v=1.11.0";
 
 const nativeHost = window.TrainMathNative;
 if (nativeHost?.native) {
@@ -86,6 +88,7 @@ const esc = (value) =>
       ],
   );
 const $ = (selector) => document.querySelector(selector);
+if (nativeHost?.native) $("#about-open").textContent = "家長資料與授權";
 const storySession = newStoryState();
 const motionPreference = window.matchMedia("(prefers-reduced-motion: reduce)");
 let storyHandle = null;
@@ -336,7 +339,7 @@ function artNote(t) {
 function photoCredits(t) {
   const p = verifiedPhoto(t);
   if (!p) return `<p class="photo-credit">${esc(t.referencePhoto?.reason || "還在尋找可確認型號及授權的實車照片。")}</p>`;
-  return `<div class="photo-credit"><p>${esc(p.modelEvidence)}</p><p>照片：${esc(p.author)}・<a href="${esc(p.sourceUrl)}" target="_blank" rel="noopener">原始照片 ↗</a>・<a href="${esc(p.licenseUrl)}" target="_blank" rel="noopener">${esc(p.licenseName)} ↗</a></p><small>僅下載縮圖供顯示，未修改實車內容。</small></div>`;
+  return photoCreditsMarkup(p, { native: nativeHost?.native, esc });
 }
 function photoRetryButton(t) {
   return verifiedPhoto(t) ? `<button class="text-btn train-photo-retry" data-train-photo-retry="${esc(t.id)}" hidden aria-label="重新載入${esc(displayTrain(t).name)}的照片">照片未載入，重新載入 ↻</button>` : "";
@@ -554,7 +557,7 @@ function detail(id) {
   if (!raw) return;
   const t = displayTrain(raw);
   $("#detail-content").innerHTML =
-    `<form method="dialog" class="detail-top"><button class="close-btn" aria-label="關閉列車介紹">×</button></form>${image(t, "detail-image", false)}<div class="detail-body">${tag(t)}<h2 id="detail-title">${esc(t.name)}</h2><div class="model-badge">${esc(t.model)} <small>${t.modelKind === "type" ? "型號" : t.modelKind === "fleet" ? "車號系列" : "列車名稱／編組說明"}</small></div><p>${esc(learningDiscovery(t.id, { topic: "train" }).text)}</p><details class="train-more"><summary>更多列車知識</summary><p>${esc(t.intro)}</p><p class="train-fact">${esc(t.fact)}</p></details><div class="detail-actions"><button class="secondary-btn" data-speak="${t.id}">♪ 聽聽名字</button><button class="primary-btn" data-travel="${t.id}">搭這台出發 →</button></div>${photoCredits(t)}${photoRetryButton(t)}<div class="detail-source"><small>${artNote(t)}・${esc(t.operator)}<br>${esc(t.note || "列車名稱與型號是教材資料；圖片細節以實車為準。")}</small><a href="${esc(t.sources[0])}" target="_blank" rel="noopener">資料來源 ↗</a></div></div>`;
+    `<form method="dialog" class="detail-top"><button class="close-btn" aria-label="關閉列車介紹">×</button></form>${image(t, "detail-image", false)}<div class="detail-body">${tag(t)}<h2 id="detail-title">${esc(t.name)}</h2><div class="model-badge">${esc(t.model)} <small>${t.modelKind === "type" ? "型號" : t.modelKind === "fleet" ? "車號系列" : "列車名稱／編組說明"}</small></div><p>${esc(learningDiscovery(t.id, { topic: "train" }).text)}</p><details class="train-more"><summary>更多列車知識</summary><p>${esc(t.intro)}</p><p class="train-fact">${esc(t.fact)}</p></details><div class="detail-actions"><button class="secondary-btn" data-speak="${t.id}">♪ 聽聽名字</button><button class="primary-btn" data-travel="${t.id}">搭這台出發 →</button></div>${photoCredits(t)}${photoRetryButton(t)}<div class="detail-source"><small>${artNote(t)}・${esc(t.operator)}<br>${esc(t.note || "列車名稱與型號是教材資料；圖片細節以實車為準。")}</small>${trainSourceLinkMarkup(t, { native: nativeHost?.native, esc })}</div></div>`;
   $("#detail-dialog").showModal();
 }
 function settings() {
@@ -689,7 +692,7 @@ function questionHeading(q) {
 function completedDiscovery(q) {
   if (!trip.solved) return '';
   const id = ['identify', 'puzzle'].includes(q.game) ? q.target : trip.train.id;
-  return discoveryMarkup(learningDiscovery(id, { index: trip.index }), { esc });
+  return discoveryMarkup(learningDiscovery(id, { index: trip.index }), { esc, native: nativeHost?.native });
 }
 function spokenQuestionText(q) {
   if (!q) return '';
@@ -1643,7 +1646,15 @@ document.addEventListener("click", async (event) => {
       break;
     case "about-open":
       storyHandle?.pause();
-      $("#about-dialog").showModal();
+      if (nativeHost?.native) nativeHost.openParentArea?.(() => {
+        let resources = $("#native-parent-resources");
+        if (!resources) {
+          resources = document.createElement("div"); resources.id = "native-parent-resources";
+          $("#about-dialog").append(resources);
+        }
+        resources.innerHTML = parentResourcesMarkup(trains, LEARNING_SOURCES, { verifiedPhoto, esc });
+      });
+      else $("#about-dialog").showModal();
       break;
     case "clear-progress":
       $("#clear-confirm").innerHTML =

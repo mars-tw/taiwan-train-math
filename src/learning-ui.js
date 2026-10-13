@@ -13,11 +13,11 @@ export function countingScene(q, { counted = new Set(), solved = false } = {}, {
   return `<div class="stage-label">一位乘客，數一次</div>${passengers}<div class="count-status">${solved ? `月台一共有 ${q.count} 位乘客。` : "點過會留下 ✓，請你自己數，再選答案。"}</div>`;
 }
 
-export function discoveryMarkup(card, { esc = escapeHtml } = {}) {
+export function discoveryMarkup(card, { esc = escapeHtml, native = false } = {}) {
   if (!card || typeof card.text !== "string" || !card.text) return "";
   const kind = ["train", "place"].includes(card.kind) ? card.kind : "general";
   const icon = kind === "train" ? "🚆" : kind === "place" ? "🌿" : "💡";
   const label = kind === "place" ? "認識真實臺灣" : kind === "train" ? "認識真實列車" : "旅途小發現";
   const sources = Array.isArray(card.sources) ? card.sources.filter(source => /^https:\/\//.test(source?.url || "") && typeof source.title === "string") : [];
-  return `<aside class="learning-discovery" aria-label="${label}"><span class="learning-discovery-icon" aria-hidden="true">${icon}</span><div><small>${label}${card.place?.region ? ` · ${esc(card.place.region)}` : ""}</small><p class="learning-discovery-text">${esc(card.text)}</p>${sources.length ? `<details class="learning-sources"><summary>家長看來源</summary>${sources.map(source => `<a href="${esc(source.url)}" target="_blank" rel="noopener">${esc(source.title)} ↗</a>`).join("")}</details>` : ""}</div><button type="button" id="learning-read" class="icon-btn" aria-label="聽這個小發現">🔊</button></aside>`;
+  return `<aside class="learning-discovery" aria-label="${label}"><span class="learning-discovery-icon" aria-hidden="true">${icon}</span><div><small>${label}${card.place?.region ? ` · ${esc(card.place.region)}` : ""}</small><p class="learning-discovery-text">${esc(card.text)}</p>${!native && sources.length ? `<details class="learning-sources"><summary>家長看來源</summary>${sources.map(source => `<a href="${esc(source.url)}" target="_blank" rel="noopener">${esc(source.title)} ↗</a>`).join("")}</details>` : ""}</div><button type="button" id="learning-read" class="icon-btn" aria-label="聽這個小發現">🔊</button></aside>`;
 }

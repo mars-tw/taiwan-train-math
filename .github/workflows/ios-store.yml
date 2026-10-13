@@ -1,114 +1,166 @@
-name: Export verified iOS archive for App Store Connect
+name: Build and verify Train Math iOS 1.0.0 build 2
 
 on:
   workflow_dispatch:
     inputs:
-      source_run:
-        description: Native workflow run containing apple-app-packages
+      source_sha:
+        description: Approved full 40-character main-branch source commit
         type: string
-        default: '37458546306'
         required: true
-      strategy:
-        description: Re-archive only if existing unsigned archive export is rejected
-        type: choice
-        options: [export-existing, signed-rearchive]
-        default: export-existing
       upload:
-        description: Validate and upload to Apple (not App Store publication)
+        description: Validate and upload to Apple after the signed IPA is saved in a draft Release
         type: boolean
         default: false
 
+# A one-shot draft Release holds the reviewed IPA. Actions artifact storage is
+# not used: the account's artifact quota may already be exhausted.
 permissions:
-  contents: read
-  actions: read
+  contents: write
 concurrency:
   group: train-math-ios-store
   cancel-in-progress: false
 
 jobs:
+  pin_source:
+    if: github.event_name == 'workflow_dispatch' && github.repository == 'mars-tw/taiwan-train-math' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    env:
+      APPROVED_SOURCE_SHA: ${{ inputs.source_sha }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with: {ref: '${{ github.sha }}', persist-credentials: false}
+      - name: Pin the explicitly approved source before entering the Apple environment
+        run: |
+          python3 - <<'PY'
+          import os,re,subprocess
+          approved=os.environ.get('APPROVED_SOURCE_SHA','')
+          head=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()
+          if (not re.fullmatch(r'[0-9a-f]{40}',approved) or approved!=head
+                  or approved!=os.environ['GITHUB_SHA'] or os.environ['GITHUB_REF']!='refs/heads/main'
+                  or os.environ['GITHUB_REPOSITORY']!='mars-tw/taiwan-train-math'):
+              raise SystemExit('Approved main-branch source SHA does not match this checkout')
+          if subprocess.check_output(['git','status','--porcelain']):
+              raise SystemExit('Checkout is not clean')
+          print('Explicit approved source SHA verified without Apple environment or secrets')
+          PY
   export:
-    if: github.ref == 'refs/heads/main'
+    needs: pin_source
+    if: github.event_name == 'workflow_dispatch' && github.repository == 'mars-tw/taiwan-train-math' && github.ref == 'refs/heads/main'
     runs-on: macos-15
     environment: apple-store
-    timeout-minutes: 45
+    timeout-minutes: 75
     env:
       DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
-      IOS_SOURCE_RUN: ${{ inputs.source_run }}
+      IOS_ARCHIVE_STRATEGY: signed-rearchive
+      APPROVED_SOURCE_SHA: ${{ inputs.source_sha }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with: {persist-credentials: false}
-      - name: Check artifact source provenance
-        id: source
-        env:
-          GH_API_TOKEN: ${{ github.token }}
+      - name: Require the approved source SHA on main before any Apple secrets
         run: |
           python3 - <<'PY'
-          import json,os,pathlib,re,urllib.request
-          run=os.environ['IOS_SOURCE_RUN']; repo=os.environ['GITHUB_REPOSITORY']
-          if not re.fullmatch(r'[1-9][0-9]{0,19}',run): raise SystemExit('Invalid source run')
-          def get(path):
-              req=urllib.request.Request('https://api.github.com/repos/'+repo+path,headers={'Authorization':'Bearer '+os.environ['GH_API_TOKEN'],'Accept':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'})
-              try:
-                  with urllib.request.urlopen(req,timeout=30) as response: return json.load(response)
-              except Exception: raise SystemExit('Cannot verify source run/artifact')
-          source=get('/actions/runs/'+run)
-          if source.get('status')!='completed' or source.get('head_branch')!='main' or source.get('event') not in ['push','workflow_dispatch'] or source.get('head_repository',{}).get('full_name')!=repo or source.get('path','').split('@')[0]!='.github/workflows/native.yml': raise SystemExit('Rejected untrusted source run')
-          sha=source.get('head_sha','')
-          if not re.fullmatch(r'[0-9a-f]{40}',sha): raise SystemExit('Invalid source SHA')
-          artifacts=get('/actions/runs/'+run+'/artifacts?per_page=100')['artifacts']
-          matches=[a for a in artifacts if a.get('name')=='apple-app-packages' and not a.get('expired')]
-          if len(matches)!=1: raise SystemExit('Need one unexpired apple-app-packages artifact')
-          report={'sourceRun':run,'sourceSha':sha,'sourceConclusion':source.get('conclusion'),'artifactId':matches[0]['id'],'artifactName':'apple-app-packages'}
-          out=pathlib.Path('output'); out.mkdir(parents=True,exist_ok=True)
-          (out/'ios-store-provenance.json').write_text(json.dumps(report,indent=2))
-          with open(os.environ['GITHUB_OUTPUT'],'a') as f: f.write('sha='+sha+'\n')
+          import os,re,subprocess
+          approved=os.environ.get('APPROVED_SOURCE_SHA','')
+          checked_out=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()
+          if (not re.fullmatch(r'[0-9a-f]{40}',approved) or approved!=checked_out
+                  or approved!=os.environ['GITHUB_SHA'] or os.environ['GITHUB_REF']!='refs/heads/main'
+                  or os.environ['GITHUB_REPOSITORY']!='mars-tw/taiwan-train-math'):
+              raise SystemExit('Approved main-branch source SHA does not match this checkout')
+          if subprocess.check_output(['git','status','--porcelain']):
+              raise SystemExit('Checkout is not clean before the native build')
+          print('Approved exact main-branch source commit verified before dependencies and secrets')
           PY
-      - name: Download the already compiled archive and manifest
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
-        with:
-          name: apple-app-packages
-          path: output/ios-store-source
-          run-id: ${{ inputs.source_run }}
-          github-token: ${{ github.token }}
-      - name: Fetch the exact source only for explicitly selected fallback
-        if: inputs.strategy == 'signed-rearchive'
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
-        with:
-          ref: ${{ steps.source.outputs.sha }}
-          path: source-archive
-          persist-credentials: false
-      - if: inputs.strategy == 'signed-rearchive'
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
-        with: {node-version: '24'}
-      - name: Install pinned source dependencies without signing secrets
-        if: inputs.strategy == 'signed-rearchive'
-        working-directory: source-archive
-        run: npm ci
-      - name: Export and verify signed IPA
-        id: sign
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with: {node-version: '24', cache: npm}
+      - name: Install and test the exact checked-out source
+        run: |
+          npm ci
+          npm test
+      - name: Build the offline bundle and synchronize iOS
+        run: npm run native:sync
+      - name: Prepare fresh iPhone and iPad simulators
+        run: node scripts/ios-simulator-smoke.mjs --prepare
+      - name: Compile and launch the simulator app on both device families
+        run: |
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-version
+          xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Debug -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath output/ios-derived CODE_SIGNING_ALLOWED=NO build
+          node scripts/ios-simulator-smoke.mjs
+      - name: Archive the device app without Apple signing material
+        run: |
+          xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Release -destination 'generic/platform=iOS' -archivePath output/TrainMath-unsigned.xcarchive CODE_SIGNING_ALLOWED=NO archive
+      - name: Stage and verify the same-run unsigned archive and bundle manifest
+        run: |
+          mkdir -p output/ios-store-source
+          ditto -c -k --sequesterRsrc --keepParent output/TrainMath-unsigned.xcarchive output/ios-store-source/TrainMath-unsigned.xcarchive.zip
+          cp output/native/bundle-manifest.json output/ios-store-source/bundle-manifest.json
+          python3 - <<'PY'
+          import hashlib,json,os,pathlib,re
+          root=pathlib.Path('output'); source=root/'ios-store-source'
+          manifest=source/'bundle-manifest.json'
+          archive=source/'TrainMath-unsigned.xcarchive.zip'
+          expected=(os.environ['GITHUB_REPOSITORY'],os.environ['GITHUB_SHA'],os.environ['GITHUB_RUN_ID'],os.environ['APPROVED_SOURCE_SHA'])
+          if expected[0]!='mars-tw/taiwan-train-math' or not re.fullmatch(r'[0-9a-f]{40}',expected[1]) or not re.fullmatch(r'[1-9][0-9]*',expected[2]) or expected[1]!=expected[3]:
+              raise SystemExit('Unexpected source repository, approved SHA or run ID')
+          if not archive.is_file() or archive.is_symlink() or not 0<archive.stat().st_size<1024**3:
+              raise SystemExit('Unsigned archive unavailable or oversized')
+          data=json.loads(manifest.read_text(encoding='utf-8'))
+          if data.get('appId')!='tw.mars.trainmath' or data.get('remoteServer') is not False or not isinstance(data.get('files'),list):
+              raise SystemExit('Native bundle manifest is invalid')
+          project=pathlib.Path('ios/App/App.xcodeproj/project.pbxproj').read_text(encoding='utf-8')
+          if project.count('CURRENT_PROJECT_VERSION = 2;')!=2 or project.count('MARKETING_VERSION = 1.0.0;')!=2:
+              raise SystemExit('iOS native target is not exactly version 1.0.0 build 2')
+          with archive.open('rb') as data:
+              archive_sha=hashlib.file_digest(data,'sha256').hexdigest()
+          provenance={'repository':expected[0],'sourceSha':expected[1],'approvedSourceSha':expected[3],'sourceRun':expected[2],
+                      'sameRun':True,'manifestSha256':hashlib.sha256(manifest.read_bytes()).hexdigest(),
+                      'unsignedArchiveSha256':archive_sha}
+          (root/'ios-store-provenance.json').write_text(json.dumps(provenance,indent=2)+'\n',encoding='utf-8')
+          print('Same-run offline archive and build 2 metadata verified before Apple signing')
+          PY
+      - name: Export and verify the App Store signed IPA
         env:
           APPLE_DISTRIBUTION_P12_BASE64: ${{ secrets.APPLE_DISTRIBUTION_P12_BASE64 }}
           APPLE_DISTRIBUTION_P12_PASSWORD: ${{ secrets.APPLE_DISTRIBUTION_P12_PASSWORD }}
           APPLE_APPSTORE_PROFILE_BASE64: ${{ secrets.APPLE_APPSTORE_PROFILE_BASE64 }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          IOS_ARCHIVE_STRATEGY: ${{ inputs.strategy }}
         run: bash scripts/export-ios-store.sh sign
-      - name: Validate and upload only when explicitly requested
-        if: inputs.upload == true && steps.sign.outcome == 'success'
+      - name: Save exact-run IPA and public QA receipts in one draft Release asset
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/archive-ios-store-release.py --publish
+      - name: Journal the exact IPA before an optional Apple upload
+        if: inputs.upload == true
+        run: |
+          python3 - <<'PY'
+          import hashlib,json,os,pathlib
+          out=pathlib.Path('output/ios-store')
+          report=json.loads((out/'verification.json').read_text(encoding='utf-8'))
+          ipa=out/'TrainMath.ipa'
+          with ipa.open('rb') as stream:
+              sha=hashlib.file_digest(stream,'sha256').hexdigest()
+          if (report.get('bundleId'),report.get('marketingVersion'),report.get('buildNumber'),report.get('sourceSha'),report.get('sourceRun'),report.get('ipaSha256'))!=('tw.mars.trainmath','1.0.0','2',os.environ['APPROVED_SOURCE_SHA'],os.environ['GITHUB_RUN_ID'],sha):
+              raise SystemExit('Approved IPA changed before upload intent')
+          tag='trainmath-1.0.0-b2-'+os.environ['GITHUB_RUN_ID']
+          with pathlib.Path(os.environ['GITHUB_STEP_SUMMARY']).open('a',encoding='utf-8') as summary:
+              summary.write('Apple upload requested for draft Release '+tag+'; IPA SHA-256 '+sha+'. If the next step is interrupted, inspect this exact run and App Store Connect before any retry.\n')
+          PY
+      - name: Validate and upload only when explicitly selected
+        id: apple_upload
+        if: inputs.upload == true
         env:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_PRIVATE_KEY_BASE64: ${{ secrets.ASC_PRIVATE_KEY_BASE64 }}
         run: bash scripts/export-ios-store.sh upload
-      - name: Preserve only the IPA and non-secret verification results
-        if: always() && steps.sign.outcome == 'success'
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: train-math-appstore-1.0.0-1-${{ github.run_id }}
-          path: |
-            output/ios-store/TrainMath.ipa
-            output/ios-store/verification.json
-            output/ios-store/upload-result.json
-          if-no-files-found: error
-          retention-days: 7
+      - name: Attach the sanitized Apple upload result to the same draft Release
+        if: ${{ always() && inputs.upload == true && steps.release.outcome == 'success' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          APPLE_UPLOAD_STEP_OUTCOME: ${{ steps.apple_upload.outcome }}
+        run: python3 scripts/archive-ios-store-release.py --upload-result

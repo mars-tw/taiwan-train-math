@@ -2,12 +2,14 @@ import { Capacitor, registerPlugin } from "@capacitor/core";
 import { App } from "@capacitor/app";
 import { Preferences } from "@capacitor/preferences";
 import { Browser } from "@capacitor/browser";
-import { createNativeStorage, safeExternalUrl } from "../src/native-runtime.js";
+import { createNativeStorage } from "../src/native-runtime.js";
 import { createAtomicPreferences } from "../src/native-atomic-preferences.js";
+import { createParentChallenge, matchesParentChallenge, classifyNativeResourceLink } from "../src/native-parent-access.js";
 
 const OfflineSpeech = registerPlugin("OfflineSpeech");
 const host = window.TrainMathNative = {
   Capacitor, App, native: Capacitor.isNativePlatform(), storage: null,
+  parentAreaAuthorized: false,
   speechAvailable: false, speechError: null,
   async cancelSpeech() { if (host.native) await OfflineSpeech.stop().catch(() => {}); },
   async speak(text) {
@@ -37,30 +39,52 @@ host.ready = (async () => {
 function message(text) {
   document.querySelector("#announcement")?.replaceChildren(document.createTextNode(text));
 }
-function parentGate(url) {
+function parentGate(onApproved, destination) {
+  const challenge = createParentChallenge(values => window.crypto.getRandomValues(values));
+  if (!challenge) { message("家長驗證暫時無法使用，請稍後再試。"); return; }
   let dialog = document.querySelector("#native-parent-gate");
   if (!dialog) {
     dialog = document.createElement("dialog"); dialog.id = "native-parent-gate";
     dialog.setAttribute("aria-labelledby", "native-gate-title");
-    dialog.innerHTML = '<form method="dialog" class="dialog-head"><h2 id="native-gate-title">請交給家長</h2><button class="close-btn" aria-label="回到遊戲">×</button></form><p>接下來會離開遊戲，開啟外部資料網站。請家長確認後再繼續。</p><form id="native-gate-form"><label for="native-gate-answer" id="native-gate-question"></label><input id="native-gate-answer" type="text" inputmode="numeric" autocomplete="off"><p id="native-gate-result" role="status"></p><button class="primary-btn" type="submit">家長確認，開啟資料</button></form>';
+    dialog.innerHTML = '<form method="dialog" class="dialog-head"><h2 id="native-gate-title">請交給家長</h2><button class="close-btn" aria-label="回到遊戲">×</button></form><p>此區可查看素材來源與授權，部分連結會開啟外部網站。請家長確認後再繼續。</p><form id="native-gate-form"><label for="native-gate-answer" id="native-gate-question"></label><input id="native-gate-answer" type="text" inputmode="numeric" autocomplete="off"><p id="native-gate-result" role="status"></p><button class="primary-btn" type="submit">家長確認，開啟資料</button></form>';
     document.body.append(dialog);
   }
-  const first = 13 + crypto.getRandomValues(new Uint32Array(1))[0] % 17;
-  const second = 6 + crypto.getRandomValues(new Uint32Array(1))[0] % 4;
-  dialog.querySelector("#native-gate-question").textContent = `請家長計算：${first} × ${second} ＝？`;
+  dialog.querySelector("#native-gate-question").textContent = `請家長計算：${challenge.first} × ${challenge.second} ＝？`;
   dialog.querySelector("#native-gate-answer").value = "";
-  dialog.querySelector("#native-gate-title").textContent = `請交給家長 · ${new URL(url).hostname}`;
+  dialog.querySelector("#native-gate-title").textContent = `請交給家長 · ${destination}`;
   dialog.querySelector("#native-gate-result").textContent = "";
+  let completed = false;
   dialog.querySelector("#native-gate-form").onsubmit = async event => {
     event.preventDefault();
-    if (dialog.querySelector("#native-gate-answer").value.trim() !== String(first * second)) {
+    if (completed || !dialog.open) return;
+    if (!matchesParentChallenge(challenge, dialog.querySelector("#native-gate-answer").value)) {
       dialog.querySelector("#native-gate-result").textContent = "請家長再確認，或關閉回到遊戲。"; return;
     }
-    dialog.close(); await host.cancelSpeech();
-    try { await Browser.open({ url }); } catch { message("外部資料暫時無法開啟，可以繼續玩。" ); }
+    completed = true; dialog.close(); await host.cancelSpeech();
+    try { await onApproved(); } catch { message("家長資料暫時無法開啟，請稍後再試。"); }
   };
   dialog.showModal();
 }
+
+host.openParentArea = onOpen => {
+  if (!host.native || typeof onOpen !== "function") return;
+  parentGate(() => {
+    const about = document.querySelector("#about-dialog");
+    if (!about || about.open) return;
+    onOpen();
+    about.querySelector("#about-title").textContent = "家長資料與授權";
+    about.showModal();
+    host.parentAreaAuthorized = true;
+  }, "遊戲資料與授權");
+};
+function attachParentClose() {
+  document.querySelector("#about-dialog")?.addEventListener("close", () => {
+    host.parentAreaAuthorized = false;
+    document.querySelector("#native-parent-resources")?.replaceChildren();
+  });
+}
+if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", attachParentClose, { once: true });
+else attachParentClose();
 
 function showLocalDocument(url) {
   const path = new URL(url, location.href).pathname.replace(/^\//, "");
@@ -81,18 +105,12 @@ document.addEventListener("click", event => {
   if (!host.native) return;
   const link = event.target.closest?.("a[href]"); if (!link) return;
   const href = link.getAttribute("href"); if (!href || href.startsWith("#")) return;
-  const url = new URL(href, location.href);
-  const local = new URL(location.href);
-  const sameHost = url.protocol === local.protocol && url.host === local.host;
-  const documentPath = url.pathname.replace(/^\//, "");
-  if (sameHost && Object.hasOwn(window.TrainMathNativeDocuments || {}, documentPath)) {
-    event.preventDefault(); event.stopImmediatePropagation(); showLocalDocument(href); return;
-  }
-  if (sameHost) return;
   event.preventDefault(); event.stopImmediatePropagation();
-  const external = safeExternalUrl(href, location.href);
-  if (external) { host.cancelSpeech(); parentGate(external); }
-  else message("這個連結不適合直接開啟。" );
+  const decision = classifyNativeResourceLink(href, location.href, window.TrainMathNativeDocuments,
+    { authorized: host.parentAreaAuthorized, inParentArea: !!link.closest("#about-dialog[open]") });
+  if (decision.kind === "document") showLocalDocument(decision.url);
+  else if (decision.kind === "external") parentGate(() => Browser.open({ url: decision.url }), new URL(decision.url).hostname);
+  else message("請家長從頁尾開啟資料與授權。" );
 }, true);
 
 window.addEventListener("pagehide", () => { if (host.native) host.cancelSpeech(); });

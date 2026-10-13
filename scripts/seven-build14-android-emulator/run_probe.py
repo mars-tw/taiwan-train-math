@@ -1500,7 +1500,7 @@ class Probe:
                 self.maybe_swipe_observed_joystick(core_image, core_frame)
             ready_image, ready_tsv, ready_frame = self.observe_world()
             self.report["nativeRuntimeReady"] = True
-            self.report["status"] = "NATIVE_BUILD13_WORLD_READY_AND_GAMEPLAY_HUD_OBSERVED"
+            self.report["status"] = "NATIVE_BUILD14_WORLD_READY_AND_GAMEPLAY_HUD_OBSERVED"
             self.save()
             try:
                 self.maybe_tap_observed_interact(ready_image, ready_tsv, ready_frame)

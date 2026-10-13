@@ -200,6 +200,9 @@ jobs:
         run: |
           set -euo pipefail
           python3 seven-source/tools/install_native_toolchain.py --output "$RUNNER_TEMP/seven-build14-toolchain"
+          python3 ci/scripts/seven-build14-native/prepare_macos_toolchain.py \
+            "$RUNNER_TEMP/seven-build14-toolchain/toolchain.json" \
+            output/seven-build14-ios/toolchain-layout.json
           python3 - <<'PY'
           import json,os,pathlib
           tool=json.loads((pathlib.Path(os.environ['RUNNER_TEMP'])/'seven-build14-toolchain/toolchain.json').read_text())
@@ -253,6 +256,7 @@ jobs:
           name: seven-build14-ios-failure-${{ github.run_id }}
           path: |
             output/seven-build14-ios/early-export-failure.json
+            output/seven-build14-ios/toolchain-layout.json
             output/seven-build14-ios/sim-build-failure.json
             seven-source/deliverables/native/ios-verification.json
           if-no-files-found: warn

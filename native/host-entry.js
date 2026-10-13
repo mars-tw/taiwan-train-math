@@ -7,9 +7,10 @@ import { createAtomicPreferences } from "../src/native-atomic-preferences.js";
 import { createParentChallenge, matchesParentChallenge, classifyNativeResourceLink } from "../src/native-parent-access.js";
 
 const OfflineSpeech = registerPlugin("OfflineSpeech");
+let parentAreaAuthorized = false;
 const host = window.TrainMathNative = {
   Capacitor, App, native: Capacitor.isNativePlatform(), storage: null,
-  parentAreaAuthorized: false,
+  get parentAreaAuthorized() { return parentAreaAuthorized; },
   speechAvailable: false, speechError: null,
   async cancelSpeech() { if (host.native) await OfflineSpeech.stop().catch(() => {}); },
   async speak(text) {
@@ -39,9 +40,30 @@ host.ready = (async () => {
 function message(text) {
   document.querySelector("#announcement")?.replaceChildren(document.createTextNode(text));
 }
+let parentAccessEpoch = 0;
+function revokeParentAccess() {
+  parentAccessEpoch++;
+  parentAreaAuthorized = false;
+  for (const selector of ["#native-parent-gate", "#native-document-dialog", "#about-dialog"]) {
+    const dialog = document.querySelector(selector);
+    if (dialog?.open) dialog.close();
+  }
+  document.querySelector("#native-parent-resources")?.replaceChildren();
+}
+if (host.native) {
+  window.addEventListener("blur", revokeParentAccess);
+  window.addEventListener("pagehide", revokeParentAccess);
+  document.addEventListener("visibilitychange", () => { if (document.hidden) revokeParentAccess(); });
+  try {
+    // Revoke on either edge, so a missed inactive event cannot preserve an
+    // unlocked modal when the native bridge reports that the app is active.
+    Promise.resolve(App.addListener("appStateChange", revokeParentAccess)).catch(() => {});
+  } catch {}
+}
 function parentGate(onApproved, destination) {
   const challenge = createParentChallenge(values => window.crypto.getRandomValues(values));
   if (!challenge) { message("家長驗證暫時無法使用，請稍後再試。"); return; }
+  const accessEpoch = parentAccessEpoch;
   let dialog = document.querySelector("#native-parent-gate");
   if (!dialog) {
     dialog = document.createElement("dialog"); dialog.id = "native-parent-gate";
@@ -56,11 +78,12 @@ function parentGate(onApproved, destination) {
   let completed = false;
   dialog.querySelector("#native-gate-form").onsubmit = async event => {
     event.preventDefault();
-    if (completed || !dialog.open) return;
+    if (completed || !dialog.open || accessEpoch !== parentAccessEpoch || document.hidden) return;
     if (!matchesParentChallenge(challenge, dialog.querySelector("#native-gate-answer").value)) {
       dialog.querySelector("#native-gate-result").textContent = "請家長再確認，或關閉回到遊戲。"; return;
     }
     completed = true; dialog.close(); await host.cancelSpeech();
+    if (accessEpoch !== parentAccessEpoch || document.hidden) return;
     try { await onApproved(); } catch { message("家長資料暫時無法開啟，請稍後再試。"); }
   };
   dialog.showModal();
@@ -74,14 +97,11 @@ host.openParentArea = onOpen => {
     onOpen();
     about.querySelector("#about-title").textContent = "家長資料與授權";
     about.showModal();
-    host.parentAreaAuthorized = true;
+    parentAreaAuthorized = true;
   }, "遊戲資料與授權");
 };
 function attachParentClose() {
-  document.querySelector("#about-dialog")?.addEventListener("close", () => {
-    host.parentAreaAuthorized = false;
-    document.querySelector("#native-parent-resources")?.replaceChildren();
-  });
+  document.querySelector("#about-dialog")?.addEventListener("close", revokeParentAccess);
 }
 if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", attachParentClose, { once: true });
 else attachParentClose();

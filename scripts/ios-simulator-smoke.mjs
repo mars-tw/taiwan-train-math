@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import sharp from "sharp";
@@ -10,6 +10,9 @@ const target = join(root, "output/native-artifacts/ios");
 const appPath = join(root, "output/ios-derived/Build/Products/Debug-iphonesimulator/App.app");
 const preparationName = "prepared-simulators.json";
 const appId = "tw.mars.trainmath";
+const coldFrameInitialDelayMs = 30000;
+const coldFrameRetryDelayMs = 5000;
+const coldFrameMaxObservations = 13; // Observe at 30–90 seconds, then fail instead of accepting a splash.
 const uuid = value => typeof value === "string" && /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(value);
 const typeId = value => typeof value === "string" && /^com\.apple\.CoreSimulator\.SimDeviceType\.[a-zA-Z0-9.-]+$/.test(value);
 const runSimctl = (args, { timeout = 180000 } = {}) => execFileSync("xcrun", ["simctl", ...args], {
@@ -58,6 +61,41 @@ export function selectSimulatorPlan(inventory) {
 
 async function inventoryFrom(run) { return JSON.parse(await run(["list", "--json"])); }
 function summary(error) { return String(error?.message || error).slice(0, 2000); }
+export function visibleNativeFrame(stats) {
+  const rgb = stats?.channels?.slice(0, 3).map(channel => channel.stdev);
+  return rgb?.length === 3 && rgb.every(value => Number.isFinite(value) && value >= 20)
+    && Number.isFinite(stats.entropy) && stats.entropy >= 2;
+}
+
+export async function waitForVisibleNativeFrame({ capture, inspect, pause,
+  initialDelayMs = coldFrameInitialDelayMs, retryDelayMs = coldFrameRetryDelayMs,
+  maxObservations = coldFrameMaxObservations, onObservation = () => {} } = {}) {
+  if (typeof capture !== "function" || typeof inspect !== "function" || typeof pause !== "function"
+    || typeof onObservation !== "function" || !Number.isSafeInteger(maxObservations) || maxObservations < 1
+    || !Number.isSafeInteger(initialDelayMs) || initialDelayMs < 0
+    || !Number.isSafeInteger(retryDelayMs) || retryDelayMs < 0)
+    throw new Error("Invalid native frame observation plan");
+  const observations = [];
+  await pause(initialDelayMs);
+  for (let index = 1; index <= maxObservations; index++) {
+    const path = await capture(index);
+    const { width, height, stats } = await inspect(path);
+    if (!Number.isInteger(width) || !Number.isInteger(height) || width < 1 || height < 1)
+      throw new Error("Simulator screenshot dimensions are unavailable");
+    const meanRgbStdev = stats?.channels?.slice(0, 3).reduce((sum, channel) => sum + channel.stdev, 0) / 3;
+    const observation = { index, observedAtUtc: new Date().toISOString(), width, height, entropy: stats?.entropy,
+      meanRgbStdev: Number.isFinite(meanRgbStdev) ? meanRgbStdev : null,
+      visible: visibleNativeFrame(stats) };
+    observations.push(observation);
+    onObservation(observation);
+    if (observation.visible) return { path, width, height, observations };
+    if (index < maxObservations) await pause(retryDelayMs);
+  }
+  const last = observations.at(-1);
+  const error = new Error(`Native cold launch stayed on a blank/splash frame through ${maxObservations} captures (${initialDelayMs + retryDelayMs * (maxObservations - 1)} ms planned wait; last entropy ${last?.entropy}, RGB deviation ${last?.meanRgbStdev})`);
+  error.observations = observations;
+  throw error;
+}
 async function boot(run, udid) {
   try { await run(["boot", udid]); }
   catch (error) { if (!String(error.stderr).includes("current state: Booted")) throw error; }
@@ -104,7 +142,8 @@ function ownedDevices(prepared, inventory) {
 }
 
 export async function smokeSimulators({ run = runSimctl, output = target, read = readFile, write = writeFile, ensureDirectory = mkdir,
-  metadata = path => sharp(path).metadata(), pause = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds)) } = {}) {
+  metadata = path => sharp(path).metadata(), stats = path => sharp(path).stats(),
+  pause = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds)) } = {}) {
   let prepared;
   try { prepared = JSON.parse(await read(join(output, preparationName), "utf8")); }
   catch (error) {
@@ -116,6 +155,7 @@ export async function smokeSimulators({ run = runSimctl, output = target, read =
   try {
     for (const device of devices) {
       let stage = "boot";
+      let coldFrameObservations = [];
       try {
         await boot(run, device.udid);
         stage = "bootstatus";
@@ -126,25 +166,40 @@ export async function smokeSimulators({ run = runSimctl, output = target, read =
         await run(["install", device.udid, appPath], { timeout: 360000 });
         stage = "launch";
         const launch = await run(["launch", device.udid, appId]);
-        await pause(30000);
-        stage = "screenshot";
+        stage = "cold launch visual readiness";
         const firstPath = join(output, `${device.kind}-simulator-home.png`);
-        await run(["io", device.udid, "screenshot", firstPath]);
-        const dimensions = await metadata(firstPath);
-        if (!Number.isInteger(dimensions.width) || !Number.isInteger(dimensions.height) || dimensions.width < 1 || dimensions.height < 1)
-          throw new Error("Simulator screenshot dimensions are unavailable");
+        const firstFrame = await waitForVisibleNativeFrame({
+          capture: async index => {
+            const path = join(output, `${device.kind}-simulator-cold-${index}.png`);
+            await run(["io", device.udid, "screenshot", path]);
+            return path;
+          },
+          inspect: async path => ({ ...(await metadata(path)), stats: await stats(path) }),
+          pause,
+          onObservation: observation => console.log(`${device.kind} cold frame ${observation.index}: entropy ${observation.entropy}, RGB deviation ${observation.meanRgbStdev}, visible ${observation.visible}`),
+        });
+        coldFrameObservations = firstFrame.observations;
+        await copyFile(firstFrame.path, firstPath);
         stage = "relaunch";
         await run(["terminate", device.udid, appId]);
         await run(["launch", device.udid, appId]);
         await pause(12000);
-        await run(["io", device.udid, "screenshot", join(output, `${device.kind}-simulator-relaunch.png`)]);
+        const relaunchPath = join(output, `${device.kind}-simulator-relaunch.png`);
+        await run(["io", device.udid, "screenshot", relaunchPath]);
+        const relaunchSize = await metadata(relaunchPath);
+        if (relaunchSize.width !== firstFrame.width || relaunchSize.height !== firstFrame.height
+          || !visibleNativeFrame(await stats(relaunchPath)))
+          throw new Error("Native relaunch screenshot is still blank/splash");
         results.push({ kind: device.kind, device: device.model, simulatorName: device.name, udid: device.udid,
-          runtime: prepared.runtime.identifier, width: dimensions.width, height: dimensions.height,
-          launch: String(launch).trim(), status: "completed" });
+          runtime: prepared.runtime.identifier, width: firstFrame.width, height: firstFrame.height,
+          launch: String(launch).trim(), status: "completed", coldFrameObservations,
+          coldLaunchNonSplash: true, relaunchNonSplash: true });
         // Release the first device's processes before booting the tablet.
         await run(["shutdown", device.udid]);
       } catch (error) {
-        results.push({ kind: device.kind, device: device.model, udid: device.udid, status: "failed", stage, error: summary(error) });
+        coldFrameObservations = error.observations || coldFrameObservations;
+        results.push({ kind: device.kind, device: device.model, udid: device.udid, status: "failed", stage,
+          coldFrameObservations, error: summary(error) });
         throw error;
       }
     }

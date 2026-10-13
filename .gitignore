@@ -14,6 +14,7 @@ android/app/src/main/assets/public/
 *.mobileprovision
 *.xcarchive/
 node_modules/
+__pycache__/
 .cache/
 test-results/
 .playwright-cli/

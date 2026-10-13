@@ -13,6 +13,7 @@ import re
 import struct
 import subprocess
 import sys
+import time
 import zipfile
 
 
@@ -66,6 +67,72 @@ def run_gh(*args, timeout=120):
     return result.stdout
 
 
+def find_exact_draft(tag):
+    # GitHub's releases/tags/{tag} endpoint returns 404 for an actual DRAFT.
+    # The releases list includes drafts for the authenticated repository token.
+    pages = json.loads(run_gh("api", "--method", "GET", "--paginate", "--slurp",
+                              f"repos/{REPOSITORY}/releases?per_page=100", timeout=300))
+    if not isinstance(pages, list) or any(not isinstance(page, list) for page in pages):
+        stop("Cannot read the authenticated draft Release list")
+    matches = [release for page in pages for release in page
+               if isinstance(release, dict) and release.get("tag_name") == tag]
+    if len(matches) > 1:
+        stop("Multiple Releases claim the exact run tag")
+    if not matches:
+        return None
+    release = matches[0]
+    if release.get("draft") is not True:
+        stop("Exact run tag is occupied by a published Release")
+    return release
+
+
+def require_exact_draft_asset(release, tag, source_sha, asset_name, asset_size, asset_sha):
+    expected_title = f"Train Math 1.0.0 build 2 ({tag.rsplit('-', 1)[-1]})"
+    if (not isinstance(release, dict) or not isinstance(release.get("id"), int)
+            or release.get("draft") is not True or release.get("tag_name") != tag
+            or release.get("target_commitish") != source_sha
+            or release.get("name") != expected_title):
+        stop("Exact-run draft Release identity differs; do not overwrite it")
+    assets = [asset for asset in release.get("assets", []) if isinstance(asset, dict)]
+    if (len(assets) != 1 or assets[0].get("name") != asset_name
+            or assets[0].get("state") != "uploaded"
+            or assets[0].get("size") != asset_size
+            or assets[0].get("digest") != "sha256:" + asset_sha):
+        stop("Exact-run draft asset differs; do not overwrite it")
+    return assets[0]
+
+
+def create_or_reconcile_draft(tag, source_sha, evidence, notes, evidence_sha):
+    existing = find_exact_draft(tag)
+    if existing is not None:
+        require_exact_draft_asset(existing, tag, source_sha, evidence.name,
+                                  evidence.stat().st_size, evidence_sha)
+        return existing, False
+    # Call create once. A network/CLI error after upload is uncertain, so the
+    # readback below decides success without ever creating the same tag twice.
+    try:
+        result = subprocess.run(["gh", "release", "create", tag, str(evidence),
+                                 "--repo", REPOSITORY, "--draft", "--target", source_sha,
+                                 "--title", f"Train Math 1.0.0 build 2 ({tag.rsplit('-', 1)[-1]})",
+                                 "--notes-file", str(notes)], capture_output=True,
+                                timeout=900, check=False)
+        command_succeeded = result.returncode == 0
+    except subprocess.TimeoutExpired:
+        command_succeeded = False
+    release = None
+    for attempt in range(3):
+        release = find_exact_draft(tag)
+        if release is not None:
+            break
+        if attempt < 2:
+            time.sleep(2)
+    if release is None:
+        stop("Draft Release create failed or remains uncertain; inspect the exact run tag")
+    require_exact_draft_asset(release, tag, source_sha, evidence.name,
+                              evidence.stat().st_size, evidence_sha)
+    return release, command_succeeded
+
+
 def publish_upload_result():
     run_id = os.environ.get("GITHUB_RUN_ID", "")
     source_sha = os.environ.get("GITHUB_SHA", "")
@@ -88,7 +155,10 @@ def publish_upload_result():
         stop("Signed IPA verification does not identify this exact approved run")
 
     def release_state():
-        return json.loads(run_gh("api", "--method", "GET", f"repos/{REPOSITORY}/releases/tags/{tag}"))
+        release = find_exact_draft(tag)
+        if release is None or release.get("target_commitish") != source_sha:
+            stop("Exact-run draft Release unavailable for the upload receipt")
+        return release
 
     before = release_state()
     assets = [asset for asset in before.get("assets", []) if isinstance(asset, dict)]
@@ -267,20 +337,11 @@ def main():
     notes.write_text(f"Private build 2 review artifact for {APP_ID}.\nSource: {source_sha}\nActions run: {run_id}\nNo App Store submission or physical-device approval is claimed by this Release.\n", encoding="utf-8")
     summary = Path(os.environ["GITHUB_STEP_SUMMARY"])
     with summary.open("a", encoding="utf-8") as stream:
-        stream.write(f"Train Math build 2 draft Release create attempted: {tag}; ZIP SHA-256 {evidence_sha}. Check this tag before rerunning.\n")
-    run_gh("release", "create", tag, str(evidence), "--repo", REPOSITORY, "--draft",
-           "--target", source_sha, "--title", f"Train Math 1.0.0 build 2 ({run_id})",
-           "--notes-file", str(notes), timeout=900)
-    release = json.loads(run_gh("api", "--method", "GET", f"repos/{REPOSITORY}/releases/tags/{tag}"))
-    assets = [asset for asset in release.get("assets", []) if isinstance(asset, dict)]
-    if release.get("draft") is not True or release.get("tag_name") != tag or len(assets) != 1:
-        stop("Draft Release identity or asset list changed; inspect before retrying")
-    asset = assets[0]
-    if asset.get("name") != evidence.name or asset.get("state") != "uploaded" or asset.get("size") != evidence.stat().st_size or asset.get("digest") != "sha256:" + evidence_sha:
-        stop("Draft Release readback digest differs; inspect before retrying")
+        stream.write(f"Train Math build 2 exact-run draft Release reconciliation started: {tag}; ZIP SHA-256 {evidence_sha}. Check this tag before rerunning.\n")
+    release, created = create_or_reconcile_draft(tag, source_sha, evidence, notes, evidence_sha)
     with summary.open("a", encoding="utf-8") as stream:
-        stream.write(f"Draft Release verified: {release.get('html_url')}; asset {evidence.name}, {evidence.stat().st_size} bytes, SHA-256 {evidence_sha}.\n")
-    print("Same-run signed IPA and public QA receipts saved to a verified draft Release; no Apple upload by this step")
+        stream.write(f"Draft Release {'created' if created else 'reconciled'} and verified: {release.get('html_url')}; asset {evidence.name}, {evidence.stat().st_size} bytes, SHA-256 {evidence_sha}.\n")
+    print("Same-run signed IPA and public QA receipts verified in the exact-run draft Release; no Apple upload by this step")
 
 
 if __name__ == "__main__":

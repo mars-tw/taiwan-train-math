@@ -79,6 +79,7 @@ jobs:
         run: |
           npm ci
           npm test
+          python3 -m unittest discover -s tests -p test_archive_ios_store_release.py
       - name: Build the offline bundle and synchronize iOS
         run: npm run native:sync
       - name: Prepare fresh iPhone and iPad simulators

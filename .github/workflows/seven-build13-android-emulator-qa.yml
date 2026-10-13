@@ -1,0 +1,76 @@
+name: Seven build13 Android emulator gameplay QA (manual)
+
+'on':
+  workflow_dispatch: null
+
+permissions:
+  contents: read
+
+concurrency:
+  group: seven-build13-android-emulator-qa-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  observe:
+    if: github.event_name == 'workflow_dispatch' && github.repository == 'mars-tw/taiwan-train-math' && github.ref == 'refs/heads/main' && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: write # Download exact draft APK and append one evidence ZIP; no store credentials.
+    steps:
+      - name: Read this exact reviewed manual workflow commit
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          sparse-checkout: |
+            scripts/seven-build13-android-emulator/bootstrap_sdk.py
+            scripts/seven-build13-android-emulator/fetch_input.py
+            scripts/seven-build13-android-emulator/publish_evidence.py
+            scripts/seven-build13-android-emulator/run_probe.py
+            scripts/seven-build13-android-emulator/manifest.json
+            scripts/seven-build13-android-emulator/fixtures/api36-build13-title-foreground.txt
+          sparse-checkout-cone-mode: false
+
+      - name: Verify pinned driver bytes and pure guard tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha256sum --check <<'SHA256SUMS'
+          4cb68edc5778ee41f10718e18c83516320d10e1af4e673e76c004cd8aac16520  scripts/seven-build13-android-emulator/bootstrap_sdk.py
+          3886281a301a1217821ab50d756eb903c15bd5e79c95442cfe437ea008d7e709  scripts/seven-build13-android-emulator/fetch_input.py
+          2e1fac9d770f8d1374f68b9cdfc7b9d5a9e254faa7ce683cf4c1e2613d0bdb1f  scripts/seven-build13-android-emulator/publish_evidence.py
+          56de056af7f0bb7e8629c9c7381c50adb1c73da46eba4b3567f372e0217bbd9c  scripts/seven-build13-android-emulator/run_probe.py
+          678492fb90607fb67b431551bade1a4dd5f17863f93af0e8ade364975c7067e9  scripts/seven-build13-android-emulator/manifest.json
+          d1476fdac6b51429fcd8ef37b2b3430e847ba46c4c06e40cf865bc302b2c3ecf  scripts/seven-build13-android-emulator/fixtures/api36-build13-title-foreground.txt
+          SHA256SUMS
+          python3 scripts/seven-build13-android-emulator/run_probe.py --self-test
+
+      - name: Fetch exact source-bound signed APK from dedicated draft Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/seven-build13-android-emulator/fetch_input.py
+
+      - name: Verify KVM and install observation-only packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -c /dev/kvm
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-seven-build13-android-emulator.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          test -r /dev/kvm && test -w /dev/kvm
+          sudo apt-get update -qq
+          sudo apt-get install --yes --no-install-recommends python3-pil python3-opencv libvulkan1 libgl1 libpulse0 tesseract-ocr tesseract-ocr-chi-tra ffmpeg
+
+      - name: Provision pinned official API36 ARM64-bridge emulator from existing runner licenses
+        run: python3 scripts/seven-build13-android-emulator/bootstrap_sdk.py
+
+      - name: Capture original title, MAIN-001, observed input, and first objective attempt
+        run: python3 scripts/seven-build13-android-emulator/run_probe.py
+
+      - name: Preserve bounded success or failure evidence on the same draft Release
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/seven-build13-android-emulator/publish_evidence.py

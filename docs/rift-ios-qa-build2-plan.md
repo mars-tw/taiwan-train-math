@@ -1,0 +1,25 @@
+# Rift Forge 3D iOS QA build 2 — prepared, not dispatched
+
+The physical iPhone SE 2 / iOS 27.0.1 build-1 recording shows a black combat arena. A controlled Android QA build that changed only the Mobile URP asset restored the 3D arena on a Pixel 8 Pro / Android 17, but the run ended at the Warden with `CORE BROKEN`. The clean source fix is local Rift commit `227a8759d51a415f3c38505718cca38609dd1f7a`, a one-file `Assets/Settings/Mobile_RPAsset.asset` change. Rift has no Git remote. Neither iOS rendering nor a four-wave victory has been verified from that commit.
+
+Unity 6000.5.4f1 with iOSSupport exported a fresh **Development**, unsigned Xcode project from a worktree whose tracked status was empty immediately before the build. The prebuild receipt's SHA-256 is `657a26dcfc1c2e5a01fe0770165858db514bd023236b2fb75bf7241d7e40fd78`; it records Git tree `1dd56a10200713f45bb2756432e6faac5f8f6bb7` and `readyForStore:false`. Unity then reserialized four tracked settings files during export, including the Mobile URP asset's line endings; that generated state is not an additional source commit. The export has 3,304 regular files and `Data/level0`; the raw `Info.plist` has SHA-256 `47842d692eae70665b410a9c7e5e398802cc27da38496b9d80929cdc350050be`. Only its display name, bundle name, and build number were changed in the QA archive; the resulting `Info.plist` SHA-256 is `6a691cbd5135127be3a7bc1a4d144f2ca099e107a10612bfad1205f405ea99b0`. The app identity stays `tw.mars.riftforge3d`, version `1.0.0`, build `2`.
+
+Local pinned inputs are in `Z:\0301-software\CodexScratch\RiftIOSQA-227a875-clean`:
+
+| Input | Bytes | SHA-256 |
+| --- | ---: | --- |
+| `RiftForge-iOS-qa-build2-source-227a875-clean.zip` | 305,245,055 | `45452e86ef59662c07503c79b2ff8dc98c7f7c6fa44bfadb38a01be94fc6554d` |
+| `rift-ios-qa-build2-source-manifest-227a875-clean.json` | 700,037 | `efe0c1b3c84873dbad52949b49ef57dc73dc1dba182991245dbac64105a52934` |
+| `rift-ios-qa-build2-brand-transform-227a875-clean.json` | 651 | `27bb677997ea8c4bc7033b140411b2e5044625be3aac09f1d42528388c943fe8` |
+| `rift-ios-clean-prebuild-227a875.json` | 661 | `657a26dcfc1c2e5a01fe0770165858db514bd023236b2fb75bf7241d7e40fd78` |
+
+`scripts/rift_ios_qa_build2_verify.py source` must check all four input digests, the clean prebuild receipt, and all 3,304 archive member names, sizes, and SHA-256 values. The new verifier's four synthetic IPA tests cover the expected identity, an old build number, another bundle, and an expired profile. Windows cannot run Xcode; the previous build-1 simulator-only compile exited 70 without launching. A new simulator attempt remains a diagnostic step in the protected Mac workflow, not an acceptance claim.
+
+## One-shot review and dispatch sequence
+
+1. Independently review Rift commit `227a875`, the Android A/B physical evidence, the clean prebuild receipt, the unsigned Xcode export, the local source manifest, and this branch's new build-2 workflow/verifier/signer. Confirm all four digests and the `Info.plist` transform. Keep the old build-1 draft Release and workflow intact.
+2. Merge the reviewed CI branch into `mars-tw/taiwan-train-math` `main`, recording the exact main commit. Create a **new draft** Release tagged `rift-ios-qa-227a875-clean-build2-20261013` at that reviewed commit. Upload exactly the four pinned inputs above without replacement. Read back the Release `databaseId`, draft flag, tag, asset names, sizes, and GitHub SHA-256 digests. Stop on any mismatch or uncertain upload state; do not retry with another tag.
+3. Dispatch `.github/workflows/rift-ios-qa-build2.yml` once. It requires the fixed repository/ref, macOS-15 and Xcode 26.3. It verifies the ZIP twice into separate simulator and device-build directories so the simulator cannot mutate the signed source. Before exposing signing secrets, it uploads a single attempt marker to the same draft Release and binds the later evidence upload to its `databaseId`. A retry or rerun with an existing marker is rejected; a failed attempt requires a new reviewed plan. The signer checks that the embedded provisioning profile is exactly the pinned profile. It performs **no App Store upload** and attaches exact-run evidence only to the same draft Release.
+4. Verify the signed QA IPA's bundle ID, version/build 2, arm64, exact embedded profile hash/UUID, entitlements, code signature, and SHA-256. For free physical QA, derive a separate Kobiton-re-signed IPA while retaining bytewise provenance for every unsigned member. On the iPhone SE 2 / iOS 27.0.1, record title → visible 3D combat arena, touch controls, Rift 1–3/forge upgrades, Warden outcome, pause/resume, and device logs. The earlier black-arena result remains a failing baseline until this new device recording is reviewed.
+
+The release gate stays false. A development APK, a Windows-generated Xcode project, a signed QA IPA, or an Android Warden defeat does not establish store readiness or victory-path QA. A production-signed exact binary, full gameplay acceptance, and store-submission checks remain separate decisions.

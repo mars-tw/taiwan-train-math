@@ -105,8 +105,7 @@ if sys.argv[3:5]==['sim','sim-build']:
    if 'Undefined symbols for architecture' in line:following=8
    elif following:following-=1
    if not match and not following:continue
-   line=re.sub(r'/(?:Users|private|var|Volumes|home)/[^\s\"\'<>]+','<path>',line)
-   line=re.sub(r'[\x00-\x1f\x7f]',' ',line)[:500]
+   line=clean(line)
    if line and line not in diagnostics:diagnostics.append(line)
    if len(diagnostics)>=20:break
  report={'projectId':sys.argv[6],'phase':'sim-build','exitCode':exit_code,'timedOut':timed_out,'diagnostics':diagnostics,'rawLogsUploaded':False,'macBuildCompleted':False,'simulatorExecuted':False,'signatureVerified':False,'storeUploadPerformed':False}

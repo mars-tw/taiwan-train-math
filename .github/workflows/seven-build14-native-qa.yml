@@ -270,7 +270,6 @@ jobs:
             output/seven-build14-ios/source-verification.json
             output/seven-build14-ios/simulator-architecture.json
             output/seven-build14-ios/simulator-verification.json
-            output/seven-build14-ios/verification.json
             seven-source/deliverables/native/ios-verification.json
           if-no-files-found: warn
           retention-days: 14

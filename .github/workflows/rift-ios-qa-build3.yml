@@ -1,0 +1,191 @@
+name: Rift Forge iOS QA build 3 from pinned Unity Xcode source (manual, no store upload)
+on:
+  workflow_dispatch:
+permissions:
+  contents: write # fixed draft Release source/evidence only
+concurrency:
+  group: rift-ios-qa-build3-cd9a6e3-${{ github.repository }}
+  cancel-in-progress: false
+jobs:
+  sign-qa:
+    if: github.event_name == 'workflow_dispatch' && github.repository == 'mars-tw/taiwan-train-math' && github.ref_name == 'main'
+    runs-on: macos-15
+    timeout-minutes: 60
+    environment: game-store-rift-forge-3d
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
+      SOURCE_TAG: rift-ios-qa-cd9a6e3-clean-build3-20261014
+      SOURCE_ZIP: RiftForge-iOS-qa-build3-source-cd9a6e3.zip
+      SOURCE_MANIFEST: RiftForge-iOS-qa-build3-source-manifest-cd9a6e3.json
+      SOURCE_BRAND: RiftForge-qa3-brand-transform.json
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+
+      - name: Verify fixed runner and trusted build 3 scripts before secrets
+        run: |
+          set -euo pipefail
+          test -x "$DEVELOPER_DIR/usr/bin/xcodebuild" || { echo 'Pinned Xcode 26.3 unavailable'; exit 1; }
+          xcodebuild -version
+          python3 - <<'PY'
+          import hashlib,pathlib
+          files={
+            'scripts/rift_ios_qa_build3_verify.py':'17aef3aa31542260a61f8a06e9ddfd369a05fe9442138ccdd00692b58a259c35',
+            'scripts/rift-ios-qa-build3-sign.sh':'6853d881b730478dbbd98371ae962344f38f4114daa8fb7e84c0ec5c121c4dd2'}
+          for name,expected in files.items():
+              path=pathlib.Path(name)
+              if not path.is_file() or path.is_symlink() or hashlib.sha256(path.read_bytes()).hexdigest()!=expected:
+                  raise SystemExit('Pinned build 3 script missing or changed: '+name)
+          print('Trusted verifier and signer pinned')
+          PY
+          python3 -m py_compile scripts/rift_ios_qa_build3_verify.py
+          bash -n scripts/rift-ios-qa-build3-sign.sh
+
+      - name: Verify exact draft Release inputs before downloading
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release view "$SOURCE_TAG" --repo "$GITHUB_REPOSITORY" --json databaseId,isDraft,tagName,assets > "$RUNNER_TEMP/rift-release-before.json"
+          python3 - <<'PY'
+          import json,os,pathlib
+          root=pathlib.Path(os.environ['RUNNER_TEMP'])
+          release=json.loads((root/'rift-release-before.json').read_text())
+          expected={
+            'RiftForge-iOS-qa-build3-source-cd9a6e3.zip':(305183377,'d7bc46b1668518fb1235be70307976ae39eb72fc9dcbe2794dae88d4f74bc828'),
+            'RiftForge-iOS-qa-build3-source-manifest-cd9a6e3.json':(700362,'3c1855883b34904a48c517d4c63660265e6ec7bbc0679b0661dc4b1b3d8d65db'),
+            'RiftForge-qa3-brand-transform.json':(628,'4b892d749cc4de40fd6eda9d7eabc13da689a6d78ab913d0c0a69129cebbf776')}
+          assets={item['name']:item for item in release.get('assets',[])}
+          if (release.get('tagName')!='rift-ios-qa-cd9a6e3-clean-build3-20261014'
+              or release.get('isDraft') is not True
+              or not isinstance(release.get('databaseId'),int)
+              or set(assets)!=set(expected)):
+              raise SystemExit('Draft Release identity or source inventory differs')
+          for name,(size,sha) in expected.items():
+              if assets[name].get('size')!=size or assets[name].get('digest')!='sha256:'+sha:
+                  raise SystemExit('Draft Release source asset changed: '+name)
+          print('One exact draft Release source set verified')
+          PY
+
+      - name: Download and verify every unsigned Xcode source file
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/rift-qa3-input"
+          for name in "$SOURCE_ZIP" "$SOURCE_MANIFEST" "$SOURCE_BRAND"; do
+            gh release download "$SOURCE_TAG" --repo "$GITHUB_REPOSITORY" --pattern "$name" --dir "$RUNNER_TEMP/rift-qa3-input"
+          done
+          python3 scripts/rift_ios_qa_build3_verify.py source \
+            --zip "$RUNNER_TEMP/rift-qa3-input/$SOURCE_ZIP" \
+            --manifest "$RUNNER_TEMP/rift-qa3-input/$SOURCE_MANIFEST" \
+            --brand "$RUNNER_TEMP/rift-qa3-input/$SOURCE_BRAND" \
+            --destination "$RUNNER_TEMP/rift-qa3-xcode" \
+            --receipt "$RUNNER_TEMP/rift-qa3-source-verification.json"
+
+      - name: Recheck pinned inputs and reserve one signing attempt
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib,json,os,pathlib,re,subprocess,time
+          root=pathlib.Path(os.environ['RUNNER_TEMP'])
+          tag=os.environ['SOURCE_TAG']; repo=os.environ['GITHUB_REPOSITORY']; run_id=os.environ['GITHUB_RUN_ID']
+          if repo!='mars-tw/taiwan-train-math' or not re.fullmatch(r'[1-9][0-9]*',run_id):
+              raise SystemExit('Repository or run identity differs')
+          checks={
+            'RiftForge-iOS-qa-build3-source-cd9a6e3.zip':'d7bc46b1668518fb1235be70307976ae39eb72fc9dcbe2794dae88d4f74bc828',
+            'RiftForge-iOS-qa-build3-source-manifest-cd9a6e3.json':'3c1855883b34904a48c517d4c63660265e6ec7bbc0679b0661dc4b1b3d8d65db',
+            'RiftForge-qa3-brand-transform.json':'4b892d749cc4de40fd6eda9d7eabc13da689a6d78ab913d0c0a69129cebbf776'}
+          for name,sha in checks.items():
+              path=root/'rift-qa3-input'/name
+              if not path.is_file() or path.is_symlink() or hashlib.sha256(path.read_bytes()).hexdigest()!=sha:
+                  raise SystemExit('Signing input changed before secrets: '+name)
+          source=json.loads((root/'rift-qa3-source-verification.json').read_text())
+          if (source.get('sourceVerified') is not True
+              or source.get('sourceCommit')!='cd9a6e3d3a8f7a63dca22fbb05d5d32d48f774f7'
+              or source.get('sourceZipSha256')!=checks['RiftForge-iOS-qa-build3-source-cd9a6e3.zip']
+              or source.get('fileCount')!=3304 or source.get('build')!=3 or source.get('storeReady') is not False):
+              raise SystemExit('Verified source receipt differs')
+          def release():
+              p=subprocess.run(['gh','release','view',tag,'--repo',repo,'--json','databaseId,isDraft,tagName,assets'],
+                               capture_output=True,text=True,check=True,timeout=60)
+              return json.loads(p.stdout)
+          before=release()
+          if before.get('isDraft') is not True or before.get('tagName')!=tag or len(before.get('assets',[]))!=3:
+              raise SystemExit('Draft Release changed before signing')
+          marker=root/'rift-qa3-attempt-marker.json'
+          value={'state':'RESERVED_BEFORE_SIGNING','runId':run_id,'releaseDatabaseId':before['databaseId'],
+                 'sourceCommit':source['sourceCommit'],'sourceZipSha256':source['sourceZipSha256']}
+          with marker.open('x') as stream:
+              json.dump(value,stream,indent=2);stream.write('\n');stream.flush();os.fsync(stream.fileno())
+          marker_sha=hashlib.sha256(marker.read_bytes()).hexdigest()
+          subprocess.run(['gh','release','upload',tag,str(marker),'--repo',repo],check=True,timeout=900)
+          after=release(); marker_asset={a['name']:a for a in after.get('assets',[])}.get(marker.name)
+          if (after.get('databaseId')!=before['databaseId'] or after.get('isDraft') is not True
+              or len(after.get('assets',[]))!=4 or marker_asset is None
+              or marker_asset.get('size')!=marker.stat().st_size
+              or marker_asset.get('digest')!='sha256:'+marker_sha):
+              raise SystemExit('Signing marker upload outcome uncertain; inspect Release, do not retry')
+          print('Single QA3 signing attempt reserved; no App Store upload')
+          PY
+
+      - name: Sign QA3 IPA for later physical-device testing
+        env:
+          APPLE_DISTRIBUTION_P12_BASE64: ${{ secrets.APPLE_DISTRIBUTION_P12_BASE64 }}
+          APPLE_DISTRIBUTION_P12_PASSWORD: ${{ secrets.APPLE_DISTRIBUTION_P12_PASSWORD }}
+          APPLE_APPSTORE_PROFILE_BASE64: ${{ secrets.APPLE_APPSTORE_PROFILE_BASE64 }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          RIFT_PROJECT_DIR: ${{ runner.temp }}/rift-qa3-xcode
+          RIFT_OUTPUT_DIR: ${{ runner.temp }}/rift-qa3-output
+          RIFT_VERIFY_SCRIPT: ${{ github.workspace }}/scripts/rift_ios_qa_build3_verify.py
+        run: bash scripts/rift-ios-qa-build3-sign.sh
+
+      - name: Verify exact-run signed QA evidence and upload once to draft Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib,json,os,pathlib,subprocess,zipfile
+          root=pathlib.Path(os.environ['RUNNER_TEMP']); out=root/'rift-qa3-output'
+          source=json.loads((root/'rift-qa3-source-verification.json').read_text())
+          result=json.loads((out/'verification.json').read_text())
+          structure=json.loads((out/'ipa-structure-verification.json').read_text())
+          marker=json.loads((root/'rift-qa3-attempt-marker.json').read_text())
+          ipa=out/'signed-qa.ipa'; sha=hashlib.sha256(ipa.read_bytes()).hexdigest()
+          if (result.get('status')!='SIGNED_QA_IPA_VERIFIED' or result.get('build')!=3
+              or result.get('sourceCommit')!=source.get('sourceCommit')
+              or result.get('sourceZipSha256')!=source.get('sourceZipSha256')
+              or result.get('ipaSha256')!=sha or result.get('ipaBytes')!=ipa.stat().st_size
+              or result.get('codesignVerified') is not True
+              or result.get('entitlementsVerified') is not True
+              or result.get('arm64Verified') is not True
+              or result.get('physicalDeviceTested') is not False
+              or result.get('storeUploaded') is not False or result.get('storeReady') is not False
+              or structure.get('build')!=3 or structure.get('ipaSha256')!=sha
+              or marker.get('state')!='RESERVED_BEFORE_SIGNING'
+              or marker.get('runId')!=os.environ['GITHUB_RUN_ID']):
+              raise SystemExit('Signed QA3 evidence differs')
+          members={'signed-qa.ipa':ipa,'verification.json':out/'verification.json',
+                   'ipa-structure-verification.json':out/'ipa-structure-verification.json',
+                   'source-verification.json':root/'rift-qa3-source-verification.json',
+                   'attempt-marker.json':root/'rift-qa3-attempt-marker.json'}
+          evidence=out/'rift-qa3-signed-evidence.zip'
+          with zipfile.ZipFile(evidence,'x',compression=zipfile.ZIP_STORED) as package:
+              for name,path in sorted(members.items()):
+                  package.write(path,name)
+          evidence_sha=hashlib.sha256(evidence.read_bytes()).hexdigest()
+          tag=os.environ['SOURCE_TAG'];repo=os.environ['GITHUB_REPOSITORY']
+          subprocess.run(['gh','release','upload',tag,str(evidence),'--repo',repo],check=True,timeout=900)
+          p=subprocess.run(['gh','release','view',tag,'--repo',repo,'--json','databaseId,isDraft,tagName,assets'],
+                           capture_output=True,text=True,check=True,timeout=60)
+          release=json.loads(p.stdout); asset={a['name']:a for a in release.get('assets',[])}.get(evidence.name)
+          if (release.get('databaseId')!=marker['releaseDatabaseId'] or release.get('isDraft') is not True
+              or len(release.get('assets',[]))!=5 or asset is None
+              or asset.get('size')!=evidence.stat().st_size or asset.get('digest')!='sha256:'+evidence_sha):
+              raise SystemExit('Evidence upload outcome uncertain; inspect Release, do not retry')
+          print('Signed QA3 IPA retained in draft Release evidence ZIP only; no store upload')
+          PY

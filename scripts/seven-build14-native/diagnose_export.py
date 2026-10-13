@@ -44,7 +44,7 @@ def receipt_status(path: Path) -> dict:
     try:
         value = json.loads(path.read_text(encoding="utf-8"))
         return {"present": True, "status": value.get("status"), "sourceSha": value.get("sourceSha")}
-    except (OSError, UnicodeError, ValueError, TypeError):
+    except (AttributeError, OSError, UnicodeError, ValueError, TypeError):
         return {"present": True, "readable": False}
 
 

@@ -1,0 +1,61 @@
+name: Rift Forge ARM64 development APK KVM QA
+
+on:
+  push:
+    branches: [codex/rift-arm64-kvm-qa-20261013-9ae49d38]
+    paths:
+      - .github/workflows/rift-arm64-kvm-qa.yml
+      - scripts/rift-arm64-kvm/**
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rift-arm64-kvm-qa-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  observe:
+    if: >-
+      github.repository == 'mars-tw/taiwan-train-math' &&
+      github.ref == 'refs/heads/codex/rift-arm64-kvm-qa-20261013-9ae49d38' &&
+      github.event.created == true &&
+      github.run_attempt == 1 &&
+      github.event.head_commit.message == 'RUN_ONCE Rift ARM64 KVM QA 9ae49d38'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Fetch exact local QA APK from unique draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/rift-arm64-kvm/fetch_input.py
+
+      - name: Verify KVM and install observation tools
+        run: |
+          set -euo pipefail
+          test -c /dev/kvm
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-rift-arm64-kvm.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          test -r /dev/kvm && test -w /dev/kvm
+          sudo apt-get update -qq
+          sudo apt-get install --yes --no-install-recommends libvulkan1 libgl1 libpulse0 tesseract-ocr ffmpeg
+
+      - name: Provision pinned official API36 ARM64-bridge emulator
+        run: python3 scripts/rift-arm64-kvm/bootstrap_sdk.py
+
+      - name: Capture native launch and four-rift gameplay if reachable
+        run: python3 scripts/rift-arm64-kvm/run_probe.py
+
+      - name: Preserve unique original native evidence on pass or fail
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/rift-arm64-kvm/publish_evidence.py

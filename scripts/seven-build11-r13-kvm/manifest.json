@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "status": "READY_FIXED_DRAFT_RELEASE",
+  "projectId": "seven-district-reckoning",
+  "repository": "mars-tw/taiwan-train-math",
+  "branch": "codex/seven-build11-r13-native-qa",
+  "appId": "tw.mars.sevendistrictreckoning",
+  "versionName": "1.0.0",
+  "versionCode": 11,
+  "apk": {
+    "file": "seven-district-reckoning-1.0.0-build11-test-signed.apk",
+    "bytes": 90561618,
+    "sha256": "690a46a0447c322f9c096f8d83fe108e354709a50fc26d0cb2b592923c951823",
+    "certificateSha256": "1dd3cc96a02e4555e8d91a42d749a019ee5c4781d4d7510947ae48c865e21110"
+  },
+  "source": {
+    "baseOptimizationPatchSha256": "e717397651c82fc4a3790414ebe06d1b1a2d040ae44b1c005ee5c83320a9a995",
+    "titleCtaPatchSha256": "4fb0cca3b9f20915f09cc70935f1a2956eb8e3c5dc5b751d5ae04631989b0200",
+    "sourceBindSha256": "1015dce084c55afbd5f7cb301b3fd9b998e2056df62b3a05ac9fc4ba8c084037"
+  },
+  "release": {
+    "tag": "seven-build11-r13-kvm-qa-20261013-690a46a0-6b82c3d5591f",
+    "draft": true,
+    "releaseId": 411308040,
+    "assetId": 635983988
+  },
+  "runtime": {
+    "apiLevel": 36,
+    "image": "system-images;android-36;google_apis;x86_64",
+    "imageRevision": 7,
+    "abi": "x86_64,arm64-v8a",
+    "bridge": "libndk_translation.so",
+    "gpu": "swangle",
+    "emulatorVersion": "37.2.12",
+    "buildToolsVersion": "36.1.0"
+  },
+  "policy": {
+    "exactBranchPushOnly": true,
+    "oneShot": true,
+    "runner": "ubuntu-24.04",
+    "licensedSdkFromRunner": true,
+    "sdkmanagerLicenseAcceptance": false,
+    "storeWrites": 0,
+    "firebaseWrites": 0,
+    "payment": false
+  }
+}

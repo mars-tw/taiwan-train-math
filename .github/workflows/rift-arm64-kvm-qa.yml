@@ -1,8 +1,8 @@
-name: Rift Forge ARM64 development APK KVM QA
+name: Rift Forge ARM64 shader fix KVM QA R2
 
 on:
   push:
-    branches: [codex/rift-arm64-kvm-qa-20261013-9ae49d38]
+    branches: [codex/rift-arm64-kvm-r2-20261013-shaderfix]
     paths:
       - .github/workflows/rift-arm64-kvm-qa.yml
       - scripts/rift-arm64-kvm/**
@@ -11,17 +11,17 @@ permissions:
   contents: read
 
 concurrency:
-  group: rift-arm64-kvm-qa-${{ github.repository }}
+  group: rift-arm64-kvm-r2-${{ github.repository }}
   cancel-in-progress: false
 
 jobs:
   observe:
     if: >-
       github.repository == 'mars-tw/taiwan-train-math' &&
-      github.ref == 'refs/heads/codex/rift-arm64-kvm-qa-20261013-9ae49d38' &&
+      github.ref == 'refs/heads/codex/rift-arm64-kvm-r2-20261013-shaderfix' &&
       github.event.created == true &&
       github.run_attempt == 1 &&
-      github.event.head_commit.message == 'RUN_ONCE Rift ARM64 KVM QA 9ae49d38'
+      github.event.head_commit.message == 'RUN_ONCE Rift ARM64 KVM R2 shader fix'
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     permissions:

@@ -22,7 +22,7 @@ EMULATOR_SHA1 = "cd7362ea55dfb86a418958138dc396e74165dd01"
 IMAGE_URL = "https://dl.google.com/android/repository/sys-img/google_apis/x86_64-36_r07.zip"
 IMAGE_BYTES = 1_895_447_397
 IMAGE_SHA1 = "c6bf44bdcd885bb902b4ba752d111a073ad7a817"
-OWNER = "rift-arm64-kvm"
+OWNER = "rift-arm64-kvm-r2"
 
 
 def read_properties(path: Path) -> dict[str, str]:
@@ -86,7 +86,7 @@ def main() -> None:
     temp = temp.resolve()
     workspace = workspace.resolve()
     vendor = vendor.resolve()
-    sdk = temp / "rift-arm64-kvm-sdk"
+    sdk = temp / "rift-arm64-kvm-r2-sdk"
     if sdk.exists() or sdk.is_symlink():
         raise RuntimeError("Fresh owned SDK required; no overwrite or retry")
     tools = vendor / "cmdline-tools/latest"
@@ -101,7 +101,7 @@ def main() -> None:
     sdk.mkdir()
     shutil.copytree(tools, sdk / "cmdline-tools/latest", symlinks=True)
     shutil.copytree(licenses, sdk / "licenses")
-    archive = temp / "rift-arm64-kvm-official-emulator-16428233.zip"
+    archive = temp / "rift-arm64-kvm-r2-official-emulator-16428233.zip"
     if archive.exists() or archive.is_symlink():
         raise RuntimeError("Owned official emulator archive already exists")
     with urllib.request.urlopen(EMULATOR_URL, timeout=60) as response, archive.open("xb") as out:
@@ -138,7 +138,7 @@ def main() -> None:
     if read_properties(sdk / "build-tools/36.1.0/source.properties").get("Pkg.Revision") != "36.1.0":
         raise RuntimeError("Pinned official build tools version differs")
     output_parent = workspace / "output"
-    output = output_parent / "rift-arm64-kvm"
+    output = output_parent / OWNER
     if (output_parent.is_symlink() or output.exists() or output.is_symlink()
             or not output.is_relative_to(workspace)):
         raise RuntimeError("Owned evidence output already exists or is linked")
@@ -159,17 +159,20 @@ def main() -> None:
         "runnerSdkLicenseSha256": hashlib.sha256((licenses / "android-sdk-license").read_bytes()).hexdigest(),
         "canonicalAvdManagerSdkRoot": True, "actualGuestTranslationVerified": False,
         "isolatedUnityProjectCommit": manifest["source"]["isolatedUnityProjectCommit"],
-        "jdkPathPatchSha256": manifest["source"]["jdkPathPatchSha256"],
+        "buildScriptPatchSha256": manifest["source"]["buildScriptPatchSha256"],
         "riftHudSha256": manifest["source"]["riftHudSha256"],
         "riftGameSha256": manifest["source"]["riftGameSha256"],
+        "resourcesMetaSha256": manifest["source"]["resourcesMetaSha256"],
+        "riftUrpLitMaterialSha256": manifest["source"]["riftUrpLitMaterialSha256"],
+        "riftUrpLitMaterialMetaSha256": manifest["source"]["riftUrpLitMaterialMetaSha256"],
     }
     (output / "sdk-provenance.json").write_text(json.dumps(provenance, indent=2) + "\n", encoding="utf-8")
     with Path(os.environ["GITHUB_ENV"]).open("a", encoding="utf-8") as env:
         env.write(f"RIFT_SDK={sdk}\nANDROID_HOME={sdk}\nANDROID_SDK_ROOT={sdk}\n")
         env.write(f"JAVA_HOME={java}\n")
-        env.write(f"ANDROID_AVD_HOME={temp / 'rift-arm64-kvm-avds'}\n")
-        env.write(f"ANDROID_USER_HOME={temp / 'rift-arm64-kvm-user'}\n")
-        env.write(f"RIFT_APK={temp / 'rift-arm64-kvm-input/RiftForge-dev.apk'}\n")
+        env.write(f"ANDROID_AVD_HOME={temp / 'rift-arm64-kvm-r2-avds'}\n")
+        env.write(f"ANDROID_USER_HOME={temp / 'rift-arm64-kvm-r2-user'}\n")
+        env.write(f"RIFT_APK={temp / 'rift-arm64-kvm-r2-input/RiftForge-dev-shader-fix.apk'}\n")
         env.write(f"RIFT_OUTPUT={output}\n")
     print(json.dumps({"status": "ISOLATED_RIFT_API36_ARM64_BRIDGE_SDK_READY",
                       "sdkRoot": str(sdk), "gameStarted": False, "legalPromptAccepted": False}))

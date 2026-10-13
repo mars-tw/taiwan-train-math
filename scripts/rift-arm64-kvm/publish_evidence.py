@@ -16,7 +16,7 @@ from fetch_input import (APK_BYTES, APK_NAME, APK_SHA, ASSET_ID, BRANCH,
                          RELEASE_ID, REPO, TAG, read_manifest)
 
 
-OWNER = "rift-arm64-kvm"
+OWNER = "rift-arm64-kvm-r2"
 MAX_EVIDENCE_BYTES = 512 * 1024 * 1024
 
 
@@ -146,9 +146,12 @@ def main() -> None:
     identity = {"runId": run_id, "attempt": "1", "headSha": head_sha,
                 "apkSha256": APK_SHA,
                 "isolatedUnityProjectCommit": manifest["source"]["isolatedUnityProjectCommit"],
-                "jdkPathPatchSha256": manifest["source"]["jdkPathPatchSha256"],
+                "buildScriptPatchSha256": manifest["source"]["buildScriptPatchSha256"],
                 "riftHudSha256": manifest["source"]["riftHudSha256"],
                 "riftGameSha256": manifest["source"]["riftGameSha256"],
+                "resourcesMetaSha256": manifest["source"]["resourcesMetaSha256"],
+                "riftUrpLitMaterialSha256": manifest["source"]["riftUrpLitMaterialSha256"],
+                "riftUrpLitMaterialMetaSha256": manifest["source"]["riftUrpLitMaterialMetaSha256"],
                 "atUtc": datetime.now(timezone.utc).isoformat(),
                 "storeWrites": 0, "firebaseWrites": 0,
                 "physicalDeviceTested": False, "storeReady": False}

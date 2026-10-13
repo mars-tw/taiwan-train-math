@@ -21,9 +21,9 @@ import time
 
 
 REPO = "mars-tw/taiwan-train-math"
-REF = "refs/heads/codex/rift-arm64-kvm-qa-20261013-9ae49d38"
+REF = "refs/heads/codex/rift-arm64-kvm-r2-20261013-shaderfix"
 PACKAGE = "tw.mars.riftforge3d"
-APK_SHA = "9ae49d38f5933f2ff1d0a703131433c5e8c5bd2348bd9cd0462711098bbd52f1"
+APK_SHA = "78bcddedc6099efc89bb29abe7bf52bbfa02330d1f21de9f9120d93d5b4a1da3"
 CERT_SHA = "11e100f23b70476c3a1b02054e85c9c9681609e5604fada346dd8f3fe3df4c40"
 SYSTEM_IMAGE = "system-images;android-36;google_apis;x86_64"
 PORT = 5582
@@ -46,6 +46,8 @@ def normalized(raw: str) -> str:
 
 def classify(text: str) -> str:
     content = normalized(text)
+    if "VIEWING FULL SCREEN" in content and "SWIPE DOWN" in content:
+        return "immersive_hint"
     if "RIFT SEALED" in content:
         return "victory"
     if "CORE BROKEN" in content:
@@ -68,6 +70,7 @@ def self_test() -> None:
     assert classify("RIFT SEALED THE WARDEN HAS FALLEN") == "victory"
     assert classify("CORE BROKEN THE FORGE AWAITS YOUR RETURN") == "defeat"
     assert classify("RIFT PAUSED RESUME") == "pause"
+    assert classify("Viewing full screen To exit swipe down from the top of your screen") == "immersive_hint"
     print("RIFT_KVM_PROBE_SELF_TEST_PASS")
 
 
@@ -86,7 +89,7 @@ class Probe:
         self.out = Path(os.environ["RIFT_OUTPUT"]).resolve()
         self.temp = Path(os.environ["RUNNER_TEMP"]).resolve()
         self.avd_home = Path(os.environ["ANDROID_AVD_HOME"]).resolve()
-        self.avd_name = "rift-arm64-kvm-" + self.run_id
+        self.avd_name = "rift-arm64-kvm-r2-" + self.run_id
         self.avd_path = self.avd_home / (self.avd_name + ".avd")
         self.adb = str(self.sdk / "platform-tools/adb")
         self.emulator = str(self.sdk / "emulator/emulator")
@@ -118,7 +121,7 @@ class Probe:
         }
         owner = json.loads((self.out / "owned-run.json").read_text(encoding="utf-8"))
         if owner != {"runId": self.run_id, "headSha": os.environ["GITHUB_SHA"],
-                     "owner": "rift-arm64-kvm"}:
+                     "owner": "rift-arm64-kvm-r2"}:
             raise RuntimeError("Evidence directory owner mismatch")
         self.save()
 
@@ -140,12 +143,12 @@ class Probe:
                             allow_failure=allow_failure)
 
     def inspect_input(self) -> None:
-        manifest = json.loads((self.temp / "rift-arm64-kvm-input/manifest.json").read_text())
+        manifest = json.loads((self.temp / "rift-arm64-kvm-r2-input/manifest.json").read_text())
         if (manifest.get("repository") != REPO or manifest.get("branch") != REF.removeprefix("refs/heads/")
                 or manifest.get("appId") != PACKAGE or manifest.get("versionCode") != 1
                 or manifest.get("apk", {}).get("sha256") != APK_SHA
                 or manifest.get("apk", {}).get("certificateSha256") != CERT_SHA
-                or not self.apk.is_file() or self.apk.stat().st_size != 42_781_135
+                or not self.apk.is_file() or self.apk.stat().st_size != 42_781_323
                 or digest(self.apk.read_bytes()) != APK_SHA):
             raise RuntimeError("Exact APK/manifest identity mismatch")
         cert = self.command([self.apksigner, "verify", "--verbose", "--print-certs", str(self.apk)],
@@ -293,7 +296,7 @@ class Probe:
 
     def start_video(self) -> None:
         self.segment += 1
-        remote = f"/sdcard/Movies/rift-arm64-kvm-{self.segment}.mp4"
+        remote = f"/sdcard/Movies/rift-arm64-kvm-r2-{self.segment}.mp4"
         self.recording_started = time.monotonic()
         self.recorder = subprocess.Popen(
             [self.adb, "-s", SERIAL, "shell", "screenrecord",
@@ -321,7 +324,7 @@ class Probe:
             self.recorder.terminate()
             self.recorder.wait(timeout=10)
         self.recorder = None
-        local = self.out / f"rift-arm64-native-segment-{self.segment}.mp4"
+        local = self.out / f"rift-arm64-r2-native-segment-{self.segment}.mp4"
         pulled = self.device("pull", remote, str(local), timeout=90, allow_failure=True)
         (self.out / f"video-pull-{self.segment}.txt").write_bytes(
             pulled.stdout + b"\n" + pulled.stderr)
@@ -373,11 +376,26 @@ class Probe:
         self.report["nativeAppPid"] = self.app_pid
         self.save()
         state = "unknown"
-        for attempt in range(12):
+        dismissed_hint = False
+        title_frames = 0
+        for attempt in range(16):
             time.sleep(3 if attempt else 1)
             state, text = self.capture(f"cold-title-{attempt}")
+            if state == "immersive_hint":
+                if dismissed_hint:
+                    raise RuntimeError("Android immersive hint remained after one owned Got it tap")
+                self.tap("ANDROID FULLSCREEN GOT IT", .80, .53,
+                         "OCR-visible Android immersive hint on owned emulator")
+                dismissed_hint = True
+                time.sleep(1)
+                title_frames = 0
+                continue
             if state == "title":
-                break
+                title_frames += 1
+                if title_frames >= 2:
+                    break
+            else:
+                title_frames = 0
         if state != "title":
             raise RuntimeError("Native launch did not render OCR-visible ENTER THE RIFT")
         self.report["coldTitleVisible"] = True

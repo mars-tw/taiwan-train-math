@@ -1,0 +1,169 @@
+name: Seven District build 12 signed iOS QA (draft only)
+
+'on':
+  workflow_dispatch: null
+
+permissions:
+  contents: write
+
+concurrency:
+  group: seven-build12-ios-qa-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  signed_qa:
+    if: github.event_name == 'workflow_dispatch' && github.repository == 'mars-tw/taiwan-train-math' && github.ref == 'refs/heads/main'
+    runs-on: macos-15-intel
+    timeout-minutes: 90
+    environment: game-store-seven-district-reckoning
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
+      GH_TOKEN: ${{ github.token }}
+      CI_INPUT: ${{ runner.temp }}/seven-build12-input
+      APP_SOURCE: ${{ runner.temp }}/seven-build12-source
+      PUBLIC_OUTPUT: ${{ runner.temp }}/seven-build12-output
+      SOURCE_PIN: 867ecfdcb80cd328767f2a07889fe5edeee3b14eace3dda6ee74a9eebb006261
+    steps:
+      - name: Fetch exact pinned unsigned inputs from one Seven-only draft Release
+        run: |
+          python3 - <<'PY'
+          import hashlib,json,os,pathlib,re,subprocess
+          repo='mars-tw/taiwan-train-math';tag='seven-build12-ios-qa-20261013'
+          pin='867ecfdcb80cd328767f2a07889fe5edeee3b14eace3dda6ee74a9eebb006261'
+          expected={
+              'SevenDistrict-1.0.0-build12-unsigned-source.zip':'d0fe0b07d6e3b2d0c98a7dd56d097dc6339262da9da713d4a44d9d5fc8e55e32',
+              'ci_seven_build12_evidence.py':'1e216767a3d9f9121b67148f7b263d84cb7dc821581eb8f4005a83e785601156',
+              'ci_seven_ios_build12_export.sh':'e1eee27117d22c23e7a900ab432248e2557eac6006802d648161bdc3392a259b',
+              'ci_verify_seven_build12.py':'227ebdf6ff1bd7d36c72140b37759642956f98471751c83c6042f432cdcc829b',
+              'seven-district-reckoning-build12-source-verification.json':'e5dfdd68b48a50a9b8b5421e7cb17c02dedb90ae9a634b239976c4a51c02ffb9',
+          }
+          if (os.environ['GITHUB_REPOSITORY'],os.environ['GITHUB_REF'],os.environ['GITHUB_EVENT_NAME'])!=(repo,'refs/heads/main','workflow_dispatch'):
+              raise SystemExit('Only the trusted manual main run is allowed')
+          def gh(*args,timeout=90):
+              process=subprocess.run(['gh',*args],capture_output=True,timeout=timeout)
+              if process.returncode:raise SystemExit('Approved draft read/download failed; output withheld')
+              return process.stdout
+          pages=json.loads(gh('api','--method','GET','--paginate','--slurp',f'repos/{repo}/releases?per_page=100'))
+          matches=[item for page in pages for item in page if item.get('tag_name')==tag and item.get('draft') is True]
+          if len(matches)!=1:raise SystemExit('Exactly one approved Seven build 12 draft Release is required')
+          release=matches[0]
+          if not isinstance(release.get('id'),int):raise SystemExit('Draft Release ID is missing')
+          assets={item.get('name'):item for item in release.get('assets',[]) if isinstance(item,dict)}
+          if not set(expected).issubset(assets) or 'SHA256SUMS' not in assets:raise SystemExit('Draft Release input set is incomplete')
+          stage=pathlib.Path(os.environ['CI_INPUT'])
+          if stage.exists() or stage.is_symlink():raise SystemExit('Source staging must be fresh')
+          stage.mkdir(mode=0o700)
+          for name in sorted([*expected,'SHA256SUMS']):
+              asset=assets[name]
+              maximum=1024**3 if name.endswith('.zip') else 1024**2
+              if (asset.get('state')!='uploaded' or not isinstance(asset.get('size'),int) or
+                  not 0<asset['size']<=maximum):raise SystemExit('Draft source asset is unavailable or oversized')
+              gh('release','download',tag,'--repo',repo,'--pattern',name,'--dir',str(stage),timeout=300)
+              file=stage/name
+              if not file.is_file() or file.is_symlink() or file.stat().st_size!=asset['size']:
+                  raise SystemExit('Draft source download differs in bytes')
+          def sha(path):
+              with path.open('rb') as data:return hashlib.file_digest(data,'sha256').hexdigest()
+          if sha(stage/'SHA256SUMS')!=pin:raise SystemExit('Approved SHA256SUMS pin differs')
+          if assets['SHA256SUMS'].get('digest') not in (None,'sha256:'+pin):
+              raise SystemExit('GitHub draft checksum digest differs')
+          entries={}
+          for line in (stage/'SHA256SUMS').read_text(encoding='ascii').splitlines():
+              match=re.fullmatch(r'([0-9a-f]{64})  ([A-Za-z0-9][A-Za-z0-9._-]{0,150})',line)
+              if not match or match[2] in entries:raise SystemExit('Malformed SHA256SUMS record')
+              entries[match[2]]=match[1]
+          if entries!=expected:raise SystemExit('Approved source/helper manifest tuple differs')
+          for name,digest in expected.items():
+              if sha(stage/name)!=digest or assets[name].get('digest') not in (None,'sha256:'+digest):
+                  raise SystemExit('Source, metadata or executable helper digest differs')
+          metadata=json.loads((stage/'seven-district-reckoning-build12-source-verification.json').read_text(encoding='utf-8'))
+          if (metadata.get('sourceCommit'),metadata.get('gameBaseCommit'),metadata.get('appId'),
+              metadata.get('nativeVersion'),metadata.get('nativeBuild'),metadata.get('sourceFiles'),
+              metadata.get('pckSha256')) != (
+                  'f6fc1155b0296f74972775a0426af25af4e04416',
+                  '905e123c4c0ed632a665f857e438f32ada590cc9',
+                  'tw.mars.sevendistrictreckoning','1.0.0',12,47,
+                  'd4c19f09bd7f06c038c61ded32d3f79c5ef9f13042fb1f35b951a88443fc5bc8'):
+              raise SystemExit('Draft metadata is not the reviewed clean build 12')
+          proof={'repository':repo,'releaseTag':tag,'releaseId':release['id'],'releaseDraft':True,
+                 'checksumManifestSha256':pin,'sourceZipSha256':expected['SevenDistrict-1.0.0-build12-unsigned-source.zip'],
+                 'sourceCommit':metadata['sourceCommit'],'projectId':'seven-district-reckoning',
+                 'helpersExecuted':False,'appleSecretsUsed':False,'storeUploadPerformed':False}
+          (stage/'input-provenance.json').write_text(json.dumps(proof,indent=2)+'\n',encoding='utf-8')
+          with pathlib.Path(os.environ['GITHUB_ENV']).open('a',encoding='utf-8') as env:
+              env.write('RELEASE_ID='+str(release['id'])+'\n')
+          print('Pinned unsigned 47-file source and three helper hashes verified; no Apple secret used')
+          PY
+      - name: Extract and independently verify all 47 Xcode/PCK source files
+        run: |
+          mkdir -p "$PUBLIC_OUTPUT"
+          python3 "$CI_INPUT/ci_verify_seven_build12.py" source \
+            --zip "$CI_INPUT/SevenDistrict-1.0.0-build12-unsigned-source.zip" \
+            --metadata "$CI_INPUT/seven-district-reckoning-build12-source-verification.json" \
+            --project seven-district-reckoning --root "$APP_SOURCE" \
+            --output "$PUBLIC_OUTPUT/source-verification.json"
+      - name: Verify the exact Xcode 26.3 source recipe without signing
+        run: |
+          bash "$CI_INPUT/ci_seven_ios_build12_export.sh" prepare "$APP_SOURCE" \
+            seven-district-reckoning "$PUBLIC_OUTPUT/prepare" \
+            "$CI_INPUT/seven-district-reckoning-build12-source-verification.json"
+      - name: Compile and capture fresh iPhone and iPad simulators
+        run: |
+          bash "$CI_INPUT/ci_seven_ios_build12_export.sh" sim "$APP_SOURCE" \
+            seven-district-reckoning "$PUBLIC_OUTPUT/sim" \
+            "$CI_INPUT/seven-district-reckoning-build12-source-verification.json"
+      - name: Check same-run unsigned source and Simulator before Apple secrets
+        run: |
+          python3 - <<'PY'
+          import hashlib,json,os,pathlib
+          stage=pathlib.Path(os.environ['CI_INPUT']);out=pathlib.Path(os.environ['PUBLIC_OUTPUT'])
+          with (stage/'SHA256SUMS').open('rb') as data:
+              if hashlib.file_digest(data,'sha256').hexdigest()!=os.environ['SOURCE_PIN']:
+                  raise SystemExit('Approved source pin changed before signing')
+          for name in ['source-verification.json','prepare/source-verification.json',
+                       'sim/source-verification.json']:
+              record=json.loads((out/name).read_text())
+              if (record.get('sourceVerified'),record.get('build'),record.get('sourceFiles'),
+                  record.get('pckSha256'))!=(True,12,47,
+                    'd4c19f09bd7f06c038c61ded32d3f79c5ef9f13042fb1f35b951a88443fc5bc8'):
+                  raise SystemExit('Unsigned source receipt mismatch before Apple signing')
+          simulator=json.loads((out/'sim/simulator-verification.json').read_text())
+          launch=json.loads((out/'sim/simulator-launch.json').read_text())
+          if (simulator.get('build'),simulator.get('pckSha256'),simulator.get('deviceBuild'))!=(
+                  12,'d4c19f09bd7f06c038c61ded32d3f79c5ef9f13042fb1f35b951a88443fc5bc8',False):
+              raise SystemExit('Simulator App differs from reviewed build 12 PCK')
+          if launch.get('actualSimulator') is not True or launch.get('freshDevices') is not True or len(launch.get('screenshots',[]))!=4:
+              raise SystemExit('Four fresh actual Simulator captures are required before signing')
+          PY
+          python3 "$CI_INPUT/ci_verify_seven_build12.py" source \
+            --root "$APP_SOURCE" \
+            --metadata "$CI_INPUT/seven-district-reckoning-build12-source-verification.json" \
+            --project seven-district-reckoning \
+            --output "$PUBLIC_OUTPUT/source-verification-pre-sign.json"
+      - name: Sign and verify only the Seven build 12 ARM64 IPA
+        env:
+          APPLE_DISTRIBUTION_P12_BASE64: ${{ secrets.APPLE_DISTRIBUTION_P12_BASE64 }}
+          APPLE_DISTRIBUTION_P12_PASSWORD: ${{ secrets.APPLE_DISTRIBUTION_P12_PASSWORD }}
+          APPLE_APPSTORE_PROFILE_BASE64: ${{ secrets.APPLE_APPSTORE_PROFILE_BASE64 }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          bash "$CI_INPUT/ci_seven_ios_build12_export.sh" sign "$APP_SOURCE" \
+            seven-district-reckoning "$PUBLIC_OUTPUT/signed" \
+            "$CI_INPUT/seven-district-reckoning-build12-source-verification.json"
+      - name: Verify same-run source, PCK, Xcode, signature, IPA and four PNGs; upload once to draft
+        run: |
+          python3 "$CI_INPUT/ci_seven_build12_evidence.py" \
+            --input "$CI_INPUT" --source "$APP_SOURCE" --output "$PUBLIC_OUTPUT" \
+            --pin "$SOURCE_PIN" --release-id "$RELEASE_ID"
+      - name: Remove only this job's temporary unsigned source and inputs
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import os,pathlib,shutil
+          parent=pathlib.Path(os.environ['RUNNER_TEMP']).resolve()
+          for name in ['seven-build12-input','seven-build12-source']:
+              target=parent/name
+              if target.is_symlink() or target.resolve()==parent or not target.resolve().is_relative_to(parent):
+                  raise SystemExit('Unsafe owned temporary path')
+              shutil.rmtree(target,ignore_errors=True)
+          PY

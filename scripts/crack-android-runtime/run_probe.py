@@ -318,7 +318,7 @@ def verify_avd_registry(ini, data, name, names, allowed_root):
 def main():
     if (os.environ.get("GITHUB_ACTIONS") != "true"
             or os.environ.get("GITHUB_REPOSITORY") != "mars-tw/taiwan-train-math"
-            or os.environ.get("GITHUB_REF") != "refs/heads/codex/crack2-kvm-qa-20261013-r10"):
+            or os.environ.get("GITHUB_REF") != "refs/heads/codex/crack2-kvm-qa-20261013-r11"):
         raise RuntimeError("Fixed Crack QA branch only")
     temp = Path(os.environ["RUNNER_TEMP"]).resolve()
     sdk = Path(os.environ["CRACK_SDK"]).resolve()
@@ -463,6 +463,15 @@ def main():
                 launch = "warm" if label.startswith("warm") else "cold"
                 if dismiss_systemui_notice(label+"-delayed-notice", image, tsv, name, launch=launch):
                     continue
+            # A pause tap can land while the previous battle frame is still
+            # displayed. On R10 the ROI recognizer spent the entire 30-second
+            # pause budget on that pre-overlay frame. Wait for the source-known
+            # settings tab before doing expensive OCR on the resume button.
+            if caption == "繼續" and not label_box(tsv, "設定"):
+                report.setdefault("pauseOverlayWaitFrames", []).append(name)
+                save()
+                time.sleep(min(1, caption_budget(caption, until, deadline)))
+                continue
             box, recognized_tsv = scoped_caption(image, tsv, name, caption, until)
             if box:
                 return image, recognized_tsv, name, box
@@ -615,12 +624,42 @@ def main():
         values, verified = locate_visible_joystick(image)
         circle = verified["circle"]
         x, y, radius = circle
-        gesture = [round(x), round(y), round(x + radius * .72), round(y), 1800]
-        report["inputs"].append({"action": "joystick_swipe", "basisNativeFrame": basis,
+        gesture = [round(x), round(y), round(x + radius * .72), round(y), 4500]
+        action = {"action": "joystick_swipe", "basisNativeFrame": basis,
             "observedCircleCandidates": values, "selectedCircle": circle,
-            "centerKnobBrightFraction": verified["knobBrightFraction"], "nativeGesture": gesture})
+            "centerKnobBrightFraction": verified["knobBrightFraction"], "nativeGesture": gesture,
+            "commandSucceeded": False}
+        report["inputs"].append(action)
         save()
-        device("shell", "input", "swipe", *map(str, gesture))
+        # Preserve an original PNG while the ordinary Android swipe is still
+        # held. The before/after scene can both look unchanged because the
+        # camera follows the captain; a pixel delta is not movement proof.
+        swipe = subprocess.Popen([adb, "-s", SERIAL, "shell", "input", "swipe", *map(str, gesture)],
+                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        try:
+            time.sleep(.8)
+            held_raw = device("exec-out", "screencap", "-p", timeout=15).stdout
+            held_image = Image.open(io.BytesIO(held_raw)).convert("RGB")
+            if held_image.size != image.size:
+                raise RuntimeError("Held-swipe native viewport changed")
+            held_name = label + "-held.png"
+            (frames / held_name).write_bytes(held_raw)
+            report["captures"].append({"name": held_name, "nativeWidth": held_image.width,
+                "nativeHeight": held_image.height, "sha256": hashlib.sha256(held_raw).hexdigest(),
+                "ocrComplete": False, "duringOrdinarySwipe": True})
+            action["heldNativeFrame"] = held_name
+            save()
+            swipe_out, swipe_err = swipe.communicate(timeout=12)
+            action["commandStdoutBytes"] = len(swipe_out)
+            action["commandStderrBytes"] = len(swipe_err)
+            if swipe.returncode:
+                raise RuntimeError("Ordinary Android joystick swipe command failed")
+            action["commandSucceeded"] = True
+            save()
+        finally:
+            if swipe.poll() is None:
+                swipe.terminate()
+                swipe.wait(timeout=5)
         time.sleep(.5)
         after, _, after_name = hud(label + "-after")
         crop = (int(image.width * .18), int(image.height * .34), int(image.width * .82), int(image.height * .70))
@@ -775,7 +814,7 @@ def main():
         capture("after-normal-skill")
         movement("movement-one")
         tap_caption("暫停", "observed-pause")
-        image, tsv, basis, _ = wait_caption("繼續", "pause-menu")
+        image, tsv, basis, _ = wait_caption("繼續", "pause-menu", seconds=60)
         if not label_box(tsv, "設定"):
             raise RuntimeError("Resume text without actual settings pause overlay")
         tap_caption("繼續", "observed-resume")

@@ -7,7 +7,7 @@ from pathlib import Path
 import subprocess
 
 REPO = "mars-tw/taiwan-train-math"
-BRANCH = "refs/heads/codex/crack2-kvm-qa-20261013-r10"
+BRANCH = "refs/heads/codex/crack2-kvm-qa-20261013-r11"
 RELEASE_ID = 410075088
 TAG = "crack-native-runtime-20261012-build2"
 ASSET_ID = 632396712

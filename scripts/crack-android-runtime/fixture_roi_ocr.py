@@ -20,7 +20,7 @@ def get(resource):
     if r.returncode:raise RuntimeError('Fixed official fixture GET failed; provideroutputwithheld')
     return r.stdout
 def main():
-    if os.environ.get('GITHUB_ACTIONS')!='true' or os.environ.get('GITHUB_REPOSITORY')!=REPO or os.environ.get('GITHUB_REF')!='refs/heads/codex/crack2-kvm-qa-20261013-r10':raise RuntimeError('Exact QAbranch fixture only')
+    if os.environ.get('GITHUB_ACTIONS')!='true' or os.environ.get('GITHUB_REPOSITORY')!=REPO or os.environ.get('GITHUB_REF')!='refs/heads/codex/crack2-kvm-qa-20261013-r11':raise RuntimeError('Exact QAbranch fixture only')
     out=Path(os.environ['GITHUB_WORKSPACE'])/'output/crack-roi-fixture';out.mkdir(parents=True,exist_ok=True)
     report={'status':'PREPARING_EXACT_ORIGINAL_ROI_FIXTURE','actualNativeBoots':0,'gameExecuted':False,'APKChanged':False,
         'actualReturnCaptionFixtureVerified':False,'actualReturnNavigationVerified':False,

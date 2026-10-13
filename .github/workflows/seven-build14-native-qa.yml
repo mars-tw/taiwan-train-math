@@ -73,14 +73,69 @@ jobs:
           assert len(r['packages'])==2
           print(json.dumps({'sourceSha':r['sourceSha'],'build':r['nativeBuild'],'packages':r['packages']}))
           PY
+      - name: Independently reject signatures and AAB sensitive permissions
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,os,pathlib,subprocess,xml.etree.ElementTree as ET,zipfile
+          root=pathlib.Path('seven-source/deliverables/native')
+          apk=root/'native-unsigned.apk';aab=root/'native-unsigned.aab'
+          signer=pathlib.Path(os.environ['ANDROID_HOME'])/'build-tools/36.1.0/apksigner'
+          jarsigner=pathlib.Path(os.environ['JAVA_HOME'])/'bin/jarsigner'
+          if not signer.is_file() or not jarsigner.is_file():raise SystemExit('Official signing inspectors missing')
+          check=subprocess.run([str(signer),'verify','--verbose','--print-certs',str(apk)],capture_output=True,text=True,timeout=90)
+          if check.returncode==0:raise SystemExit('APK unexpectedly has a verified v1/v2/v3 signature')
+          with zipfile.ZipFile(apk) as archive:
+              if any(name.startswith('META-INF/') and name.upper().endswith(('.RSA','.DSA','.EC','.SF')) for name in archive.namelist()):
+                  raise SystemExit('APK has a v1 signature record')
+              with apk.open('rb') as stream:
+                  stream.seek(archive.start_dir-16)
+                  if stream.read(16)==b'APK Sig Block 42':raise SystemExit('APK has a v2/v3 signing block')
+          jar=subprocess.run([str(jarsigner),'-verify','-strict',str(aab)],capture_output=True,text=True,timeout=90)
+          if 'jar is unsigned' not in (jar.stdout+jar.stderr).lower():
+              raise SystemExit('AAB did not independently report unsigned JAR content')
+          manifest=subprocess.run([str(pathlib.Path(os.environ['JAVA_HOME'])/'bin/java'),'-jar',os.environ['SEVEN_BUNDLETOOL'],
+                                   'dump','manifest','--bundle='+str(aab),'--module=base'],
+                                  capture_output=True,text=True,timeout=90)
+          if manifest.returncode:raise SystemExit('AAB manifest could not be independently inspected')
+          xml=ET.fromstring(manifest.stdout)
+          namespace='{http://schemas.android.com/apk/res/android}'
+          permissions={node.get(namespace+'name') for node in xml
+                       if node.tag in {'uses-permission','uses-permission-sdk-23'}}
+          forbidden={'android.permission.INTERNET','android.permission.ACCESS_NETWORK_STATE',
+                     'android.permission.RECORD_AUDIO','android.permission.CAMERA',
+                     'android.permission.ACCESS_FINE_LOCATION','android.permission.ACCESS_COARSE_LOCATION',
+                     'android.permission.READ_EXTERNAL_STORAGE','android.permission.WRITE_EXTERNAL_STORAGE',
+                     'android.permission.MANAGE_EXTERNAL_STORAGE'}
+          if permissions & forbidden:raise SystemExit('Offline AAB unexpectedly requests sensitive permission')
+          report={'sourceSha':'a5cc913f566189d13ecf39b4229848fec8a43df1','build':14,
+                  'apkApksignerVerifyExitCode':check.returncode,'apkV1RecordsPresent':False,
+                  'apkV2V3SigningBlockPresent':False,'aabJarsignerReportedUnsigned':True,
+                  'aabPermissions':sorted(permission for permission in permissions if permission),
+                  'forbiddenPermissionsPresent':False,'signed':False,'storeUploadPerformed':False}
+          (root/'independent-signature-check.json').write_text(json.dumps(report,indent=2)+'\n')
+          print(json.dumps(report))
+          PY
       - name: Preserve unsigned native packages and exact source receipts
-        if: always()
+        if: success()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: seven-build14-android-${{ github.run_id }}
           path: |
             seven-source/deliverables/native/native-unsigned.apk
             seven-source/deliverables/native/native-unsigned.aab
+            seven-source/deliverables/native/android-verification.json
+            seven-source/deliverables/native/independent-signature-check.json
+            seven-source/qa/engine-checks.json
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Preserve bounded Android failure receipts without packages
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: seven-build14-android-failure-${{ github.run_id }}
+          path: |
             seven-source/deliverables/native/android-verification.json
             seven-source/qa/engine-checks.json
           if-no-files-found: warn

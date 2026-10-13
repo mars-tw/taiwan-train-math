@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import ImageIO
 import UIKit
@@ -12,9 +13,21 @@ final class SevenDistrictUITests: XCTestCase {
         let observations: [VNRecognizedTextObservation]
     }
 
+    private struct NativePNG {
+        let data: Data
+        let filename: String
+        let markerMetadata: String
+        let logLine: String
+    }
+
     private enum OCRFailure: Error {
         case missingCGImage
         case unsupportedImageOrientation
+    }
+
+    private enum NativePNGFailure: Error {
+        case missingCGImage
+        case invalidIHDR
     }
 
     override func setUpWithError() throws {
@@ -42,7 +55,8 @@ final class SevenDistrictUITests: XCTestCase {
         let documents = try XCTUnwrap(
             FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
         )
-        let activatedImage = XCUIScreen.main.screenshot().image
+        let activatedScreenshot = XCUIScreen.main.screenshot()
+        let activatedImage = activatedScreenshot.image
         let activatedFrame = game.frame
         guard let activatedCGImage = activatedImage.cgImage,
               game.state == .runningForeground,
@@ -52,21 +66,23 @@ final class SevenDistrictUITests: XCTestCase {
             return
         }
 
-        // The host captures a native Simulator frame before the first OCR.
+        // The first activation frame is a loading diagnostic, not a listing-ready
+        // gameplay image. Preserve both original capture sources before OCR.
         let activatedReady = documents.appendingPathComponent("seven-activated-ready.txt")
         let activatedCaptured = documents.appendingPathComponent("seven-activated-captured.flag")
         try? FileManager.default.removeItem(at: activatedCaptured)
+        let activatedPNG = try nativePNG(from: activatedScreenshot, phase: "activated")
         let activatedEvidence = """
         bundle=\(gameBundleID)
         phase=activated
         orientation=\(orientationName)
-        screenshotUIImageSize=\(activatedImage.size.width),\(activatedImage.size.height)
-        screenshotScale=\(activatedImage.scale)
-        screenshotCGImagePixels=\(activatedCGImage.width),\(activatedCGImage.height)
-        screenshotImageOrientation=\(activatedImage.imageOrientation)
+        captureRole=loading-diagnostic
+        listingUploadReady=false
+        \(activatedPNG.markerMetadata)
         gameFrame=\(rectString(activatedFrame))
 
         """
+        try writeNativePNG(activatedPNG, to: documents)
         try activatedEvidence.write(to: activatedReady, atomically: true, encoding: .utf8)
         let activationAcknowledged = waitUntil(120, every: 0.25) {
             FileManager.default.fileExists(atPath: activatedCaptured.path)
@@ -149,13 +165,14 @@ final class SevenDistrictUITests: XCTestCase {
         let titleReady = documents.appendingPathComponent("seven-title-ready.txt")
         let titleCaptured = documents.appendingPathComponent("seven-title-captured.flag")
         try? FileManager.default.removeItem(at: titleCaptured)
+        let titlePNG = try nativePNG(from: XCUIScreen.main.screenshot(), phase: "title")
         let titleEvidence = """
         bundle=\(gameBundleID)
         phase=title
         orientation=\(orientationName)
         startVisible=true
         startOCRBox=\(rectString(box))
-        screenshotUIImageSize=\(titleFrame.image.size.width),\(titleFrame.image.size.height)
+        \(titlePNG.markerMetadata)
         gameFrame=\(rectString(appFrame))
         startOCRScreenPoint=\(pointString(screenPoint))
         startXCUIScreenPoint=\(pointString(xcuiPoint))
@@ -164,6 +181,7 @@ final class SevenDistrictUITests: XCTestCase {
         startTapNormalized=\(x),\(y)
 
         """
+        try writeNativePNG(titlePNG, to: documents)
         try titleEvidence.write(to: titleReady, atomically: true, encoding: .utf8)
         let titleAcknowledged = waitUntil(120, every: 0.25) {
             FileManager.default.fileExists(atPath: titleCaptured.path)
@@ -233,7 +251,17 @@ final class SevenDistrictUITests: XCTestCase {
         let ready = documents.appendingPathComponent("seven-main001-ready.txt")
         let captured = documents.appendingPathComponent("seven-main001-captured.flag")
         try? FileManager.default.removeItem(at: captured)
-        let evidence = "bundle=\(gameBundleID)\norientation=\(orientationName)\nstartTapNormalized=\(x),\(y)\nmission=MAIN-001\n"
+        let readyPNG = try nativePNG(from: readyImage, phase: "main001")
+        let evidence = """
+        bundle=\(gameBundleID)
+        phase=main001
+        orientation=\(orientationName)
+        startTapNormalized=\(x),\(y)
+        mission=MAIN-001
+        \(readyPNG.markerMetadata)
+
+        """
+        try writeNativePNG(readyPNG, to: documents)
         try evidence.write(to: ready, atomically: true, encoding: .utf8)
 
         // The host polls the real Simulator runner container for `ready`, takes
@@ -297,6 +325,48 @@ final class SevenDistrictUITests: XCTestCase {
             .replacingOccurrences(of: "\r", with: " ")
             .replacingOccurrences(of: "\"", with: "'")
             .prefix(limit))
+    }
+
+    private func nativePNG(from screenshot: XCUIScreenshot, phase: String) throws -> NativePNG {
+        let image = screenshot.image
+        guard let cgImage = image.cgImage else { throw NativePNGFailure.missingCGImage }
+        // Inspect the original PNG bytes only. No rotation, resampling, crop,
+        // or re-encoding is involved in either the metadata or saved artifact.
+        let png = screenshot.pngRepresentation
+        guard png.count >= 33, png.count <= 24 * 1024 * 1024 else {
+            throw NativePNGFailure.invalidIHDR
+        }
+        let header = Array(png.prefix(24))
+        guard Array(header[0..<8]) == [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a],
+              Array(header[8..<12]) == [0, 0, 0, 13],
+              Array(header[12..<16]) == Array("IHDR".utf8) else {
+            throw NativePNGFailure.invalidIHDR
+        }
+        let width = header[16..<20].reduce(UInt32(0)) { ($0 << 8) | UInt32($1) }
+        let height = header[20..<24].reduce(UInt32(0)) { ($0 << 8) | UInt32($1) }
+        guard (1...4096).contains(width), (1...4096).contains(height) else {
+            throw NativePNGFailure.invalidIHDR
+        }
+        let filename = "seven-\(phase)-xctest.png"
+        let digest = SHA256.hash(data: png).map { String(format: "%02x", $0) }.joined()
+        let metadata = """
+        xctestPNGFile=\(filename)
+        xctestPNGBytes=\(png.count)
+        xctestPNGSHA256=\(digest)
+        screenshotUIImageSize=\(image.size.width),\(image.size.height)
+        screenshotScale=\(image.scale)
+        screenshotCGImagePixels=\(cgImage.width),\(cgImage.height)
+        screenshotImageOrientation=\(image.imageOrientation)
+        xctestPNGIHDRPixels=\(width),\(height)
+        """
+        let logLine = "SEVEN_XCTEST_PNG phase=\(phase) file=\(filename) bytes=\(png.count) ihdr=\(width)x\(height) sha256=\(digest)"
+        return NativePNG(data: png, filename: filename,
+                         markerMetadata: metadata, logLine: logLine)
+    }
+
+    private func writeNativePNG(_ png: NativePNG, to documents: URL) throws {
+        try png.data.write(to: documents.appendingPathComponent(png.filename), options: .atomic)
+        print(png.logLine)
     }
 
     private func cgOrientation(for orientation: UIImage.Orientation) throws -> CGImagePropertyOrientation {

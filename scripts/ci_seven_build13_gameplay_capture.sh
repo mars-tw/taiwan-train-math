@@ -60,44 +60,64 @@ diagnostics.extend(line for line in critical if line not in diagnostics)
 if not diagnostics:diagnostics=list(fallback)
 receipt=root/'gameplay-failure.json'
 if not receipt.exists():
- partial=[];total=0;probe_exits=[]
- sources=[('activation','activation-simctl-raw.png'),
+ partial=[];total=0;probe_exits=[];source_selections=[]
+ sources=[('activation-xctest','activated-xctest-raw.png'),
+  ('activation-simctl','activated-simctl-raw.png'),
+  ('title-xctest','title-xctest-raw.png'),
+  ('title-simctl','title-simctl-raw.png'),
+  ('main001-xctest','main001-xctest-raw.png'),
+  ('main001-simctl','main001-simctl-raw.png'),
   ('activation-failure','activation-failure-simctl-raw.png'),
   ('title-wait-t120','title-wait-t120-simctl-raw.png'),
   ('title-wait-t240','title-wait-t240-simctl-raw.png'),
   ('title-wait-t360','title-wait-t360-simctl-raw.png'),
-  ('title-wait-final','title-wait-final-simctl-raw.png'),
-  ('title','title-simctl-raw.png'),('main001','main001-simctl-raw.png')]
- for kind in ('iphone','ipad'):
+  ('title-wait-final','title-wait-final-simctl-raw.png')]
+ order=('ipad','iphone') if text.startswith('ipad-') else ('iphone','ipad')
+ for kind in order:
   probe=scratch/(kind+'-probe')
   exit_path=probe/'probe-exit.json'
   if exit_path.is_file() and not exit_path.is_symlink() and exit_path.stat().st_size<=4096:
    value=json.loads(exit_path.read_text())
    probe_exits.append({'kind':kind,'phase':str(value.get('phase',''))[:80],
                        'exitCode':value.get('exitCode')})
-  for phase,source in sources:
-   image=probe/source
-   if not image.is_file() or image.is_symlink() or not 0<image.stat().st_size<=24*1024**2:
-    continue
-   with image.open('rb') as stream:head=stream.read(26)
-   if (len(head)!=26 or head[:8]!=b'\x89PNG\r\n\x1a\n' or head[12:16]!=b'IHDR'
-       or total+image.stat().st_size>150*1024**2):
-    continue
-   width,height=struct.unpack('>II',head[16:24])
-   if not 0<width<=4096 or not 0<height<=4096:continue
-   target=root/'partial'/(kind+'-'+phase+'.png')
-   target.parent.mkdir(exist_ok=True)
-   shutil.copyfile(image,target)
-   total+=target.stat().st_size
-   with target.open('rb') as stream:sha=hashlib.file_digest(stream,'sha256').hexdigest()
-   partial.append({'file':'partial/'+target.name,'bytes':target.stat().st_size,
-                   'sha256':sha,'width':width,'height':height,
-                   'listingCandidate':False,
-                   'provenance':'raw simctl screenshot from bounded XCUITest probe before failure'})
+  for phase in ('activated','title','main001'):
+   selection_path=probe/(phase+'-source-selection.json')
+   if selection_path.is_file() and not selection_path.is_symlink() and selection_path.stat().st_size<=8192:
+    value=json.loads(selection_path.read_text())
+    source_selections.append({'kind':kind,'phase':phase,
+     'requiredWidth':value.get('requiredWidth'),'requiredHeight':value.get('requiredHeight'),
+     'chosenSource':value.get('chosenSource'),
+     'simctl':value.get('simctl'),'xctest':value.get('xctest'),
+     'noRotateCropOrComposite':value.get('noRotateCropOrComposite')})
+ # Preserve every available paired phase original across both devices first.
+ # Their six-per-device 24 MiB bounds total at most 288 MiB, below the cap.
+ work=[(kind,phase,source) for kind in order for phase,source in sources[:6]]
+ work.extend((kind,phase,source) for kind in order for phase,source in sources[6:])
+ for kind,phase,source in work:
+  probe=scratch/(kind+'-probe');image=probe/source
+  if len(partial)>=16 or not image.is_file() or image.is_symlink() or not 0<image.stat().st_size<=24*1024**2:
+   continue
+  with image.open('rb') as stream:head=stream.read(26)
+  if (len(head)!=26 or head[:8]!=b'\x89PNG\r\n\x1a\n' or head[12:16]!=b'IHDR'
+      or total+image.stat().st_size>300*1024**2):
+   continue
+  width,height=struct.unpack('>II',head[16:24])
+  if not 0<width<=4096 or not 0<height<=4096:continue
+  target=root/'partial'/(kind+'-'+phase+'.png')
+  target.parent.mkdir(exist_ok=True)
+  shutil.copyfile(image,target)
+  total+=target.stat().st_size
+  with target.open('rb') as stream:sha=hashlib.file_digest(stream,'sha256').hexdigest()
+  partial.append({'file':'partial/'+target.name,'bytes':target.stat().st_size,
+                  'sha256':sha,'width':width,'height':height,
+                  'listingCandidate':False,
+                  'provenance':'unaltered XCTest PNG from bounded UI test' if phase.endswith('-xctest')
+                   else 'raw simctl screenshot from bounded UI test before failure'})
  receipt.write_text(json.dumps({'projectId':'seven-district-reckoning','phase':'gameplay-capture',
   'failureCode':code[:80],'rawLogsPublished':False,'appleSecretsUsed':False,
   'storeUploadPerformed':False,'diagnostics':diagnostics,
-  'probeExitReceipts':probe_exits,'partialScreenshots':partial},indent=2)+'\n',encoding='utf-8')
+  'probeExitReceipts':probe_exits,'dualSourceSelections':source_selections,
+  'partialScreenshots':partial},indent=2)+'\n',encoding='utf-8')
 PY
   fi
   for device in "${devices[@]}"; do
@@ -107,7 +127,7 @@ PY
     fi
   done
   python3 - "$scratch" "$RUNNER_TEMP" <<'PY'
-import pathlib,shutil,sys
+import json,pathlib,shutil,sys
 target=pathlib.Path(sys.argv[1]).resolve();parent=pathlib.Path(sys.argv[2]).resolve()
 if target!=parent and target.is_relative_to(parent) and target.name.startswith('seven-build13-gameplay.'):
  shutil.rmtree(target,ignore_errors=True)
@@ -220,20 +240,24 @@ PY
   safe_cmd "$kind-install" 360 xcrun simctl install "$device" "$app"
   safe_cmd "$kind-probe" 1500 bash "$probe/run_probe.sh" "$device" "$scratch/$kind-probe"
   python3 - "$scratch/$kind-probe" "$out/raw" "$kind" <<'PY'
-import pathlib,shutil,sys
+import json,pathlib,shutil,sys
 probe=pathlib.Path(sys.argv[1]);out=pathlib.Path(sys.argv[2]);kind=sys.argv[3]
-for source,target in [('activation-simctl-raw.png',f'{kind}-activation.png'),
-                      ('title-simctl-raw.png',f'{kind}-title.png'),
-                      ('main001-simctl-raw.png',f'{kind}-main001.png')]:
- p=probe/source
- if not p.is_file() or p.is_symlink():raise SystemExit('Real simctl capture missing')
- shutil.copyfile(p,out/target)
-for source,target in [('activation-simctl-evidence.json',f'{kind}-activation-evidence.json'),
-                      ('title-simctl-evidence.json',f'{kind}-title-evidence.json'),
-                      ('main001-simctl-evidence.json',f'{kind}-main001-evidence.json')]:
- p=probe/source
- if not p.is_file() or p.is_symlink():raise SystemExit('Real simctl receipt missing')
- shutil.copyfile(p,out.parent/target)
+for phase,label in [('activated','activation'),('title','title'),('main001','main001')]:
+ selection=probe/f'{phase}-source-selection.json'
+ if not selection.is_file() or selection.is_symlink():
+  raise SystemExit('Native dual-source selection receipt missing')
+ shutil.copyfile(selection,out.parent/f'{kind}-{label}-source-selection.json')
+ chosen=json.loads(selection.read_text())['chosenSource']
+ if chosen not in ('simctl','xctest'):
+  raise SystemExit('Neither original source has native landscape geometry')
+ for method in ('simctl','xctest'):
+  raw=probe/f'{phase}-{method}-raw.png'
+  evidence=probe/f'{phase}-{method}-evidence.json'
+  if not raw.is_file() or raw.is_symlink() or not evidence.is_file() or evidence.is_symlink():
+   raise SystemExit('Original paired PNG or evidence missing')
+  shutil.copyfile(raw,out/f'{kind}-{label}-{method}.png')
+  shutil.copyfile(evidence,out.parent/f'{kind}-{label}-{method}-evidence.json')
+ shutil.copyfile(out/f'{kind}-{label}-{chosen}.png',out/f'{kind}-{label}.png')
 PY
   safe_cmd "$kind-shutdown" 60 xcrun simctl shutdown "$device"
 done
@@ -274,9 +298,39 @@ if models.get('iphone')!='iPhone 17 Pro' or not models.get('ipad','').startswith
 captures=[]
 for kind in ('iphone','ipad'):
  expected=(2622,1206) if kind=='iphone' else (2752,2064)
- activation=json.loads((root/f'{kind}-activation-evidence.json').read_text())
- title=json.loads((root/f'{kind}-title-evidence.json').read_text())
- play=json.loads((root/f'{kind}-main001-evidence.json').read_text())
+ phase_sources={};gates={}
+ for phase,label in [('activated','activation'),('title','title'),('main001','main001')]:
+  selection=json.loads((root/f'{kind}-{label}-source-selection.json').read_text())
+  chosen=selection.get('chosenSource')
+  if (selection.get('phase')!=phase or chosen not in ('simctl','xctest')
+      or (selection.get('requiredWidth'),selection.get('requiredHeight'))!=expected
+      or selection.get('noRotateCropOrComposite') is not True):
+   raise SystemExit('Native dual-source selection differs')
+  originals={}
+  for method in ('simctl','xctest'):
+   image=root/'raw'/f'{kind}-{label}-{method}.png'
+   evidence=json.loads((root/f'{kind}-{label}-{method}-evidence.json').read_text())
+   raw=image.read_bytes()
+   if raw[:8]!=b'\x89PNG\r\n\x1a\n' or raw[12:16]!=b'IHDR' or not 0<len(raw)<=24*1024**2:
+    raise SystemExit('Original paired Simulator image is not bounded PNG')
+   width,height=struct.unpack('>II',raw[16:24]);digest=hashlib.sha256(raw).hexdigest()
+   source='xcrun simctl io <UDID> screenshot --type=png' if method=='simctl' else 'XCUIScreen.main.screenshot().pngRepresentation'
+   if (not 0<width<=4096 or not 0<height<=4096
+       or evidence.get('source')!=source or evidence.get('sha256')!=digest
+       or (evidence.get('width'),evidence.get('height'))!=(width,height)
+       or evidence.get('nativeGeometryAccepted') is not ((width,height)==expected)
+       or selection[method].get('sha256')!=digest
+       or (selection[method].get('width'),selection[method].get('height'))!=(width,height)):
+    raise SystemExit('Original paired geometry/hash or source receipt differs')
+   originals[method]={'file':f'raw/{kind}-{label}-{method}.png','sha256':digest,
+                      'width':width,'height':height,'bytes':len(raw),'source':source}
+  selected=root/'raw'/f'{kind}-{label}.png'
+  if selected.read_bytes()!=(root/'raw'/f'{kind}-{label}-{chosen}.png').read_bytes():
+   raise SystemExit('Selected native PNG differs from original source bytes')
+  if (originals[chosen]['width'],originals[chosen]['height'])!=expected:
+   raise SystemExit('Selected original is not native landscape')
+  phase_sources[label]={'chosenSource':chosen,**originals}
+  gates[label]=json.loads((root/f'{kind}-{label}-{chosen}-evidence.json').read_text())['uiTestGate']
  files={'activationRaw':root/'raw'/f'{kind}-activation.png',
         'titleRaw':root/'raw'/f'{kind}-title.png',
         'gameplayRaw':root/'raw'/f'{kind}-main001.png',
@@ -289,28 +343,21 @@ for kind in ('iphone','ipad'):
    raise SystemExit('Native orientation, PNG or opaque RGB candidate differs')
   hashes[key]=hashlib.sha256(raw).hexdigest()
  orientation='landscapeLeft' if kind=='iphone' else 'landscapeRight'
- if (activation.get('sha256')!=hashes['activationRaw']
-     or title.get('sha256')!=hashes['titleRaw'] or play.get('sha256')!=hashes['gameplayRaw']
-     or (activation.get('width'),activation.get('height'))!=expected
-     or (title.get('width'),title.get('height'))!=expected
-     or (play.get('width'),play.get('height'))!=expected
-     or 'phase=activated' not in activation.get('uiTestGate','')
-     or 'orientation='+orientation not in activation.get('uiTestGate','')
-     or activation.get('nativeGeometryAccepted') is not True
-     or title.get('nativeGeometryAccepted') is not True
-     or play.get('nativeGeometryAccepted') is not True
-     or 'bundle=tw.mars.sevendistrictreckoning' not in title.get('uiTestGate','')
-     or 'orientation='+orientation not in title.get('uiTestGate','')
-     or 'orientation='+orientation not in play.get('uiTestGate','')
-     or 'startVisible=true' not in title.get('uiTestGate','')
-     or 'startOCRBox=' not in title.get('uiTestGate','')
-     or 'startXCUIScreenPoint=' not in title.get('uiTestGate','')
-     or 'startCoordinateErrorPoints=' not in title.get('uiTestGate','')
-     or 'mission=MAIN-001' not in play.get('uiTestGate','')
-     or 'startTapNormalized=' not in play.get('uiTestGate','')):
+ if ('phase=activated' not in gates['activation']
+     or 'orientation='+orientation not in gates['activation']
+     or 'bundle=tw.mars.sevendistrictreckoning' not in gates['title']
+     or 'orientation='+orientation not in gates['title']
+     or 'orientation='+orientation not in gates['main001']
+     or 'startVisible=true' not in gates['title']
+     or 'startOCRBox=' not in gates['title']
+     or 'startXCUIScreenPoint=' not in gates['title']
+     or 'startCoordinateErrorPoints=' not in gates['title']
+     or 'mission=MAIN-001' not in gates['main001']
+     or 'startTapNormalized=' not in gates['main001']):
   raise SystemExit('XCUITest title/tap/MAIN-001 handshake differs')
  captures.append({'kind':kind,'model':models[kind],'deviceId':ids[kind],
   'orientation':orientation,
+  'phaseSources':phase_sources,
   'activationRaw':f'raw/{kind}-activation.png','activationRawSha256':hashes['activationRaw'],
   'titleRaw':f'raw/{kind}-title.png','titleRawSha256':hashes['titleRaw'],
   'gameplayRaw':f'raw/{kind}-main001.png','gameplayRawSha256':hashes['gameplayRaw'],

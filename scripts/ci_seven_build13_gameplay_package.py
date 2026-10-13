@@ -178,22 +178,63 @@ def collect(stage: pathlib.Path, output: pathlib.Path, commit: str, outcome: str
                     or row.get("titleRaw") != title_name or row.get("gameplayRaw") != game_name
                     or row.get("listingCandidate") != candidate_name):
                 fail("Exact activation/title/gameplay screenshot names required")
-            activation_evidence_name = f"{kind}-activation-evidence.json"
-            title_evidence_name = f"{kind}-title-evidence.json"
-            gameplay_evidence_name = f"{kind}-main001-evidence.json"
-            activation_evidence = obj(game / activation_evidence_name)
-            title_evidence = obj(game / title_evidence_name)
-            gameplay_evidence = obj(game / gameplay_evidence_name)
-            if (activation_evidence.get("source") != "xcrun simctl io <UDID> screenshot --type=png"
-                    or title_evidence.get("source") != activation_evidence.get("source")
-                    or gameplay_evidence.get("source") != title_evidence.get("source")
-                    or "phase=activated" not in activation_evidence.get("uiTestGate", "")
-                    or "phase=title" not in title_evidence.get("uiTestGate", "")
-                    or "mission=MAIN-001" not in gameplay_evidence.get("uiTestGate", "")):
-                fail("Actual simctl activation/title/gameplay handshake differs")
-            files["gameplay/" + activation_evidence_name] = game / activation_evidence_name
-            files["gameplay/" + title_evidence_name] = game / title_evidence_name
-            files["gameplay/" + gameplay_evidence_name] = game / gameplay_evidence_name
+            phase_sources = row.get("phaseSources")
+            if not isinstance(phase_sources, dict) or set(phase_sources) != {"activation", "title", "main001"}:
+                fail("Exact dual-original phase source set required")
+            for phase, label in (("activated", "activation"), ("title", "title"), ("main001", "main001")):
+                item = phase_sources[label]
+                chosen = item.get("chosenSource") if isinstance(item, dict) else None
+                if chosen not in ("simctl", "xctest") or set(item) != {"chosenSource", "simctl", "xctest"}:
+                    fail("Selected original source missing")
+                selection_name = f"{kind}-{label}-source-selection.json"
+                selection = obj(game / selection_name)
+                if (selection.get("phase"), selection.get("chosenSource"),
+                        selection.get("requiredWidth"), selection.get("requiredHeight"),
+                        selection.get("noRotateCropOrComposite")) != (
+                        phase, chosen, SIZES[kind][0], SIZES[kind][1], True):
+                    fail("Native dual-source selection receipt differs")
+                files["gameplay/" + selection_name] = game / selection_name
+                gate = None
+                for method, source in (("simctl", "xcrun simctl io <UDID> screenshot --type=png"),
+                                       ("xctest", "XCUIScreen.main.screenshot().pngRepresentation")):
+                    original = item[method]
+                    name = f"raw/{kind}-{label}-{method}.png"
+                    evidence_name = f"{kind}-{label}-{method}-evidence.json"
+                    evidence = obj(game / evidence_name)
+                    if not isinstance(original, dict) or original.get("file") != name or original.get("source") != source:
+                        fail("Original source path or method differs")
+                    path = safe_file(game, name)
+                    frame = diagnostic_png(path)
+                    if (original.get("sha256"), original.get("width"), original.get("height"), original.get("bytes")) != (
+                            frame["sha256"], frame["width"], frame["height"], frame["bytes"]):
+                        fail("Original source hash/geometry differs")
+                    if (evidence.get("source"), evidence.get("sha256"), evidence.get("width"),
+                            evidence.get("height"), evidence.get("bytes"), evidence.get("nativeGeometryAccepted")) != (
+                            source, frame["sha256"], frame["width"], frame["height"], frame["bytes"],
+                            (frame["width"], frame["height"]) == SIZES[kind]):
+                        fail("Original source evidence differs")
+                    if method == "xctest":
+                        gate_text = evidence.get("uiTestGate", "")
+                        if (f"xctestPNGFile=seven-{phase}-xctest.png" not in gate_text
+                                or f"xctestPNGBytes={frame['bytes']}" not in gate_text
+                                or f"xctestPNGSHA256={frame['sha256']}" not in gate_text
+                                or f"xctestPNGIHDRPixels={frame['width']},{frame['height']}" not in gate_text):
+                            fail("XCTest PNG differs from its atomic ready marker")
+                    selected = selection.get(method, {})
+                    if (selected.get("sha256"), selected.get("width"), selected.get("height"),
+                            selected.get("bytes")) != (
+                            frame["sha256"], frame["width"], frame["height"], frame["bytes"]):
+                        fail("Dual-source selection hash/geometry differs")
+                    if method == chosen:
+                        if (frame["width"], frame["height"]) != SIZES[kind]:
+                            fail("Chosen original is not native landscape")
+                        gate = evidence.get("uiTestGate", "")
+                    files["gameplay/" + name] = path
+                    files["gameplay/" + evidence_name] = game / evidence_name
+                if not isinstance(gate, str) or (label == "activation" and "phase=activated" not in gate) \
+                        or (label == "title" and ("phase=title" not in gate or "startOCRBox=" not in gate)) \
+                        or (label == "main001" and "mission=MAIN-001" not in gate):
+                    fail("XCUITest activation/title/MAIN-001 gate differs")
             for name, opaque, hash_field in ((activation_name, False, "activationRawSha256"),
                                              (title_name, False, "titleRawSha256"),
                                              (game_name, False, "gameplayRawSha256"),
@@ -202,12 +243,11 @@ def collect(stage: pathlib.Path, output: pathlib.Path, commit: str, outcome: str
                 frame = png(path, SIZES[kind], opaque=opaque)
                 if row.get(hash_field) != frame["sha256"]:
                     fail("Screenshot hash in gameplay receipt differs")
-                if name == activation_name and activation_evidence.get("sha256") != frame["sha256"]:
-                    fail("Raw activation frame does not match simctl receipt")
-                if name == title_name and title_evidence.get("sha256") != frame["sha256"]:
-                    fail("Raw title does not match simctl receipt")
-                if name == game_name and gameplay_evidence.get("sha256") != frame["sha256"]:
-                    fail("Raw MAIN-001 does not match simctl receipt")
+                if name != candidate_name:
+                    label = "activation" if name == activation_name else "title" if name == title_name else "main001"
+                    chosen = phase_sources[label]["chosenSource"]
+                    if frame["sha256"] != phase_sources[label][chosen]["sha256"]:
+                        fail("Selected native frame differs from its original bytes")
                 files["gameplay/" + name] = path
             captures.append(row)
     else:
@@ -236,6 +276,23 @@ def collect(stage: pathlib.Path, output: pathlib.Path, commit: str, outcome: str
                        or not isinstance(row.get("phase"), str) or len(row["phase"]) > 80
                        for row in exits)):
             fail("Unsafe probe exit receipt")
+        selections = failure.get("dualSourceSelections", [])
+        if (not isinstance(selections, list) or len(selections) > 6
+                or len({(row.get("kind"), row.get("phase")) for row in selections if isinstance(row, dict)}) != len(selections)):
+            fail("Unsafe dual-source failure selection list")
+        for item in selections:
+            if (not isinstance(item, dict) or item.get("kind") not in MODELS
+                    or item.get("phase") not in ("activated", "title", "main001")
+                    or (item.get("requiredWidth"), item.get("requiredHeight")) != SIZES[item["kind"]]
+                    or item.get("chosenSource") not in (None, "simctl", "xctest")
+                    or item.get("noRotateCropOrComposite") is not True):
+                fail("Unsafe dual-source failure geometry receipt")
+            for method in ("simctl", "xctest"):
+                row = item.get(method)
+                if (not isinstance(row, dict) or not re.fullmatch(r"[0-9a-f]{64}", str(row.get("sha256", "")))
+                        or not isinstance(row.get("width"), int) or not 0 < row["width"] <= 4096
+                        or not isinstance(row.get("height"), int) or not 0 < row["height"] <= 4096):
+                    fail("Unsafe original PNG dimension/hash receipt")
         partial = failure.get("partialScreenshots", [])
         if (not isinstance(partial, list) or len(partial) > 16
                 or len({row.get("file") for row in partial if isinstance(row, dict)}) != len(partial)):
@@ -244,7 +301,7 @@ def collect(stage: pathlib.Path, output: pathlib.Path, commit: str, outcome: str
             if not isinstance(row, dict):
                 fail("Invalid partial gameplay screenshot record")
             name = row.get("file", "")
-            match = re.fullmatch(r"partial/(iphone|ipad)-(activation|activation-failure|title-wait-t120|title-wait-t240|title-wait-t360|title-wait-final|title|main001)\.png", name)
+            match = re.fullmatch(r"partial/(iphone|ipad)-(activation-xctest|activation-simctl|activation-failure|title-wait-t120|title-wait-t240|title-wait-t360|title-wait-final|title-xctest|title-simctl|main001-xctest|main001-simctl)\.png", name)
             if not match:
                 fail("Unexpected partial screenshot name")
             path = safe_file(game, name)
@@ -254,7 +311,17 @@ def collect(stage: pathlib.Path, output: pathlib.Path, commit: str, outcome: str
                     or row.get("listingCandidate") is not False:
                 fail("Partial native screenshot hash or geometry differs")
             files["gameplay/" + name] = path
-    if len(files) > 24 or sum(p.stat().st_size for p in files.values()) > 200 * 1024**2:
+        partial_by_name = {row["file"]: row for row in partial}
+        for item in selections:
+            label = "activation" if item["phase"] == "activated" else item["phase"]
+            for method in ("simctl", "xctest"):
+                row = partial_by_name.get(f"partial/{item['kind']}-{label}-{method}.png")
+                if row is None:
+                    fail("Dual-source selection lacks a retained original PNG")
+                if (row["sha256"], row["width"], row["height"]) != (
+                        item[method]["sha256"], item[method]["width"], item[method]["height"]):
+                    fail("Retained original differs from dual-source failure selection")
+    if len(files) > 56 or sum(p.stat().st_size for p in files.values()) > 320 * 1024**2:
         fail("Gameplay evidence exceeds bound")
     manifest = {"repository": REPO, "releaseTag": TAG, "releaseId": RELEASE_ID,
                 "releaseDraft": True, "projectId": "seven-district-reckoning", "version": "1.0.0",

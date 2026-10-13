@@ -141,10 +141,10 @@ import json,pathlib,sys
 p=pathlib.Path(sys.argv[1]);inventory=json.loads((p/'inventory.json').read_text())
 runtimes=[r for r in inventory['runtimes'] if r.get('isAvailable') is True and not r.get('availabilityError') and r['identifier'].startswith('com.apple.CoreSimulator.SimRuntime.iOS-') and r['version'].split('.')[0]=='26']
 runtimes.sort(key=lambda r:tuple(map(int,r['version'].split('.'))),reverse=True)
-phone=[d for d in inventory['devicetypes'] if d['name']=='iPhone 17 Pro Max']
+phone=[d for d in inventory['devicetypes'] if d['name']=='iPhone 17 Pro']
 tablet=[d for d in inventory['devicetypes'] if d['name'].startswith('iPad Pro 13-inch (M4)')]
 tablet.sort(key=lambda d:('16GB' not in d['name'],d['name']))
-if not runtimes or len(phone)!=1 or not tablet:raise SystemExit('Actual iPhone17ProMax/iPadM4/iOS26 runtime unavailable')
+if not runtimes or len(phone)!=1 or not tablet:raise SystemExit('Actual iPhone17Pro/iPadM4/iOS26 runtime unavailable')
 runtime=runtimes[0];encoded=int(runtime['version'].split('.')[0])*65536+int(runtime['version'].split('.')[1])*256
 for model in [phone[0],tablet[0]]:
  if not model.get('minRuntimeVersion',0)<=encoded<=model.get('maxRuntimeVersion',0xffffffff):raise SystemExit('Required actual model is incompatible with available runtime')
@@ -182,7 +182,68 @@ PY
     safe_cmd "$kind-warm-capture" 120 xcrun simctl io "$device" screenshot --type=png "$scratch/$kind-relaunch.png"
     safe_cmd "$kind-shutdown" 60 xcrun simctl shutdown "$device"
   done
+  cat > "$scratch/rgb.swift" <<'SWIFT'
+import Foundation
+import CoreGraphics
+import ImageIO
+import UniformTypeIdentifiers
+func stop() -> Never { fputs("RGB conversion failed\n",stderr);exit(1) }
+let input=URL(fileURLWithPath:CommandLine.arguments[1]);let output=URL(fileURLWithPath:CommandLine.arguments[2])
+let width=Int(CommandLine.arguments[3])!;let height=Int(CommandLine.arguments[4])!
+guard let source=CGImageSourceCreateWithURL(input as CFURL,nil),let image=CGImageSourceCreateImageAtIndex(source,0,nil),
+      (image.width==width && image.height==height) || (image.width==height && image.height==width) else {stop()}
+guard let canvas=CGContext(data:nil,width:image.width,height:image.height,bitsPerComponent:8,bytesPerRow:image.width*4,space:CGColorSpaceCreateDeviceRGB(),bitmapInfo:CGImageAlphaInfo.noneSkipLast.rawValue) else {stop()}
+canvas.interpolationQuality = .none
+canvas.draw(image,in:CGRect(x:0,y:0,width:CGFloat(image.width),height:CGFloat(image.height)))
+guard let rgb=canvas.makeImage(),let destination=CGImageDestinationCreateWithURL(output as CFURL,UTType.png.identifier as CFString,1,nil) else {stop()}
+CGImageDestinationAddImage(destination,rgb,nil);guard CGImageDestinationFinalize(destination) else {stop()}
+SWIFT
   if [[ "$phase" == diagnose ]]; then
+    mkdir -p "$out/store-screenshots"
+    for kind in iphone ipad; do
+      if [[ "$kind" == iphone ]]; then width=1206; height=2622; else width=2064; height=2752; fi
+      for moment in cold relaunch; do
+        input="$out/readiness/$kind-$moment-title.png"
+        [[ -f "$input" ]] || input="$out/readiness/$kind-$moment-t180.png"
+        [[ -f "$input" ]] || { echo 'Missing actual bounded title/180s Simulator frame'; exit 2; }
+        safe_cmd "$kind-$moment-store-rgb" 180 xcrun swift "$scratch/rgb.swift" "$input" "$out/store-screenshots/$kind-$moment.png" "$width" "$height"
+      done
+    done
+    python3 - "$out" "$scratch/models.json" <<'PY'
+import hashlib,json,pathlib,struct,sys
+out=pathlib.Path(sys.argv[1]);models=json.loads(pathlib.Path(sys.argv[2]).read_text())
+if models.get('iphone')!='iPhone 17 Pro' or not models.get('ipad','').startswith('iPad Pro 13-inch (M4)'):
+ raise SystemExit('Actual required iPhone/iPad Simulator models changed')
+records=[]
+for kind in ('iphone','ipad'):
+ expected=(1206,2622) if kind=='iphone' else (2064,2752)
+ for moment in ('cold','relaunch'):
+  stem=kind+'-'+moment
+  source=out/'readiness'/(stem+'-title.png')
+  if not source.is_file():source=out/'readiness'/(stem+'-t180.png')
+  target=out/'store-screenshots'/(stem+'.png')
+  receipt=json.loads((out/'readiness'/(stem+'.json')).read_text(encoding='utf-8'))
+  source_record=next((item for item in receipt['screenshots'] if item.get('file')==source.name),None)
+  if not source_record or not source.is_file() or not target.is_file() or target.is_symlink():
+   raise SystemExit('Bounded native source/store screenshot pair is missing')
+  raw=source.read_bytes();rgb=target.read_bytes()
+  source_size=struct.unpack('>II',raw[16:24]);output_size=struct.unpack('>II',rgb[16:24])
+  if (raw[:8]!=b'\x89PNG\r\n\x1a\n' or rgb[:8]!=b'\x89PNG\r\n\x1a\n'
+      or raw[12:16]!=b'IHDR' or rgb[12:16]!=b'IHDR' or rgb[25]!=2
+      or source_size not in (expected,expected[::-1]) or output_size!=source_size
+      or hashlib.sha256(raw).hexdigest()!=source_record.get('sha256')
+      or not 0<len(rgb)<=20*1024**2):
+   raise SystemExit('Opaque native screenshot candidate differs from actual Simulator frame')
+  records.append({'file':stem+'.png','sourceFile':'readiness/'+source.name,
+                  'sourceSha256':source_record['sha256'],'sha256':hashlib.sha256(rgb).hexdigest(),
+                  'bytes':len(rgb),'width':output_size[0],'height':output_size[1],
+                  'rgbNoAlpha':True,'nativeResolution':True,'uiResized':False})
+receipt={'projectId':'seven-district-reckoning','version':'1.0.0','build':13,
+         'runtime':models['runtime'],'iphone':models['iphone'],'ipad':models['ipad'],
+         'conversion':'CoreGraphics device RGB without resize','screenshots':records,
+         'visualReviewPending':True,'listingUploadPerformed':False,'storeUploadPerformed':False}
+(out/'store-screenshots/candidates.json').write_text(json.dumps(receipt,indent=2)+'\n',encoding='utf-8')
+PY
     python3 - "$out" "$project" <<'PY'
 import json,pathlib,sys
 out=pathlib.Path(sys.argv[1]);root=out/'readiness'
@@ -204,32 +265,16 @@ PY
     echo 'Bounded Seven diagnostic receipts created; title/UI readiness requires visual review.'
     exit 0
   fi
-  cat > "$scratch/rgb.swift" <<'SWIFT'
-import Foundation
-import CoreGraphics
-import ImageIO
-import UniformTypeIdentifiers
-func stop() -> Never { fputs("RGB conversion failed\n",stderr);exit(1) }
-let input=URL(fileURLWithPath:CommandLine.arguments[1]);let output=URL(fileURLWithPath:CommandLine.arguments[2])
-let width=Int(CommandLine.arguments[3])!;let height=Int(CommandLine.arguments[4])!
-guard let source=CGImageSourceCreateWithURL(input as CFURL,nil),let image=CGImageSourceCreateImageAtIndex(source,0,nil),
-      (image.width==width && image.height==height) || (image.width==height && image.height==width) else {stop()}
-guard let canvas=CGContext(data:nil,width:image.width,height:image.height,bitsPerComponent:8,bytesPerRow:image.width*4,space:CGColorSpaceCreateDeviceRGB(),bitmapInfo:CGImageAlphaInfo.noneSkipLast.rawValue) else {stop()}
-canvas.interpolationQuality = .none
-canvas.draw(image,in:CGRect(x:0,y:0,width:CGFloat(image.width),height:CGFloat(image.height)))
-guard let rgb=canvas.makeImage(),let destination=CGImageDestinationCreateWithURL(output as CFURL,UTType.png.identifier as CFString,1,nil) else {stop()}
-CGImageDestinationAddImage(destination,rgb,nil);guard CGImageDestinationFinalize(destination) else {stop()}
-SWIFT
   mkdir -p "$out/screenshots"
   for kind in iphone ipad; do
-    if [[ "$kind" == iphone ]]; then width=1320; height=2868; else width=2064; height=2752; fi
+    if [[ "$kind" == iphone ]]; then width=1206; height=2622; else width=2064; height=2752; fi
     for moment in cold relaunch; do safe_cmd "$kind-$moment-rgb" 180 xcrun swift "$scratch/rgb.swift" "$scratch/$kind-$moment.png" "$out/screenshots/$kind-$moment.png" "$width" "$height"; done
   done
   python3 - "$out" "$project" "$scratch/models.json" <<'PY'
 import hashlib,json,pathlib,struct,sys
 out=pathlib.Path(sys.argv[1]);shots=[]
 for p in sorted((out/'screenshots').glob('*.png')):
- raw=p.read_bytes();size=struct.unpack('>II',raw[16:24]);expected=(1320,2868) if p.name.startswith('iphone') else (2064,2752)
+ raw=p.read_bytes();size=struct.unpack('>II',raw[16:24]);expected=(1206,2622) if p.name.startswith('iphone') else (2064,2752)
  if raw[:8]!=b'\x89PNG\r\n\x1a\n' or size not in (expected,expected[::-1]) or raw[25]!=2:raise SystemExit('Actual RGB screenshot dimensions mismatch; no resizing allowed')
  shots.append({'file':'screenshots/'+p.name,'width':size[0],'height':size[1],'sha256':hashlib.sha256(raw).hexdigest()})
 (out/'simulator-launch.json').write_text(json.dumps({'projectId':sys.argv[2],**json.load(open(sys.argv[3])),'actualSimulator':True,'simulatorArchitecture':'x86_64','runnerArchitecture':'x86_64','freshDevices':True,'screenshots':shots,'macBuildPerformed':True,'interactiveGameplayTested':False,'physicalDeviceTested':False,'speakerOutputTested':False,'loadedSceneRequiresVisualReview':True,'storeUploadPerformed':False},indent=2))

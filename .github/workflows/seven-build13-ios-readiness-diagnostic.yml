@@ -112,9 +112,9 @@ jobs:
               if hashlib.sha256(archive.read('signed/signed.ipa')).hexdigest()!=ipa_sha:
                   raise SystemExit('Signed IPA member differs from exact build 13 pin')
           tool_hashes={
-            'scripts/ci_seven_ios_build13_export.sh':'ed78a6e09ccf714d5a6700be80816a41c9f6ea40d3a97b033b75d87c869419b0',
+            'scripts/ci_seven_ios_build13_export.sh':'776fa5a36dec5145292cd597118872a48991b7f2692a2139e8b661774702fcd5',
             'scripts/ci_seven_build13_readiness.py':'a991e1cb2e91b8af6269f56337cfa120e554b06a76ad9ada8e3fabdb0185e14d',
-            'scripts/ci_seven_build13_diagnostic_package.py':'b3b72acafc9820f8b935129f3c9b15f87722aaf0c7ccbf6e59ff6fbbec9e56b5',
+            'scripts/ci_seven_build13_diagnostic_package.py':'ca4cc4a4126b66a8aa03c278e82c2cf109bebe122b6addc8cfbc0876a14ca9c2',
             'scripts/ci_verify_seven_build13.py':'4aefa929be7e149e6006f068fd32fa8b1832f5fab42ac66129ab92bc59a95eb0'}
           if not re.fullmatch(r'[0-9a-f]{40}',os.environ['GITHUB_SHA']):
               raise SystemExit('Exact diagnostic tools commit required')

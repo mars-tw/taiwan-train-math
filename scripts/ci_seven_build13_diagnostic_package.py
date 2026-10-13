@@ -161,7 +161,44 @@ def collect(stage: pathlib.Path, out: pathlib.Path, commit: str, capture_outcome
             screenshot_records.append({"file": path.name, "width": width, "height": height,
                                        "bytes": path.stat().st_size, "sha256": sha256(path)})
             files["diagnostic/readiness/" + path.name] = path
-    if len(screenshot_records) > 20 or len(files) > 32 or sum(path.stat().st_size for path in files.values()) > 450 * 1024**2:
+    store_records = []
+    if capture_outcome == "success":
+        store_dir = diagnostic / "store-screenshots"
+        candidates_path = store_dir / "candidates.json"
+        candidates = read_json(candidates_path)
+        expected_names = {"iphone-cold.png", "iphone-relaunch.png", "ipad-cold.png", "ipad-relaunch.png"}
+        rows = candidates.get("screenshots")
+        if (candidates.get("projectId"), candidates.get("version"), candidates.get("build"),
+            candidates.get("iphone"), candidates.get("visualReviewPending"),
+            candidates.get("listingUploadPerformed"), candidates.get("storeUploadPerformed")) != (
+                "seven-district-reckoning", "1.0.0", 13, "iPhone 17 Pro", True, False, False):
+            fail("Opaque candidate identity or readiness boundary differs")
+        if not isinstance(rows, list) or len(rows) != 4 or {row.get("file") for row in rows if isinstance(row, dict)} != expected_names:
+            fail("Exactly four native opaque store screenshot candidates are required")
+        files["diagnostic/store-screenshots/candidates.json"] = candidates_path
+        for row in rows:
+            name = row["file"]
+            path = store_dir / name
+            expected = (1206, 2622) if name.startswith("iphone") else (2064, 2752)
+            source_name = row.get("sourceFile", "")
+            if not re.fullmatch(r"readiness/(iphone|ipad)-(cold|relaunch)-(t180|title)\.png", source_name):
+                fail("Candidate source is not an actual bounded Simulator frame")
+            source_path = diagnostic / source_name
+            if (not path.is_file() or path.is_symlink() or not source_path.is_file()
+                or path.stat().st_size != row.get("bytes") or sha256(path) != row.get("sha256")
+                or sha256(source_path) != row.get("sourceSha256")):
+                fail("Candidate/source screenshot hash or byte count differs")
+            with path.open("rb") as stream:
+                header = stream.read(26)
+            if (len(header) != 26 or header[:8] != b"\x89PNG\r\n\x1a\n" or header[12:16] != b"IHDR"
+                or header[25] != 2 or (row.get("width"), row.get("height")) != struct.unpack(">II", header[16:24])
+                or (row["width"], row["height"]) not in (expected, expected[::-1])
+                or row.get("rgbNoAlpha") is not True or row.get("nativeResolution") is not True
+                or row.get("uiResized") is not False):
+                fail("Candidate is not opaque RGB at a native Apple-accepted geometry")
+            store_records.append(row)
+            files["diagnostic/store-screenshots/" + name] = path
+    if len(screenshot_records) > 20 or len(files) > 40 or sum(path.stat().st_size for path in files.values()) > 450 * 1024**2:
         fail("Diagnostic evidence bound exceeded")
     manifest = {"repository": REPO, "releaseTag": TAG, "releaseId": RELEASE_ID,
                 "releaseDraft": True, "projectId": "seven-district-reckoning",
@@ -174,6 +211,7 @@ def collect(stage: pathlib.Path, out: pathlib.Path, commit: str, capture_outcome
                 "captureStepOutcome": capture_outcome,
                 "diagnosticStatus": "CAPTURE_COMPLETED_UI_PENDING" if capture_outcome == "success" else "CAPTURE_FAILED_EVIDENCE",
                 "momentReceiptCount": len(receipts), "screenshots": screenshot_records,
+                "storeScreenshotCandidates": store_records, "listingUploadReady": False,
                 "uiReady": False, "visualReviewPending": True, "appleSecretsUsed": False,
                 "physicalDeviceTested": False, "storeUploadPerformed": False}
     return manifest, files

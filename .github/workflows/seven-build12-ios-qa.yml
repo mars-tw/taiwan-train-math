@@ -19,12 +19,13 @@ jobs:
     env:
       DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
       GH_TOKEN: ${{ github.token }}
-      CI_INPUT: ${{ runner.temp }}/seven-build12-input
-      APP_SOURCE: ${{ runner.temp }}/seven-build12-source
-      PUBLIC_OUTPUT: ${{ runner.temp }}/seven-build12-output
       SOURCE_PIN: 867ecfdcb80cd328767f2a07889fe5edeee3b14eace3dda6ee74a9eebb006261
     steps:
       - name: Fetch exact pinned unsigned inputs from one Seven-only draft Release
+        env:
+          CI_INPUT: ${{ runner.temp }}/seven-build12-input
+          APP_SOURCE: ${{ runner.temp }}/seven-build12-source
+          PUBLIC_OUTPUT: ${{ runner.temp }}/seven-build12-output
         run: |
           python3 - <<'PY'
           import hashlib,json,os,pathlib,re,subprocess
@@ -92,6 +93,9 @@ jobs:
           (stage/'input-provenance.json').write_text(json.dumps(proof,indent=2)+'\n',encoding='utf-8')
           with pathlib.Path(os.environ['GITHUB_ENV']).open('a',encoding='utf-8') as env:
               env.write('RELEASE_ID='+str(release['id'])+'\n')
+              env.write('CI_INPUT='+os.environ['CI_INPUT']+'\n')
+              env.write('APP_SOURCE='+os.environ['APP_SOURCE']+'\n')
+              env.write('PUBLIC_OUTPUT='+os.environ['PUBLIC_OUTPUT']+'\n')
           print('Pinned unsigned 47-file source and three helper hashes verified; no Apple secret used')
           PY
       - name: Extract and independently verify all 47 Xcode/PCK source files

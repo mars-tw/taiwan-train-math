@@ -1,4 +1,4 @@
-name: Build and verify Train Math iOS 1.0.0 build 2
+name: Build and verify Train Math iOS 1.0.0 build 3
 
 on:
   workflow_dispatch:
@@ -112,15 +112,15 @@ jobs:
           if data.get('appId')!='tw.mars.trainmath' or data.get('remoteServer') is not False or not isinstance(data.get('files'),list):
               raise SystemExit('Native bundle manifest is invalid')
           project=pathlib.Path('ios/App/App.xcodeproj/project.pbxproj').read_text(encoding='utf-8')
-          if project.count('CURRENT_PROJECT_VERSION = 2;')!=2 or project.count('MARKETING_VERSION = 1.0.0;')!=2:
-              raise SystemExit('iOS native target is not exactly version 1.0.0 build 2')
+          if project.count('CURRENT_PROJECT_VERSION = 3;')!=2 or project.count('MARKETING_VERSION = 1.0.0;')!=2:
+              raise SystemExit('iOS native target is not exactly version 1.0.0 build 3')
           with archive.open('rb') as data:
               archive_sha=hashlib.file_digest(data,'sha256').hexdigest()
           provenance={'repository':expected[0],'sourceSha':expected[1],'approvedSourceSha':expected[3],'sourceRun':expected[2],
                       'sameRun':True,'manifestSha256':hashlib.sha256(manifest.read_bytes()).hexdigest(),
                       'unsignedArchiveSha256':archive_sha}
           (root/'ios-store-provenance.json').write_text(json.dumps(provenance,indent=2)+'\n',encoding='utf-8')
-          print('Same-run offline archive and build 2 metadata verified before Apple signing')
+          print('Same-run offline archive and build 3 metadata verified before Apple signing')
           PY
       - name: Export and verify the App Store signed IPA
         env:
@@ -144,9 +144,9 @@ jobs:
           ipa=out/'TrainMath.ipa'
           with ipa.open('rb') as stream:
               sha=hashlib.file_digest(stream,'sha256').hexdigest()
-          if (report.get('bundleId'),report.get('marketingVersion'),report.get('buildNumber'),report.get('sourceSha'),report.get('sourceRun'),report.get('ipaSha256'))!=('tw.mars.trainmath','1.0.0','2',os.environ['APPROVED_SOURCE_SHA'],os.environ['GITHUB_RUN_ID'],sha):
+          if (report.get('bundleId'),report.get('marketingVersion'),report.get('buildNumber'),report.get('sourceSha'),report.get('sourceRun'),report.get('ipaSha256'))!=('tw.mars.trainmath','1.0.0','3',os.environ['APPROVED_SOURCE_SHA'],os.environ['GITHUB_RUN_ID'],sha):
               raise SystemExit('Approved IPA changed before upload intent')
-          tag='trainmath-1.0.0-b2-'+os.environ['GITHUB_RUN_ID']
+          tag='trainmath-1.0.0-b3-'+os.environ['GITHUB_RUN_ID']
           with pathlib.Path(os.environ['GITHUB_STEP_SUMMARY']).open('a',encoding='utf-8') as summary:
               summary.write('Apple upload requested for draft Release '+tag+'; IPA SHA-256 '+sha+'. If the next step is interrupted, inspect this exact run and App Store Connect before any retry.\n')
           PY

@@ -15,7 +15,7 @@ SPEC = importlib.util.spec_from_file_location("train_archive", SCRIPT)
 archive = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(archive)
 
-TAG = "trainmath-1.0.0-b2-38334544182"
+TAG = "trainmath-1.0.0-b3-38334544182"
 SHA = "a9ad9c1375c493bda10777e8577289e039dab50d"
 
 
@@ -23,14 +23,14 @@ class DraftReleaseTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
-        self.evidence = Path(self.temp.name) / f"trainmath-1.0.0-b2-evidence-38334544182.zip"
+        self.evidence = Path(self.temp.name) / f"trainmath-1.0.0-b3-evidence-38334544182.zip"
         self.evidence.write_bytes(b"same-run signed evidence fixture")
         self.digest = hashlib.sha256(self.evidence.read_bytes()).hexdigest()
         self.notes = Path(self.temp.name) / "release-notes.txt"
         self.notes.write_text("review artifact", encoding="utf-8")
         self.release = {
             "id": 411178191, "tag_name": TAG, "draft": True,
-            "target_commitish": SHA, "name": "Train Math 1.0.0 build 2 (38334544182)",
+            "target_commitish": SHA, "name": "Train Math 1.0.0 build 3 (38334544182)",
             "assets": [{"id": 635603800, "name": self.evidence.name,
                         "state": "uploaded", "size": self.evidence.stat().st_size,
                         "digest": "sha256:" + self.digest}],

@@ -25,7 +25,7 @@ SIMULATOR = OUTPUT / "native-artifacts" / "ios"
 REPOSITORY = "mars-tw/taiwan-train-math"
 APP_ID = "tw.mars.trainmath"
 VERSION = "1.0.0"
-BUILD = "2"
+BUILD = "3"
 
 
 def stop(message):
@@ -87,7 +87,7 @@ def find_exact_draft(tag):
 
 
 def require_exact_draft_asset(release, tag, source_sha, asset_name, asset_size, asset_sha):
-    expected_title = f"Train Math 1.0.0 build 2 ({tag.rsplit('-', 1)[-1]})"
+    expected_title = f"Train Math 1.0.0 build 3 ({tag.rsplit('-', 1)[-1]})"
     if (not isinstance(release, dict) or not isinstance(release.get("id"), int)
             or release.get("draft") is not True or release.get("tag_name") != tag
             or release.get("target_commitish") != source_sha
@@ -113,7 +113,7 @@ def create_or_reconcile_draft(tag, source_sha, evidence, notes, evidence_sha):
     try:
         result = subprocess.run(["gh", "release", "create", tag, str(evidence),
                                  "--repo", REPOSITORY, "--draft", "--target", source_sha,
-                                 "--title", f"Train Math 1.0.0 build 2 ({tag.rsplit('-', 1)[-1]})",
+                                 "--title", f"Train Math 1.0.0 build 3 ({tag.rsplit('-', 1)[-1]})",
                                  "--notes-file", str(notes)], capture_output=True,
                                 timeout=900, check=False)
         command_succeeded = result.returncode == 0
@@ -143,10 +143,10 @@ def publish_upload_result():
             or os.environ.get("APPROVED_SOURCE_SHA") != source_sha
             or outcome not in {"success", "failure"} or not os.environ.get("GH_TOKEN")):
         stop("Upload receipt cannot be tied to the approved source and exact run")
-    tag = f"trainmath-1.0.0-b2-{run_id}"
+    tag = f"trainmath-1.0.0-b3-{run_id}"
     ipa = SIGNED / "TrainMath.ipa"
     verification_path = SIGNED / "verification.json"
-    evidence = SIGNED / f"trainmath-1.0.0-b2-evidence-{run_id}.zip"
+    evidence = SIGNED / f"trainmath-1.0.0-b3-evidence-{run_id}.zip"
     for path, limit in ((ipa, 240 * 1024**2), (verification_path, 1024**2), (evidence, 250 * 1024**2)):
         checked_file(path, SIGNED, limit)
     verification = json.loads(verification_path.read_text(encoding="utf-8"))
@@ -242,7 +242,7 @@ def main():
     if (not re.fullmatch(r"[0-9a-f]{40}", source_sha)
             or os.environ.get("APPROVED_SOURCE_SHA") != source_sha or not os.environ.get("GH_TOKEN")):
         stop("Approved source SHA or Release credential unavailable")
-    tag = f"trainmath-1.0.0-b2-{run_id}"
+    tag = f"trainmath-1.0.0-b3-{run_id}"
 
     ipa = SIGNED / "TrainMath.ipa"
     verification_path = SIGNED / "verification.json"
@@ -271,7 +271,7 @@ def main():
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     launch = json.loads(launch_path.read_text(encoding="utf-8"))
     if (verification.get("bundleId"), verification.get("marketingVersion"), verification.get("buildNumber")) != (APP_ID, VERSION, BUILD):
-        stop("Signed app identity/version/build differ from build 2")
+        stop("Signed app identity/version/build differ from build 3")
     for flag in ("signatureVerified", "profileVerified", "entitlementsVerified", "privacyVerified", "bundledResourcesVerified"):
         if verification.get(flag) is not True:
             stop(f"Missing signed IPA verification: {flag}")
@@ -313,7 +313,7 @@ def main():
         json.dump(receipt, stream, ensure_ascii=False, indent=2)
         stream.write("\n")
     files[receipt_path.name] = receipt_path
-    evidence = SIGNED / f"trainmath-1.0.0-b2-evidence-{run_id}.zip"
+    evidence = SIGNED / f"trainmath-1.0.0-b3-evidence-{run_id}.zip"
     with zipfile.ZipFile(evidence, "x", compression=zipfile.ZIP_STORED, allowZip64=True) as bundle:
         for name, path in sorted(files.items()):
             bundle.write(path, name)
@@ -334,10 +334,10 @@ def main():
     evidence_sha = sha256(evidence)
 
     notes = SIGNED / "release-notes.txt"
-    notes.write_text(f"Private build 2 review artifact for {APP_ID}.\nSource: {source_sha}\nActions run: {run_id}\nNo App Store submission or physical-device approval is claimed by this Release.\n", encoding="utf-8")
+    notes.write_text(f"Private build 3 review artifact for {APP_ID}.\nSource: {source_sha}\nActions run: {run_id}\nNo App Store submission or physical-device approval is claimed by this Release.\n", encoding="utf-8")
     summary = Path(os.environ["GITHUB_STEP_SUMMARY"])
     with summary.open("a", encoding="utf-8") as stream:
-        stream.write(f"Train Math build 2 exact-run draft Release reconciliation started: {tag}; ZIP SHA-256 {evidence_sha}. Check this tag before rerunning.\n")
+        stream.write(f"Train Math build 3 exact-run draft Release reconciliation started: {tag}; ZIP SHA-256 {evidence_sha}. Check this tag before rerunning.\n")
     release, created = create_or_reconcile_draft(tag, source_sha, evidence, notes, evidence_sha)
     with summary.open("a", encoding="utf-8") as stream:
         stream.write(f"Draft Release {'created' if created else 'reconciled'} and verified: {release.get('html_url')}; asset {evidence.name}, {evidence.stat().st_size} bytes, SHA-256 {evidence_sha}.\n")

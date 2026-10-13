@@ -65,7 +65,7 @@ check_resources() {
 import hashlib,json,pathlib,plistlib,re,sys
 app=pathlib.Path(sys.argv[1]); manifest=json.loads(pathlib.Path(sys.argv[2]).read_text())
 info=plistlib.load(open(app/'Info.plist','rb'))
-if info.get('CFBundleIdentifier')!='tw.mars.trainmath' or info.get('CFBundleShortVersionString')!='1.0.0' or info.get('CFBundleVersion')!='2': raise SystemExit('Rejected app identity/version/build')
+if info.get('CFBundleIdentifier')!='tw.mars.trainmath' or info.get('CFBundleShortVersionString')!='1.0.0' or info.get('CFBundleVersion')!='3': raise SystemExit('Rejected app identity/version/build')
 if info.get('CFBundleSupportedPlatforms')!=['iPhoneOS'] or set(info.get('UIDeviceFamily',[]))!={1,2} or info.get('TestFlightInternalTestingOnly',False): raise SystemExit('Rejected device/platform/internal-only metadata')
 if not re.fullmatch(r'iphoneos(?:2[6-9]|[3-9][0-9])(?:\.[0-9]+)*',info.get('DTSDKName','')) or info.get('DTXcodeBuild')!='17C529': raise SystemExit('Rejected archive SDK/compiler')
 privacy=plistlib.load(open(app/'PrivacyInfo.xcprivacy','rb'))
@@ -134,7 +134,7 @@ if [ "$MODE" = upload ]; then
 import hashlib,json,os,pathlib,re,sys
 out=pathlib.Path(sys.argv[1]); report=json.loads((out/'verification.json').read_text())
 if not re.fullmatch(r'[A-Z0-9]{10}',os.environ['ASC_KEY_ID']) or not re.fullmatch(r'[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}',os.environ['ASC_ISSUER_ID']): raise SystemExit('Invalid ASC identifiers')
-if report.get('bundleId')!='tw.mars.trainmath' or report.get('marketingVersion')!='1.0.0' or report.get('buildNumber')!='2' or report.get('signatureVerified') is not True or report.get('ipaSha256')!=hashlib.sha256((out/'TrainMath.ipa').read_bytes()).hexdigest(): raise SystemExit('IPA verification report mismatch')
+if report.get('bundleId')!='tw.mars.trainmath' or report.get('marketingVersion')!='1.0.0' or report.get('buildNumber')!='3' or report.get('signatureVerified') is not True or report.get('ipaSha256')!=hashlib.sha256((out/'TrainMath.ipa').read_bytes()).hexdigest(): raise SystemExit('IPA verification report mismatch')
 PY
   verify_ipa "$OUT/TrainMath.ipa"
   mkdir -p "$TASK_TMP/private_keys"
@@ -266,7 +266,7 @@ if [ "$STRATEGY" = signed-rearchive ]; then
 import json,os,pathlib,re,sys
 path=pathlib.Path(sys.argv[1]); objects=json.load(open(sys.argv[2]))['objects']; text=path.read_text(); targets=[t for t in objects.values() if t.get('isa')=='PBXNativeTarget' and t.get('name')=='App' and t.get('productType')=='com.apple.product-type.application']
 if len(targets)!=1: raise SystemExit('Expected one train-math App target')
-settings={'CODE_SIGN_STYLE':'Manual','CODE_SIGN_IDENTITY':sys.argv[4],'DEVELOPMENT_TEAM':os.environ['APPLE_TEAM_ID'],'PROVISIONING_PROFILE_SPECIFIER':sys.argv[3],'MARKETING_VERSION':'1.0.0','CURRENT_PROJECT_VERSION':'2'}
+settings={'CODE_SIGN_STYLE':'Manual','CODE_SIGN_IDENTITY':sys.argv[4],'DEVELOPMENT_TEAM':os.environ['APPLE_TEAM_ID'],'PROVISIONING_PROFILE_SPECIFIER':sys.argv[3],'MARKETING_VERSION':'1.0.0','CURRENT_PROJECT_VERSION':'3'}
 for cid in objects[targets[0]['buildConfigurationList']]['buildConfigurations']:
     if objects[cid]['buildSettings'].get('PRODUCT_BUNDLE_IDENTIFIER')!='tw.mars.trainmath': raise SystemExit('Unexpected target App ID')
     matches=list(re.finditer(r'(?m)^\t\t'+re.escape(cid)+r' /\*[^\n]*\*/ = \{.*?^\t\t\};',text,re.S))
@@ -296,7 +296,7 @@ cp "${ipas[0]}" "$OUT/TrainMath.ipa"
 python3 - "$OUT" "$ROOT/output/ios-store-provenance.json" "$SOURCE/bundle-manifest.json" "$STRATEGY" <<'PY'
 import hashlib,json,pathlib,sys
 out=pathlib.Path(sys.argv[1]); source=json.loads(pathlib.Path(sys.argv[2]).read_text()); manifest=json.loads(pathlib.Path(sys.argv[3]).read_text())
-report={'bundleId':'tw.mars.trainmath','marketingVersion':'1.0.0','buildNumber':'2','sourceRun':source['sourceRun'],'sourceSha':source['sourceSha'],'strategy':sys.argv[4],'exportMethod':'app-store-connect','signatureVerified':True,'profileVerified':True,'entitlementsVerified':True,'privacyVerified':True,'bundledResourceCount':len(manifest['files']),'bundledResourcesVerified':True,'ipaSha256':hashlib.sha256((out/'TrainMath.ipa').read_bytes()).hexdigest(),'appleUploaded':False,'appStoreApproved':False}
+report={'bundleId':'tw.mars.trainmath','marketingVersion':'1.0.0','buildNumber':'3','sourceRun':source['sourceRun'],'sourceSha':source['sourceSha'],'strategy':sys.argv[4],'exportMethod':'app-store-connect','signatureVerified':True,'profileVerified':True,'entitlementsVerified':True,'privacyVerified':True,'bundledResourceCount':len(manifest['files']),'bundledResourcesVerified':True,'ipaSha256':hashlib.sha256((out/'TrainMath.ipa').read_bytes()).hexdigest(),'appleUploaded':False,'appStoreApproved':False}
 (out/'verification.json').write_text(json.dumps(report,indent=2))
 PY
 printf 'IPA exported and verified. No Apple upload was performed.\n'

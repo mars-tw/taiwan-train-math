@@ -21,7 +21,7 @@ import time
 
 
 REPO = "mars-tw/taiwan-train-math"
-REF = "refs/heads/codex/rift-arm64-kvm-r3-20261013-primitivefix"
+REF = "refs/heads/codex/rift-arm64-kvm-r4-20261013-ui-proof"
 PACKAGE = "tw.mars.riftforge3d"
 APK_SHA = "aa8cb0bbd1c0e236c415768ba0baafe646ad7db1e439f5ad4c8c09a38f80af28"
 CERT_SHA = "11e100f23b70476c3a1b02054e85c9c9681609e5604fada346dd8f3fe3df4c40"
@@ -101,7 +101,7 @@ class Probe:
         self.out = Path(os.environ["RIFT_OUTPUT"]).resolve()
         self.temp = Path(os.environ["RUNNER_TEMP"]).resolve()
         self.avd_home = Path(os.environ["ANDROID_AVD_HOME"]).resolve()
-        self.avd_name = "rift-arm64-kvm-r3-" + self.run_id
+        self.avd_name = "rift-arm64-kvm-r4-" + self.run_id
         self.avd_path = self.avd_home / (self.avd_name + ".avd")
         self.adb = str(self.sdk / "platform-tools/adb")
         self.emulator = str(self.sdk / "emulator/emulator")
@@ -133,7 +133,7 @@ class Probe:
         }
         owner = json.loads((self.out / "owned-run.json").read_text(encoding="utf-8"))
         if owner != {"runId": self.run_id, "headSha": os.environ["GITHUB_SHA"],
-                     "owner": "rift-arm64-kvm-r3"}:
+                     "owner": "rift-arm64-kvm-r4"}:
             raise RuntimeError("Evidence directory owner mismatch")
         self.save()
 
@@ -155,7 +155,7 @@ class Probe:
                             allow_failure=allow_failure)
 
     def inspect_input(self) -> None:
-        manifest = json.loads((self.temp / "rift-arm64-kvm-r3-input/manifest.json").read_text())
+        manifest = json.loads((self.temp / "rift-arm64-kvm-r4-input/manifest.json").read_text())
         if (manifest.get("repository") != REPO or manifest.get("branch") != REF.removeprefix("refs/heads/")
                 or manifest.get("appId") != PACKAGE or manifest.get("versionCode") != 1
                 or manifest.get("apk", {}).get("sha256") != APK_SHA
@@ -265,6 +265,16 @@ class Probe:
         self.save()
         return alias
 
+    def pixel_rgb(self, file: Path, x_fraction: float, y_fraction: float) -> tuple[int, int, int]:
+        x, y = int(self.width * x_fraction), int(self.height * y_fraction)
+        raw = self.command(["ffmpeg", "-hide_banner", "-loglevel", "error",
+                            "-i", str(file), "-vf", f"crop=1:1:{x}:{y}",
+                            "-frames:v", "1", "-f", "rawvideo",
+                            "-pix_fmt", "rgb24", "pipe:1"], timeout=20).stdout
+        if len(raw) != 3:
+            raise RuntimeError("Original PNG control pixel could not be sampled")
+        return tuple(raw)
+
     def capture(self, label: str) -> tuple[str, str]:
         if self.capture_count >= MAX_CAPTURE_COUNT:
             raise RuntimeError("Screenshot budget exhausted")
@@ -320,9 +330,36 @@ class Probe:
             (self.out / f"{self.capture_count:03d}-{label}-{crop_name}.ocr.txt").write_text(crop_text)
             text += "\n" + crop_text
         state = classify(text)
+        color_proof = None
+        forge_proof = None
+        if all(token in normalized(text) for token in ("CORE", "RIFT", "MOVE")):
+            strike = self.pixel_rgb(file, .86, .695)
+            dodge = self.pixel_rgb(file, .72, .8125)
+            strike_ok = strike[0] < 120 and strike[1] > 170 and strike[2] > 170
+            dodge_ok = dodge[0] > 190 and 110 < dodge[1] < 220 and dodge[2] < 130
+            color_proof = {"method": "source-anchored original PNG pixel",
+                           "strikeRgb": strike, "dodgeRgb": dodge,
+                           "strikePass": strike_ok, "dodgePass": dodge_ok}
+            if strike_ok and dodge_ok:
+                state = "combat"
+        if "THE FORGE" in normalized(text):
+            next_rgb = self.pixel_rgb(file, .50, .81)
+            blade_rgb = self.pixel_rgb(file, .25, .42)
+            vitality_rgb = self.pixel_rgb(file, .50, .42)
+            next_ok = next_rgb[0] > 190 and 110 < next_rgb[1] < 220 and next_rgb[2] < 130
+            blade_ok = blade_rgb[0] < 120 and blade_rgb[1] > 170 and blade_rgb[2] > 170
+            vitality_ok = vitality_rgb[0] > 190 and 110 < vitality_rgb[1] < 220 and vitality_rgb[2] < 130
+            forge_proof = {"method": "source-anchored original PNG pixel",
+                           "nextRgb": next_rgb, "bladeRgb": blade_rgb,
+                           "vitalityRgb": vitality_rgb, "nextPass": next_ok,
+                           "bladePass": blade_ok, "vitalityPass": vitality_ok}
+            if next_ok:
+                state = "forge"
         self.report["screenshots"].append({"file": file.name, "bytes": len(png),
             "sha256": digest(png), "width": width, "height": height,
-            "state": state, "ocr": normalized(text)[:500], "atUtc": now()})
+            "state": state, "ocr": normalized(text)[:500],
+            "controlColorProof": color_proof, "forgeColorProof": forge_proof,
+            "atUtc": now()})
         self.save()
         return state, normalized(text)
 
@@ -345,7 +382,7 @@ class Probe:
 
     def start_video(self) -> None:
         self.segment += 1
-        remote = f"/sdcard/Movies/rift-arm64-kvm-r3-{self.segment}.mp4"
+        remote = f"/sdcard/Movies/rift-arm64-kvm-r4-{self.segment}.mp4"
         self.recording_started = time.monotonic()
         self.recorder = subprocess.Popen(
             [self.adb, "-s", SERIAL, "shell", "screenrecord",
@@ -373,7 +410,7 @@ class Probe:
             self.recorder.terminate()
             self.recorder.wait(timeout=10)
         self.recorder = None
-        local = self.out / f"rift-arm64-r3-native-segment-{self.segment}.mp4"
+        local = self.out / f"rift-arm64-r4-native-segment-{self.segment}.mp4"
         pulled = self.device("pull", remote, str(local), timeout=90, allow_failure=True)
         (self.out / f"video-pull-{self.segment}.txt").write_bytes(
             pulled.stdout + b"\n" + pulled.stderr)
@@ -462,7 +499,9 @@ class Probe:
         if state != "combat":
             raise RuntimeError("Title tap did not reach OCR-visible combat HUD")
         self.report["combatStarted"] = True
-        if all(token in text for token in ("STRIKE", "DODGE", "MOVE")):
+        if ("MOVE" in text
+                and (self.report["screenshots"][-1].get("controlColorProof") or {}).get("strikePass")
+                and self.report["screenshots"][-1]["controlColorProof"].get("dodgePass")):
             self.swipe_move()
             time.sleep(.4)
             self.capture("post-move-swipe")
@@ -497,16 +536,18 @@ class Probe:
                 # screenshot to show THE FORGE and OPEN NEXT RIFT together.
                 choice = "EMBER EDGE" if forge_count != 2 else "LIVING PLATE"
                 x = .25 if forge_count != 2 else .50
-                if choice not in text:
+                forge_color = self.report["screenshots"][-1].get("forgeColorProof") or {}
+                card_color_ok = forge_color.get("bladePass" if forge_count != 2 else "vitalityPass")
+                if choice not in text and not card_color_ok:
                     raise RuntimeError("Expected forge upgrade text is not visible")
-                self.tap(choice, x, .53, "OCR-visible forge and named upgrade")
+                self.tap(choice, x, .53, "Source-anchored colored upgrade card on original forge PNG")
                 time.sleep(.8)
                 upgraded_state, upgraded_text = self.capture(f"forge-{forge_count}-after-upgrade")
                 if upgraded_state != "forge":
                     raise RuntimeError("Forge purchase did not leave forge view visible")
                 self.report["forges"][-1]["afterUpgradeScreenshot"] = self.report["screenshots"][-1]["file"]
                 self.report["forges"][-1]["afterUpgradeOcr"] = upgraded_text[:500]
-                self.tap("OPEN NEXT RIFT", .50, .85, "OCR-visible forge NEXT button")
+                self.tap("OPEN NEXT RIFT", .50, .85, "Source-anchored orange NEXT button on original forge PNG")
                 time.sleep(2)
                 advanced_state, advanced_text = self.capture(f"rift-{forge_count+1}-after-next")
                 if advanced_state != "combat":
@@ -521,13 +562,14 @@ class Probe:
             self.report["combatObservations"].append({"batch": combat_batches,
                 "screenshot": self.report["screenshots"][-1]["file"], "ocr": text[:500]})
             # The button itself must be visible in the original phase PNG.
-            if "STRIKE" not in text:
+            control_proof = self.report["screenshots"][-1].get("controlColorProof") or {}
+            if "STRIKE" not in text and not control_proof.get("strikePass"):
                 raise RuntimeError("No visible STRIKE before combat taps")
             for _ in range(4):
-                self.tap("STRIKE", .86, .77, "OCR-visible combat STRIKE")
+                self.tap("STRIKE", .86, .77, "Source-anchored cyan STRIKE on original combat PNG")
                 time.sleep(.54)
-            if "DODGE" in text and combat_batches % 2 == 0:
-                self.tap("DODGE", .72, .86, "OCR-visible combat DODGE")
+            if ("DODGE" in text or control_proof.get("dodgePass")) and combat_batches % 2 == 0:
+                self.tap("DODGE", .72, .86, "Source-anchored orange DODGE on original combat PNG")
                 time.sleep(.4)
         self.report["status"] = "PARTIAL_NATIVE_GAMEPLAY_ONLY"
         self.save()

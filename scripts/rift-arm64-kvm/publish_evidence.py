@@ -16,7 +16,7 @@ from fetch_input import (APK_BYTES, APK_NAME, APK_SHA, ASSET_ID, BRANCH,
                          RELEASE_ID, REPO, TAG, read_manifest)
 
 
-OWNER = "rift-arm64-kvm-r3"
+OWNER = "rift-arm64-kvm-r4"
 MAX_EVIDENCE_BYTES = 512 * 1024 * 1024
 
 

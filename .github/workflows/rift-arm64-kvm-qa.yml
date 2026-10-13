@@ -1,8 +1,8 @@
-name: Rift Forge ARM64 primitive fix KVM QA R3
+name: Rift Forge ARM64 gameplay UI KVM QA R4
 
 on:
   push:
-    branches: [codex/rift-arm64-kvm-r3-20261013-primitivefix]
+    branches: [codex/rift-arm64-kvm-r4-20261013-ui-proof]
     paths:
       - .github/workflows/rift-arm64-kvm-qa.yml
       - scripts/rift-arm64-kvm/**
@@ -11,17 +11,17 @@ permissions:
   contents: read
 
 concurrency:
-  group: rift-arm64-kvm-r3-${{ github.repository }}
+  group: rift-arm64-kvm-r4-${{ github.repository }}
   cancel-in-progress: false
 
 jobs:
   observe:
     if: >-
       github.repository == 'mars-tw/taiwan-train-math' &&
-      github.ref == 'refs/heads/codex/rift-arm64-kvm-r3-20261013-primitivefix' &&
+      github.ref == 'refs/heads/codex/rift-arm64-kvm-r4-20261013-ui-proof' &&
       github.event.created == true &&
       github.run_attempt == 1 &&
-      github.event.head_commit.message == 'RUN_ONCE Rift ARM64 KVM R3 primitive fix'
+      github.event.head_commit.message == 'RUN_ONCE Rift ARM64 KVM R4 UI proof'
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     permissions:

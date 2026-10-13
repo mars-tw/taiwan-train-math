@@ -14,7 +14,7 @@ import subprocess
 HERE = Path(__file__).resolve().parent
 MANIFEST = HERE / "manifest.json"
 REPO = "mars-tw/taiwan-train-math"
-BRANCH = "codex/rift-arm64-kvm-r3-20261013-primitivefix"
+BRANCH = "codex/rift-arm64-kvm-r4-20261013-ui-proof"
 REF = "refs/heads/" + BRANCH
 TAG = "rift-android-dev-kvm-r3-20261013-aa8cb0bb-f4d48a85959e"
 RELEASE_ID = 411337130
@@ -135,7 +135,7 @@ def main() -> None:
     temp = Path(raw_temp)
     if temp.is_symlink():
         raise RuntimeError("Runner temp may not be linked")
-    dest = temp.resolve() / "rift-arm64-kvm-r3-input"
+    dest = temp.resolve() / "rift-arm64-kvm-r4-input"
     if dest.exists() or dest.is_symlink():
         raise RuntimeError("Owned Rift input already exists; no overwrite or retry")
     release = json.loads(gh_get(f"repos/{REPO}/releases/{RELEASE_ID}"))

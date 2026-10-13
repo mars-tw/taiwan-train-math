@@ -117,7 +117,7 @@ jobs:
                   raise SystemExit('Signed IPA member differs from exact build 13 pin')
           tool_hashes={
             'scripts/ci_seven_build13_gameplay_capture.sh':'c22b5c70a37ff9d33d07741b1332099925e8151a96bb19a5502ffd103c77a7cd',
-            'scripts/ci_seven_build13_gameplay_package.py':'6ad5db32b16b1f187001d9577cb789c4849a0e7b59d05d5282e0383d7d13ccd9',
+            'scripts/ci_seven_build13_gameplay_package.py':'c1c1d88411712a288c076498be87f6da67178696f7af7e19e7c9e043199827de',
             'scripts/seven_build13_gameplay_probe/run_probe.sh':'2ddc44449b54b1fc606e039337f95288432f3bac92b4a6d16b6fe362cd988b9a',
             'scripts/seven_build13_gameplay_probe/SevenProbe.xcodeproj/project.pbxproj':'bccf76b66877afe50a0fa8b90436f4d8c7d340d65c61d284339f8e603c97e56e',
             'scripts/seven_build13_gameplay_probe/SevenProbe.xcodeproj/xcshareddata/xcschemes/SevenProbe.xcscheme':'bad98331b001ded41301d327bca1dba92fbde8b32dd8031bf38fd0bdf2caa727',

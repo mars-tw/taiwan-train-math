@@ -1,0 +1,31 @@
+/* This railway worksheet uses native text and quantity diagrams, not new bitmap art. */
+.dispatch-entry { margin: 18px auto; max-width: 1040px; padding: 22px 28px; background: #fff7db; color: #163f48; border: 2px solid #246476; border-left: 12px solid #246476; border-radius: 6px; display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 8px 24px; }
+.dispatch-entry h1 { font-size: clamp(24px, 4vw, 36px); margin: 4px 0; }
+.dispatch-entry p { margin: 6px 0; }.dispatch-entry small { font-weight: 700; }
+.dispatch-entry a { display: flex; align-items: center; justify-content: center; gap: 12px; background: #163f48; color: #fff7db; border-radius: 4px; padding: 12px 24px; font-size: 22px; font-weight: 800; text-decoration: none; min-height: 72px; }
+.dispatch-entry-record { grid-column: 1 / -1; color: #42636a; }
+.dispatching .site-header, .dispatching .site-footer { display: none; }.dispatching #main { padding: 0; }
+.dispatch-page { min-height: 100dvh; display: flex; flex-direction: column; background: #f8f4e7; color: #163f48; padding-bottom: env(safe-area-inset-bottom); }
+.dispatch-top { position: sticky; top: 0; z-index: 25; display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: max(8px, env(safe-area-inset-top)) 20px 8px; background: #163f48; color: white; }
+.dispatch-top a { display: flex; align-items: center; padding: 10px 18px; color: white; border: 1px solid #9fbbc1; border-radius: 4px; font-weight: 800; text-decoration: none; }
+.dispatch-body { width: 100%; flex: 1; display: flex; flex-direction: column; justify-content: center; max-width: 980px; margin: auto; padding: 16px 24px; text-align: center; }.dispatch-body h1 { font-size: clamp(24px, 3vw, 36px); margin: 20px 0 10px; }
+.dispatch-route { list-style: none; display: flex; gap: 4px; padding: 0; margin: 0; justify-content: center; }.dispatch-route li { padding: 8px 18px; border-bottom: 4px solid #c9d4ce; font-weight: 700; }.dispatch-route [aria-current] { border-color: #c46c22; color: #8a400b; }
+.dispatch-instruction { font-size: 18px; line-height: 1.6; margin: 0 0 22px; }.dispatch-train { display: grid; grid-template-columns: minmax(0,1fr) 22px minmax(0,1fr); align-items: center; }
+.dispatch-carriage { background: #d9eceb; border: 3px solid #246476; border-radius: 14px 14px 4px 4px; padding: 12px 15px 0; }.dispatch-carriage.rear { background: #fbe1bc; border-color: #9a5c2a; }
+.dispatch-carriage h2 { display: flex; align-items: center; justify-content: space-between; gap: 6px; font-size: 18px; margin: 0 0 12px; }.dispatch-carriage strong { font-size: 32px; }.dispatch-carriage strong small { font-size: 14px; }
+.dispatch-seats { display: grid; grid-template-columns: repeat(5, minmax(0,1fr)); gap: 5px; }.dispatch-seats span { display: grid; place-items: center; aspect-ratio: 1; border: 1px solid #6d999c; border-radius: 6px; background: #f5fcf9; color: #1e5663; font-size: clamp(18px,4vw,30px); }.rear .occupied { color: #8b4c19; }.dispatch-seats .empty { color: #8aaba9; }
+.dispatch-wheels { height: 24px; line-height: 32px; font-size: 24px; white-space: nowrap; overflow: hidden; }.dispatch-coupler { font-size: 26px; }.uncoupled .rear { border-style: dashed; opacity: .8; }
+.dispatch-equation { font-size: clamp(22px,4vw,34px); font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.5; }.dispatch-feedback { min-height: 30px; font-size: 17px; line-height: 1.6; }.dispatch-completed { font-weight: 700; }
+.dispatch-controls { position: sticky; bottom: 0; padding: 12px max(18px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)); background: #f8f4e7; border-top: 2px solid #c3d0c8; display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; z-index: 20; }
+.dispatch-controls button { background: #fffaf0; border: 2px solid #246476; border-radius: 5px; padding: 12px 20px; color: #163f48; font-weight: 800; font-size: 18px; }.dispatch-controls button:last-child { background: #246476; color: white; }.dispatch-controls button:disabled { opacity: .45; }.dispatch-controls button:focus-visible, .dispatch-top a:focus-visible { outline: 4px solid #ce7628; outline-offset: 2px; }
+@media (max-width: 600px) { .dispatch-entry { margin: 12px; padding: 14px; gap: 8px; }.dispatch-entry-copy { grid-column: 1/-1; }.dispatch-entry a { grid-column: 1/-1; }.dispatch-top { padding-left: 10px; padding-right: 10px; }.dispatch-top > span { display: none; }.dispatch-body { padding: 14px 12px; }.dispatch-carriage { padding: 10px 8px 0; }.dispatch-carriage h2 { font-size: 14px; flex-wrap: wrap; }.dispatch-controls button { padding: 10px 14px; flex: 1 1 100px; }.dispatch-route li { padding: 6px 12px; }.dispatch-seats { gap: 3px; } }
+@media (max-height: 500px) and (orientation: landscape) { .dispatch-body { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 20px; padding: 8px 20px; }.dispatch-route, .dispatch-body h1, .dispatch-instruction, .dispatch-equation, .dispatch-feedback, .dispatch-completed { grid-column: 1; margin: 0; }.dispatch-body h1 { font-size: 22px; }.dispatch-instruction, .dispatch-feedback { font-size: 14px; }.dispatch-train { grid-column: 2; grid-row: 1 / span 6; }.dispatch-seats span { font-size: 18px; }.dispatch-carriage strong { font-size: 24px; }.dispatch-controls { padding-top: 6px; }.dispatch-equation { font-size: 22px; } }
+@media (max-height: 360px) and (orientation: landscape) {
+  .dispatch-top { padding: 2px 8px; }.dispatch-top a { padding: 4px 10px; font-size: 14px; }
+  .dispatch-route { display: none; }.dispatch-body { gap: 4px 12px; padding: 6px 12px; }
+  .dispatch-body h1 { font-size: 18px; line-height: 1.3; }.dispatch-instruction, .dispatch-feedback, .dispatch-completed { font-size: 12.5px; line-height: 1.3; }
+  .dispatch-feedback { min-height: 0; }.dispatch-carriage { padding: 6px 6px 0; }.dispatch-carriage h2 { margin-bottom: 6px; font-size: 12px; }.dispatch-carriage strong { font-size: 20px; }.dispatch-wheels { height: 12px; line-height: 14px; font-size: 18px; }
+  .dispatch-train { align-self: center; }.dispatch-equation { font-size: 18px; line-height: 1.25; }
+  .dispatch-body:has(.dispatch-completed) .dispatch-feedback { display: none; }
+  .dispatch-controls { padding: 5px 12px; gap: 8px; flex-wrap: nowrap; }.dispatch-controls button { font-size: 14px; line-height: 1.35; padding: 8px 10px; }
+}

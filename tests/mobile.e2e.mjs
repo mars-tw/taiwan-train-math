@@ -8,7 +8,7 @@ import { readTripSession, TRIP_SESSION_KEY } from '../src/trip-session.js';
 import { defaults, allowedGames } from '../src/engine.js';
 import { fieldMission } from '../src/fieldbook.js';
 const {trains}=JSON.parse(readFileSync(new URL('../data/trains.json',import.meta.url),'utf8'));
-const out='docs/evidence/r2-mobile';
+const out=process.env.TRAIN_MATH_EVIDENCE || 'docs/evidence/r3-store/mobile-regression';
 const sizes=[['portrait',390,844],['landscape',844,390],['desktopShort',1366,600],['laptop',1280,640]];
 let browser,server,base;
 const audits=[];
@@ -53,7 +53,7 @@ async function target(page,selector) {
     }
     return {w:r.width,h:r.height,top:r.top,bottom:r.bottom,view:innerHeight,hit:!!hit&&(hit===el||el.contains(hit)),clipped,text:el.textContent.trim()};
   });
-  assert.ok(result.w>=44&&result.h>=44,`${selector} is at least 44px: ${JSON.stringify(result)}`);
+  assert.ok(result.w>=60&&result.h>=60,`${selector} is at least 60px: ${JSON.stringify(result)}`);
   assert.ok(result.top>=-1&&result.bottom<=result.view+1&&result.hit,`${selector} visible and unblocked: ${JSON.stringify(result)}`);
   assert.equal(result.clipped,false,`${selector} text is not clipped`);
   return control;
@@ -62,8 +62,8 @@ async function press(page,control) { if(page.viewportSize().width<1000)await con
 async function tap(page,selector) { await press(page,await target(page,selector)); }
 async function guard(page) {
   await target(page,'#trip-exit');
-  const small=await page.locator('#game-stage button:not(:disabled),#game-actions button:not(:disabled)').evaluateAll(elements=>elements.filter(el=>el.getClientRects().length).map(el=>{const r=el.getBoundingClientRect();return {label:el.getAttribute('aria-label')||el.id,w:r.width,h:r.height};}).filter(r=>r.w<44||r.h<44));
-  assert.deepEqual(small,[],'all active activity and dock targets meet 44px');
+  const small=await page.locator('#game-stage button:not(:disabled),#game-actions button:not(:disabled)').evaluateAll(elements=>elements.filter(el=>el.getClientRects().length).map(el=>{const r=el.getBoundingClientRect();return {label:el.getAttribute('aria-label')||el.id,w:r.width,h:r.height};}).filter(r=>r.w<60||r.h<60));
+  assert.deepEqual(small,[],'all active activity and dock targets meet 60px');
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false,'no horizontal overflow');
   const buttons=page.locator('#game-actions button:not(:disabled)');
   for(let i=0;i<await buttons.count();i++) {const id=await buttons.nth(i).getAttribute('id');if(id)await target(page,`#${id}`);}
@@ -126,7 +126,7 @@ for(const [name,width,height] of sizes) {
         const exit=await page.locator('#trip-exit').boundingBox();assert.ok(exit.y>=0&&exit.y+exit.height<=height,`${level}/${game} pause remains on screen`);
         await press(page,page.locator('#trip-exit'));launches++;
       }
-      assert.equal(launches,57);assert.deepEqual(errors,[]);audits.push({name,launches,controlMinimum:44,overflow:false,errors});
+      assert.equal(launches,57);assert.deepEqual(errors,[]);audits.push({name,launches,controlMinimum:60,overflow:false,errors});
     } finally {await context.close();}
   });
 }

@@ -32,7 +32,7 @@ export function backAction(options = {}) {
   if (state.dialogOpen === true) return "close-dialog";
   if (state.storyMenuOpen === true) return "close-story";
   if (state.view === "game") return "pause-trip";
-  if (["playroom", "collection", "stamps", "finish"].includes(state.view)) return "go-home";
+  if (["playroom", "collection", "stamps", "finish", "dispatch"].includes(state.view)) return "go-home";
   return "minimize";
 }
 

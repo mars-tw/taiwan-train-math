@@ -1,0 +1,18 @@
+/* Children need 60 CSS px targets on touch and mouse, including short landscape screens. */
+body button, body summary { min-width: 60px !important; min-height: 60px !important; }
+button, summary, input:not([type="checkbox"]), select, .site-header a, .dispatch-entry a, .dispatch-top a,
+.lobby-content a, .playroom-page a, .finish-actions a, .empty-passport a { min-width: 60px; min-height: 60px; }
+.in-game #game-actions button, .in-game #game-stage button, .in-game .game-top #trip-exit { min-width: 60px; min-height: 60px; }
+.main-nav a, .lobby-train-actions a, .playroom-page a { display: inline-flex; align-items: center; justify-content: center; }
+.icon-btn, .close-btn, .sound-btn { width: 60px; height: 60px; min-width: 60px; min-height: 60px; }
+.puzzle-piece, .mosaic-color-choice, .mosaic-cell, .track-cell, .maze-control { min-width: 60px; min-height: 60px; }
+.setting-row { min-height: 60px; cursor: pointer; }.setting-row input[type="checkbox"] { width: 60px; height: 60px; flex: 0 0 60px; }
+.game-stage button { scroll-margin-top: 92px; }
+@media (max-height: 500px) and (orientation: landscape) {
+  .site-header { grid-template-columns: minmax(0,1fr) auto; min-height: 0; padding: 4px 12px; gap: 4px; }
+  .site-header .brand { display: none; }.site-header .main-nav { grid-column: 1; grid-row: 1; gap: 6px; }.site-header .header-actions { grid-column: 2; grid-row: 1; }
+  .main-nav a { padding: 4px 8px; }.playroom-heading { min-height: 60px; }.playroom-heading .playroom-home-link { padding: 2px; }.playroom-page .fieldbook { margin-top: 4px; padding: 6px 12px; }.fieldbook-story { margin: 2px 0; }.fieldbook-action small { font-size: 12px; }
+  .dispatch-entry { margin: 8px 12px; padding: 8px 18px; }.dispatch-entry h1 { font-size: 26px; }.dispatch-entry a { min-height: 60px; }
+}
+.main-nav { flex-wrap: wrap; }.brand small { letter-spacing: .06em; }
+@media (max-width: 600px) { .site-header { padding: 6px 12px; }.brand-icon { display: none; }.brand strong { font-size: 20px; }.brand small { font-size: 11px; }.header-actions { gap: 6px; }.settings-btn { padding: 6px; font-size: 13px; }.main-nav { gap: 2px; }.main-nav a { flex: 1; padding: 8px 4px; min-width: 60px; font-size: 14px; }.playroom-category-tabs { grid-template-columns: repeat(2,minmax(0,1fr)); }.mosaic-paint-board { min-width: 254px; } }

@@ -12,11 +12,16 @@
         <scene sceneID="EHf-IW-A2E">
             <objects>
                 <viewController id="01J-lp-oVM" sceneMemberID="viewController">
-                    <imageView key="view" userInteractionEnabled="NO" contentMode="scaleAspectFill" horizontalHuggingPriority="251" verticalHuggingPriority="251" image="Splash" id="snD-IY-ifK">
+                    <view key="view" contentMode="scaleToFill" id="snD-IY-ifK">
                         <rect key="frame" x="0.0" y="0.0" width="375" height="667"/>
                         <autoresizingMask key="autoresizingMask"/>
-                        <color key="backgroundColor" systemColor="systemBackgroundColor"/>
-                    </imageView>
+                        <subviews><stackView opaque="NO" contentMode="scaleToFill" axis="vertical" spacing="16" translatesAutoresizingMaskIntoConstraints="NO" id="math-title-stack"><subviews>
+                            <label opaque="NO" userInteractionEnabled="NO" contentMode="left" text="小小列車長" textAlignment="center" adjustsFontSizeToFit="YES" minimumScaleFactor="0.6" translatesAutoresizingMaskIntoConstraints="NO" id="math-name"><fontDescription key="fontDescription" type="boldSystem" pointSize="34"/><color key="textColor" red="0.086" green="0.247" blue="0.282" alpha="1" colorSpace="custom" customColorSpace="sRGB"/></label>
+                            <label opaque="NO" userInteractionEnabled="NO" contentMode="left" text="拆合車廂，數學上車" textAlignment="center" adjustsFontSizeToFit="YES" minimumScaleFactor="0.6" translatesAutoresizingMaskIntoConstraints="NO" id="math-purpose"><fontDescription key="fontDescription" type="system" pointSize="21"/><color key="textColor" red="0.086" green="0.247" blue="0.282" alpha="1" colorSpace="custom" customColorSpace="sRGB"/></label>
+                        </subviews></stackView></subviews>
+                        <color key="backgroundColor" red="0.973" green="0.957" blue="0.906" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
+                        <constraints><constraint firstItem="math-title-stack" firstAttribute="centerX" secondItem="snD-IY-ifK" secondAttribute="centerX" id="math-center-x"/><constraint firstItem="math-title-stack" firstAttribute="centerY" secondItem="snD-IY-ifK" secondAttribute="centerY" id="math-center-y"/><constraint firstItem="math-title-stack" firstAttribute="leading" secondItem="snD-IY-ifK" secondAttribute="leading" constant="24" id="math-leading"/><constraint firstAttribute="trailing" secondItem="math-title-stack" secondAttribute="trailing" constant="24" id="math-trailing"/></constraints>
+                    </view>
                 </viewController>
                 <placeholder placeholderIdentifier="IBFirstResponder" id="iYj-Kq-Ea1" userLabel="First Responder" sceneMemberID="firstResponder"/>
             </objects>

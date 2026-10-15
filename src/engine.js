@@ -1,12 +1,13 @@
-import { createAdventureQuestion, SOUVENIRS } from "./adventure.js?v=1.13.0";
-import { createPuzzleQuestion } from "./puzzle.js?v=1.13.0";
-import { createLuggageQuestion, createMazeQuestion } from "./explorers.js?v=1.13.0";
-import { createProgramQuestion, createBalanceQuestion } from "./workshop.js?v=1.13.0";
-import { createMosaicQuestion, createDifferencesQuestion } from "./discovery.js?v=1.13.0";
-import { journeyById, journeyGames } from "./journeys.js?v=1.13.0";
-import { photoGameTrains, puzzlePhotoTrains, samePhotoIdentity } from "./train-images.js?v=1.13.0";
-import { createTicketsQuestion } from "./tickets.js?v=1.13.0";
-import { normalizeFieldbook } from "./fieldbook.js?v=1.13.0";
+import { createAdventureQuestion, SOUVENIRS } from "./adventure.js?v=1.14.0";
+import { createPuzzleQuestion } from "./puzzle.js?v=1.14.0";
+import { createLuggageQuestion, createMazeQuestion } from "./explorers.js?v=1.14.0";
+import { createProgramQuestion, createBalanceQuestion } from "./workshop.js?v=1.14.0";
+import { createMosaicQuestion, createDifferencesQuestion } from "./discovery.js?v=1.14.0";
+import { journeyById, journeyGames } from "./journeys.js?v=1.14.0";
+import { photoGameTrains, puzzlePhotoTrains, samePhotoIdentity } from "./train-images.js?v=1.14.0";
+import { createTicketsQuestion } from "./tickets.js?v=1.14.0";
+import { normalizeFieldbook } from "./fieldbook.js?v=1.14.0";
+import { normalizeDispatch } from "./dispatch.js?v=1.14.0";
 export const V15_GAME_IDS = Object.freeze(["count", "identify", "boarding", "order", "compare", "pattern", "cargo", "memory", "clock", "tracks", "sharing", "treasure", "puzzle", "luggage", "maze"]);
 export const V17_GAME_IDS = Object.freeze([...V15_GAME_IDS, "program", "balance", "mosaic", "differences"]);
 export const LEVELS = {
@@ -694,6 +695,7 @@ export const defaults = () => ({
   recentGames: [],
   journeysCompleted: [],
   fieldbook: normalizeFieldbook(),
+  dispatch: normalizeDispatch(),
 });
 export function readProgress(storage) {
   try {
@@ -727,6 +729,7 @@ export function readProgress(storage) {
     result.journeysCompleted = Array.isArray(raw.journeysCompleted)
       ? [...new Set(raw.journeysCompleted.filter(id => typeof id === "string" && journeyById(id)))] : [];
     result.fieldbook = normalizeFieldbook(raw.fieldbook);
+    result.dispatch = normalizeDispatch(raw.dispatch);
     return result;
   } catch {
     return defaults();

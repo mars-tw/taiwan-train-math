@@ -10,6 +10,7 @@ for (const file of report.files) {
   if (bytes.length !== file.bytes || createHash("sha256").update(bytes).digest("hex") !== file.sha256) throw new Error(`Native asset mismatch: ${file.path}`);
 }
 const paths = new Set(report.files.map(file => file.path));
+if ([...paths].some(path => path.startsWith("games/") || path.startsWith("docs/store/") || path.startsWith("docs/evidence/"))) throw new Error("Unrelated support pages or store drafts in native app");
 for (const path of ["index.html", "native-host.js", "native-documents.js", "native-ui.css", "src/app.js", "src/native-runtime.js", "src/learning-guide.js", "data/trains.json", "privacy.html", "support.html"]) if (!paths.has(path)) throw new Error(`Missing native file: ${path}`);
 const { trains } = JSON.parse(await readFile("dist-native/data/trains.json", "utf8"));
 const photos = trains.flatMap(train => train.referencePhoto?.status === "verified" ? [train.referencePhoto.path] : []);

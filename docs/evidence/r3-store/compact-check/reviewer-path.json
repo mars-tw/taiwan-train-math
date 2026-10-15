@@ -1,0 +1,14 @@
+[
+  {
+    "name": "seCompactLandscape",
+    "width": 568,
+    "height": 320,
+    "status": "VERIFIED",
+    "coldStartToCompleted": true,
+    "reopenPersisted": true,
+    "wrongAnswerRetried": true,
+    "externalRequests": [],
+    "errors": [],
+    "elapsedMsConcurrentOnly": 3529
+  }
+]

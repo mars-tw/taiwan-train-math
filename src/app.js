@@ -13,51 +13,54 @@ import {
   memoryTurn,
   rememberTrip,
   seededRandom,
-} from "./engine.js?v=1.13.0";
-import { arithmeticScene, parseArithmeticAnswer } from "./arithmetic-ui.js?v=1.13.0";
-import { homeMarkup, playroomMarkup, starterPractice } from "./home.js?v=1.13.0";
-import { countingScene, discoveryMarkup } from "./learning-ui.js?v=1.13.0";
-import { learningGuide } from "./learning-guide.js?v=1.13.0";
-import { learningDiscovery } from "./learning-content.js?v=1.13.0";
+} from "./engine.js?v=1.14.0";
+import { arithmeticScene, parseArithmeticAnswer } from "./arithmetic-ui.js?v=1.14.0";
+import { homeMarkup, playroomMarkup, starterPractice } from "./home.js?v=1.14.0";
+import { countingScene, discoveryMarkup } from "./learning-ui.js?v=1.14.0";
+import { learningGuide } from "./learning-guide.js?v=1.14.0";
+import { learningDiscovery } from "./learning-content.js?v=1.14.0";
 import {
   activityScene,
   patternToken,
   patternName,
-} from "./activities.js?v=1.13.0";
-import { mountStory, newStoryState } from "./story.js?v=1.13.0";
+} from "./activities.js?v=1.14.0";
+import { mountStory, newStoryState } from "./story.js?v=1.14.0";
 import {
   newAdventureState,
   trackConnected,
   changeShare,
   SOUVENIRS,
-} from "./adventure.js?v=1.13.0";
+} from "./adventure.js?v=1.14.0";
 import {
   adventureScene,
   souvenirMarkup,
   souvenirCollection,
   giftDetailMarkup,
-} from "./adventure-ui.js?v=1.13.0";
-import { newPuzzleState, selectPuzzlePiece, placePuzzlePiece, puzzleScene } from "./puzzle.js?v=1.13.0";
-import { newExplorerState, selectLuggage, putLuggage, moveMaze, explorerScene } from "./explorers.js?v=1.13.0";
-import { enqueueGift, offerGifts, claimGift } from "./rewards.js?v=1.13.0";
-import { attachPuzzleTouch } from "./puzzle-touch.js?v=1.13.0";
-import { saveTripSession, readTripSession, clearTripSession, TRIP_SESSION_KEY } from "./trip-session.js?v=1.13.0";
-import { newWorkshopState, appendCommand, removeCommand, evaluateProgram, addWeight, removeWeight, weightTotal, workshopScene } from "./workshop.js?v=1.13.0";
-import { newDiscoveryState, selectMosaicColor, paintMosaicCell, resetMosaic, findDifference, discoveryScene } from "./discovery.js?v=1.13.0";
-import { JOURNEYS, journeyById, journeyMarkup } from "./journeys.js?v=1.13.0";
-import { displayTrain, trainImage, verifiedPhoto, photoLabel, photoGameTrains, samePhotoIdentity } from "./train-images.js?v=1.13.0";
-import { newTicketsState, selectTicket, payToken, returnToken, ticketTotals, ticketsScene } from "./tickets.js?v=1.13.0";
-import { createPhotoLoader } from "./photo-loader.js?v=1.13.0";
-import { createProgramPlayback } from "./program-playback.js?v=1.13.0";
-import { resolvePage } from "./navigation.js?v=1.13.0";
-import { backAction, attachNativeLifecycle } from "./native-runtime.js?v=1.13.0";
-import { encodeBackup, decodeBackup } from "./progress-backup.js?v=1.13.0";
-import { LEARNING_SOURCES } from "./learning-content.js?v=1.13.0";
-import { photoCreditsMarkup, trainSourceLinkMarkup, parentResourcesMarkup } from "./parent-resources.js?v=1.13.0";
-import { playCue, praiseWord, encourageWord, burstMarkup, tripStars, starRow, PASSENGER_OUTFITS, PASSENGER_SKIN } from "./celebration.js?v=1.13.0";
-import { currentFieldMission, advanceFieldbook, fieldbookMarkup, fieldbookResultMarkup } from "./fieldbook.js?v=1.13.0";
+} from "./adventure-ui.js?v=1.14.0";
+import { newPuzzleState, selectPuzzlePiece, placePuzzlePiece, puzzleScene } from "./puzzle.js?v=1.14.0";
+import { newExplorerState, selectLuggage, putLuggage, moveMaze, explorerScene } from "./explorers.js?v=1.14.0";
+import { enqueueGift, offerGifts, claimGift } from "./rewards.js?v=1.14.0";
+import { attachPuzzleTouch } from "./puzzle-touch.js?v=1.14.0";
+import { saveTripSession, readTripSession, clearTripSession, TRIP_SESSION_KEY } from "./trip-session.js?v=1.14.0";
+import { newWorkshopState, appendCommand, removeCommand, evaluateProgram, addWeight, removeWeight, weightTotal, workshopScene } from "./workshop.js?v=1.14.0";
+import { newDiscoveryState, selectMosaicColor, paintMosaicCell, resetMosaic, findDifference, discoveryScene } from "./discovery.js?v=1.14.0";
+import { JOURNEYS, journeyById, journeyMarkup } from "./journeys.js?v=1.14.0";
+import { displayTrain, trainImage, verifiedPhoto, photoLabel, photoGameTrains, samePhotoIdentity } from "./train-images.js?v=1.14.0";
+import { newTicketsState, selectTicket, payToken, returnToken, ticketTotals, ticketsScene } from "./tickets.js?v=1.14.0";
+import { createPhotoLoader } from "./photo-loader.js?v=1.14.0";
+import { createProgramPlayback } from "./program-playback.js?v=1.14.0";
+import { resolvePage } from "./navigation.js?v=1.14.0";
+import { backAction, attachNativeLifecycle } from "./native-runtime.js?v=1.14.0";
+import { encodeBackup, decodeBackup } from "./progress-backup.js?v=1.14.0";
+import { LEARNING_SOURCES } from "./learning-content.js?v=1.14.0";
+import { photoCreditsMarkup, trainSourceLinkMarkup, parentResourcesMarkup } from "./parent-resources.js?v=1.14.0";
+import { playCue, praiseWord, encourageWord, burstMarkup, tripStars, starRow, PASSENGER_OUTFITS, PASSENGER_SKIN } from "./celebration.js?v=1.14.0";
+import { currentFieldMission, advanceFieldbook, fieldbookMarkup, fieldbookResultMarkup } from "./fieldbook.js?v=1.14.0";
+import { dispatchAction, dispatchEntry, dispatchMarkup } from "./dispatch.js?v=1.14.0";
+import { attachWebParentGate } from "./web-parent-gate.js?v=1.14.0";
 
 const nativeHost = window.TrainMathNative;
+attachWebParentGate({ native: nativeHost?.native === true });
 if (nativeHost?.native) {
   await nativeHost.ready;
   document.body.classList.add("native-app");
@@ -384,6 +387,7 @@ function renderHome() {
     image,
     resume: pausedTrip ? { train: displayTrain(pausedTrip.train), level: pausedTrip.meta.level, index: pausedTrip.index, total: pausedTrip.questions.length } : null,
   });
+  main.insertAdjacentHTML("afterbegin", dispatchEntry(progress.dispatch));
   storyHandle = mountStory($("#story-scene"), {
     state: storySession,
     reduced: progress.reduceMotion || motionPreference.matches,
@@ -392,6 +396,15 @@ function renderHome() {
     onGame: (id) => chooseMission(id, "mission"),
     onAnnounce: announce,
   });
+}
+function renderDispatch(message = "") {
+  stopStory();
+  if (!progress.dispatch.active) {
+    // A completed lesson stays reviewable until the child explicitly starts another.
+    progress.dispatch = dispatchAction(progress.dispatch, "start", progress.level).state;
+    persist();
+  }
+  main.innerHTML = dispatchMarkup(progress.dispatch, message);
 }
 function renderPlayroom() {
   stopStory();
@@ -463,12 +476,12 @@ function chooseMission(id, source) {
   speak(message);
 }
 function renderCollection() {
-  main.innerHTML = `<div class="content-wrap catalogue-page"><div class="page-intro"><div class="eyebrow dark">THE TRAIN ENCYCLOPEDIA</div><h1>火車圖鑑</h1><p>每一台列車，都有自己的名字。點圖片選車，點箭頭聽聽它的故事。</p><span class="catalogue-note">台灣列車・林鐵與觀光名稱・海外子彈列車・磁浮試驗列車</span></div>${filterBar()}<div class="collection-toolbar"><span id="result-count"></span><a href="#home" class="text-link">選好了，回去出發 →</a></div><div id="train-grid" class="train-grid"></div><p class="fineprint">圖鑑使用逐張核對的實車照片。內裝、歷史塗裝及尚未營運的列車另有標示；點箭頭可看車號證據、作者與授權。</p></div>`;
+  main.innerHTML = `<div class="content-wrap catalogue-page"><div class="page-intro"><div class="eyebrow dark">列車觀察筆記</div><h1>火車圖鑑</h1><p>每一台列車，都有自己的名字。點圖片選車，點箭頭聽聽它的故事。</p><span class="catalogue-note">台灣列車・林鐵與觀光名稱・海外子彈列車・磁浮試驗列車</span></div>${filterBar()}<div class="collection-toolbar"><span id="result-count"></span><a href="#home" class="text-link">選好了，回去出發 →</a></div><div id="train-grid" class="train-grid"></div><p class="fineprint">圖鑑使用逐張核對的實車照片。內裝、歷史塗裝及尚未營運的列車另有標示；點箭頭可看車號證據、作者與授權。</p></div>`;
   renderCards();
 }
 function renderStamps() {
   const completed = progress.completed.map(byId).filter(Boolean).map(displayTrain);
-  main.innerHTML = `<div class="content-wrap stamps-page"><div class="page-intro"><div class="eyebrow dark">MY RAILWAY PASSPORT</div><h1>我的鐵道護照</h1><p>已完成 <strong>${progress.trips}</strong> 趟旅程，留下 <strong>${completed.length}</strong> 款列車的紀念章。</p></div>${completed.length ? `<div class="stamp-grid">${completed.map((t) => `<button class="stamp-card" data-detail="${t.id}"><div class="stamp-image">${image(t)}<span aria-hidden="true">✦</span></div><strong>${esc(t.name)}</strong><small>${esc(t.model)}</small><span class="stamp-seal">旅程完成 ✓</span></button>`).join("")}</div>` : '<div class="empty-passport"><span aria-hidden="true">🎟</span><h2>你的第一枚紀念章在等你</h2><p>選一台喜歡的火車，完成一趟小旅程就能收藏。</p><a href="#home" class="primary-btn">出發旅行 →</a></div>'}${fieldbookMarkup(progress, { collection: true })}${journeyStampsMarkup()}${pendingGiftMarkup()}${souvenirCollection(progress, { esc })}<p class="fineprint">護照存在這台裝置；清除瀏覽器資料會一起清除。所有列車都能自由選擇。</p></div>`;
+  main.innerHTML = `<div class="content-wrap stamps-page"><div class="page-intro"><div class="eyebrow dark">我的學習足跡</div><h1>我的鐵道護照</h1><p>已完成 <strong>${progress.trips}</strong> 趟旅程，留下 <strong>${completed.length}</strong> 款列車的紀念章。</p></div>${completed.length ? `<div class="stamp-grid">${completed.map((t) => `<button class="stamp-card" data-detail="${t.id}"><div class="stamp-image">${image(t)}<span aria-hidden="true">✦</span></div><strong>${esc(t.name)}</strong><small>${esc(t.model)}</small><span class="stamp-seal">旅程完成 ✓</span></button>`).join("")}</div>` : '<div class="empty-passport"><span aria-hidden="true">🎟</span><h2>你的第一枚紀念章在等你</h2><p>選一台喜歡的火車，完成一趟小旅程就能收藏。</p><a href="#home" class="primary-btn">出發旅行 →</a></div>'}${fieldbookMarkup(progress, { collection: true })}${journeyStampsMarkup()}${pendingGiftMarkup()}${souvenirCollection(progress, { esc })}<p class="fineprint">護照存在這台裝置；清除瀏覽器資料會一起清除。所有列車都能自由選擇。</p></div>`;
 }
 function pendingGiftMarkup() {
   if (!progress.giftCredits) return "";
@@ -524,9 +537,11 @@ function route() {
     view = page.view;
     trip = null;
     document.body.classList.remove("in-game"); delete document.body.dataset.game;
+    document.body.classList.toggle("dispatching", view === "dispatch");
     if (view === "collection") renderCollection();
     else if (view === "stamps") renderStamps();
     else if (view === "playroom") renderPlayroom();
+    else if (view === "dispatch") renderDispatch();
     else renderHome();
     applyPreferences();
   }
@@ -995,7 +1010,7 @@ function finishTrip() {
   const t = displayTrain(trip.train);
   const route = journeyById(trip.meta.journey);
   trip.giftChoices = progress.giftOffer.map(id => SOUVENIRS.find(item => item.id === id)).filter(Boolean);
-  main.innerHTML = `<div class="finish-wrap ${trip.fieldbookResult ? "fieldbook-finish" : ""} ${motionReduced() ? "" : "finish-animate"}">${burstMarkup({ seed: trip.meta.seed, reduced: motionReduced(), count: 24 })}<div class="eyebrow dark">JOURNEY COMPLETED</div><h1>${route ? esc(route.name + "，任務完成！") : "抵達終點，做得好！"}</h1><p>${route ? esc(route.arrivalText) : "每一次發現，都值得一枚紀念章。"}</p>${fieldbookResultMarkup(trip.fieldbookResult)}<div class="finish-stamp">${image(t, "", false)}<span class="finish-stars" aria-hidden="true">✦</span><h2>${esc(t.name)}</h2><p>${esc(t.model)}</p><div class="stamp-seal">我的鐵道旅程 · 完成 ✓</div></div>${starRow(tripStars(trip).earned, { esc })}<p class="finish-note">今天認識了${esc(t.name)}。下次再一起出發吧！</p><div id="trip-gift">${souvenirMarkup(trip, { esc })}</div><div class="finish-actions"><button id="trip-new" class="primary-btn">換台列車，玩新任務 →</button><button id="trip-again" class="secondary-btn">同台列車，再練新題</button><a href="#stamps" class="secondary-btn">看看我的集章</a><a href="#home" class="text-btn">休息一下</a></div></div>`;
+  main.innerHTML = `<div class="finish-wrap ${trip.fieldbookResult ? "fieldbook-finish" : ""} ${motionReduced() ? "" : "finish-animate"}">${burstMarkup({ seed: trip.meta.seed, reduced: motionReduced(), count: 24 })}<div class="eyebrow dark">數學旅程完成</div><h1>${route ? esc(route.name + "，任務完成！") : "抵達終點，做得好！"}</h1><p>${route ? esc(route.arrivalText) : "每一次發現，都值得一枚紀念章。"}</p>${fieldbookResultMarkup(trip.fieldbookResult)}<div class="finish-stamp">${image(t, "", false)}<span class="finish-stars" aria-hidden="true">✦</span><h2>${esc(t.name)}</h2><p>${esc(t.model)}</p><div class="stamp-seal">我的鐵道旅程 · 完成 ✓</div></div>${starRow(tripStars(trip).earned, { esc })}<p class="finish-note">今天認識了${esc(t.name)}。下次再一起出發吧！</p><div id="trip-gift">${souvenirMarkup(trip, { esc })}</div><div class="finish-actions"><button id="trip-new" class="primary-btn">換台列車，玩新任務 →</button><button id="trip-again" class="secondary-btn">同台列車，再練新題</button><a href="#stamps" class="secondary-btn">看看我的集章</a><a href="#home" class="text-btn">休息一下</a></div></div>`;
   window.scrollTo({ top: 0, behavior: "instant" });
   cue("fanfare");
   speak(`抵達終點，做得好！今天一起搭乘了${t.name}。`);
@@ -1021,6 +1036,19 @@ document.addEventListener("click", async (event) => {
   }
   const b = event.target.closest("button");
   if (!b) return;
+  if (b.dataset.dispatch && view === "dispatch") {
+    const oldPhase = progress.dispatch.active?.phase;
+    const action = b.dataset.dispatch;
+    const result = dispatchAction(progress.dispatch, action, progress.level);
+    progress.dispatch = result.state;
+    persist();
+    renderDispatch(result.message);
+    if (progress.dispatch.active?.phase !== oldPhase) {
+      window.scrollTo({ top: 0, behavior: "instant" });
+      $("#dispatch-title")?.focus({ preventScroll: true });
+    } else main.querySelector(`[data-dispatch="${action}"]:not(:disabled)`)?.focus({ preventScroll: true });
+    return;
+  }
   if (b.dataset.fieldbook && !departureToken && ['home', 'playroom', 'stamps', 'finish'].includes(view)) {
     const mission = currentFieldMission(progress);
     if (!mission) return;
@@ -1886,7 +1914,7 @@ try {
   const controller = new AbortController();
   const deadline = setTimeout(() => controller.abort(), 15000);
   let response;
-  try { response = await fetch("data/trains.json?v=1.13.0", { signal: controller.signal }); }
+  try { response = await fetch("data/trains.json?v=1.14.0", { signal: controller.signal }); }
   finally { clearTimeout(deadline); }
   if (!response.ok) throw new Error("Content unavailable");
   catalogue = await response.json();

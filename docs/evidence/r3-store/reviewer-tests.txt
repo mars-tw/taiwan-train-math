@@ -1,0 +1,32 @@
+
+> taiwan-train-math@1.14.0 test:store
+> node --test tests/store-review.e2e.mjs
+
+✔ seCompact: cold launch, tutorial, three math goals, retry, pause, reopen, saved progress (3484.2014ms)
+✔ seCompactLandscape: cold launch, tutorial, three math goals, retry, pause, reopen, saved progress (3801.6603ms)
+✔ phoneLarge: cold launch, tutorial, three math goals, retry, pause, reopen, saved progress (3538.2582ms)
+✔ ipad11: cold launch, tutorial, three math goals, retry, pause, reopen, saved progress (3829.1994ms)
+✔ ipad11Landscape: cold launch, tutorial, three math goals, retry, pause, reopen, saved progress (6344.0375ms)
+✔ se: cold launch, tutorial, three math goals, retry, pause, reopen, saved progress (7364.4457ms)
+✔ seLandscape: cold launch, tutorial, three math goals, retry, pause, reopen, saved progress (8628.2933ms)
+✔ phone: cold launch, tutorial, three math goals, retry, pause, reopen, saved progress (4156.3378ms)
+✔ phoneLandscape: cold launch, tutorial, three math goals, retry, pause, reopen, saved progress (4701.2348ms)
+✔ ipad: cold launch, tutorial, three math goals, retry, pause, reopen, saved progress (5380.5066ms)
+✔ ipadLandscape: cold launch, tutorial, three math goals, retry, pause, reopen, saved progress (8493.3385ms)
+✔ ipad13: cold launch, tutorial, three math goals, retry, pause, reopen, saved progress (6738.0372ms)
+✔ ipad13Landscape: cold launch, tutorial, three math goals, retry, pause, reopen, saved progress (5147.5496ms)
+✔ desktopShort: cold launch, tutorial, three math goals, retry, pause, reopen, saved progress (8002.1885ms)
+✔ laptop: cold launch, tutorial, three math goals, retry, pause, reopen, saved progress (9195.3932ms)
+✔ storePhone: cold launch, tutorial, three math goals, retry, pause, reopen, saved progress (10902.3537ms)
+✔ storeTablet: cold launch, tutorial, three math goals, retry, pause, reopen, saved progress (11660.7699ms)
+✔ upper age lessons show every passenger and preserve quantities when returning from background (5753.8346ms)
+✔ parent gate blocks links, rejects a wrong answer, revokes on background and allows only an answered challenge (1166.4554ms)
+✔ packaged first launch and signature work with network offline and local file responses only (1792.0881ms)
+ℹ tests 20
+ℹ suites 0
+ℹ pass 20
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 120526.2456

@@ -1,0 +1,61 @@
+[
+  {
+    "allMissionMenuLaunches": 36
+  },
+  {
+    "name": "portrait",
+    "chapterCompleted": true,
+    "restoredSameSeed": true,
+    "stampReadback": true,
+    "errors": []
+  },
+  {
+    "name": "portrait",
+    "launches": 57,
+    "controlMinimum": 60,
+    "overflow": false,
+    "errors": []
+  },
+  {
+    "name": "landscape",
+    "chapterCompleted": true,
+    "restoredSameSeed": true,
+    "stampReadback": true,
+    "errors": []
+  },
+  {
+    "name": "landscape",
+    "launches": 57,
+    "controlMinimum": 60,
+    "overflow": false,
+    "errors": []
+  },
+  {
+    "name": "desktopShort",
+    "chapterCompleted": true,
+    "restoredSameSeed": true,
+    "stampReadback": true,
+    "errors": []
+  },
+  {
+    "name": "desktopShort",
+    "launches": 57,
+    "controlMinimum": 60,
+    "overflow": false,
+    "errors": []
+  },
+  {
+    "name": "laptop",
+    "chapterCompleted": true,
+    "restoredSameSeed": true,
+    "stampReadback": true,
+    "errors": []
+  },
+  {
+    "name": "laptop",
+    "launches": 57,
+    "controlMinimum": 60,
+    "overflow": false,
+    "errors": []
+  }
+]

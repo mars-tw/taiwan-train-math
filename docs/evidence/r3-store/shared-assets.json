@@ -1,0 +1,130 @@
+{
+  "status": "EXECUTED",
+  "date": "2026-10-15",
+  "method": "Read-only git runtime source/art hashes plus night-train native-kit historical payload; excludes dependencies/build outputs. Exact equality is not proof of shared authorship.",
+  "peers": [
+    "rift-survivors",
+    "storm-apocalypse",
+    "doomsday-shooter",
+    "tower-defense",
+    "skill",
+    "pixel-idle-farm-skill",
+    "village-siege",
+    "seven-district-reckoning",
+    "rift-forge-3d",
+    "taiwan-island-drive",
+    "island-flight-school",
+    "taiwan-train-school"
+  ],
+  "missing": [],
+  "ownHashedFiles": 190,
+  "duplicates": [
+    {
+      "file": "android/app/src/main/res/layout/activity_main.xml",
+      "peer": "taiwan-island-drive",
+      "peerFile": "android/app/src/main/res/layout/activity_main.xml",
+      "sha256": "5d770feb791313b947020cbfc57e5c733c556dac5e9e49261a1190e527073253",
+      "bytes": 535
+    },
+    {
+      "file": "android/app/src/main/res/values/styles.xml",
+      "peer": "taiwan-island-drive",
+      "peerFile": "android/app/src/main/res/values/styles.xml",
+      "sha256": "18ebba36575e9461347ee67361b23caf095f158ee85dbefe1b83a4669ba5bd6c",
+      "bytes": 823
+    },
+    {
+      "file": "android/app/src/main/res/xml/file_paths.xml",
+      "peer": "taiwan-island-drive",
+      "peerFile": "android/app/src/main/res/xml/file_paths.xml",
+      "sha256": "a46ed43ef65c90cb6778f4581decf3556e3f0055aad8f36d69dae16f9a0e99aa",
+      "bytes": 213
+    },
+    {
+      "file": "ios/App/App/Assets.xcassets/Contents.json",
+      "peer": "taiwan-island-drive",
+      "peerFile": "ios/App/App/Assets.xcassets/Contents.json",
+      "sha256": "972ec1fd42325872438eb085ac29e94f51c10788ec18ec5549439950866c541d",
+      "bytes": 62
+    }
+  ],
+  "sharedMarkers": [
+    {
+      "peer": "storm-apocalypse",
+      "path": "src/styles.css",
+      "markers": [
+        "Noto Sans TC",
+        "Noto Serif TC"
+      ]
+    },
+    {
+      "peer": "doomsday-shooter",
+      "path": "index.html",
+      "markers": [
+        "Noto Serif TC"
+      ]
+    },
+    {
+      "peer": "tower-defense",
+      "path": "index.html",
+      "markers": [
+        "Noto Serif TC"
+      ]
+    },
+    {
+      "peer": "tower-defense",
+      "path": "src/presentation.css",
+      "markers": [
+        "Noto Serif TC"
+      ]
+    },
+    {
+      "peer": "taiwan-island-drive",
+      "path": "package.json",
+      "markers": [
+        "@capacitor/core"
+      ]
+    },
+    {
+      "peer": "taiwan-island-drive",
+      "path": "src/games/car/styles.css",
+      "markers": [
+        "Noto Sans TC"
+      ]
+    },
+    {
+      "peer": "taiwan-island-drive",
+      "path": "src/games/flight/styles.css",
+      "markers": [
+        "Noto Sans TC"
+      ]
+    },
+    {
+      "peer": "taiwan-island-drive",
+      "path": "src/games/train/styles.css",
+      "markers": [
+        "Noto Sans TC"
+      ]
+    },
+    {
+      "peer": "island-flight-school",
+      "path": "src/styles.css",
+      "markers": [
+        "Noto Sans TC"
+      ]
+    },
+    {
+      "peer": "taiwan-train-school",
+      "path": "src/styles.css",
+      "markers": [
+        "Noto Sans TC"
+      ]
+    }
+  ],
+  "nativeKitMathExists": false,
+  "nightTrainSnapshot": {
+    "path": "game-store-publisher\\native-kit\\apps\\night-train-watch-protocol\\web",
+    "files": 48,
+    "currentSourceVerified": false
+  }
+}

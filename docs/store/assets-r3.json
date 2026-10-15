@@ -1,0 +1,11 @@
+{
+  "status": "PREPARED",
+  "date": "2026-10-15",
+  "new_raster_art": [],
+  "model_slug": null,
+  "blocked_requirement": "No available image tool parameter can select and verify gpt-image-2. No generation was requested and no replacement model was used.",
+  "existing_art": "Existing train photographs, icon and story illustrations retained with their original manifest and licenses.",
+  "native_ui_changes": ["Text launch screen", "Reference to existing train launcher PNG"],
+  "code_native_ui": ["Quantity dots and seat frames", "Carriage arithmetic worksheet", "60 CSS px interaction targets"],
+  "screenshots": "Headless captures of actual rendered game UI; not generated artwork or native device captures."
+}

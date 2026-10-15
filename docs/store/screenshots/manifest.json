@@ -1,0 +1,104 @@
+{
+  "status": "VERIFIED",
+  "version": "1.14.0",
+  "capture": "Headless Chromium actual UI, reduced motion, no compositing; not native-device evidence",
+  "script": "tests/store-review.e2e.mjs",
+  "files": [
+    {
+      "path": "storePhone-completed.png",
+      "width": 1290,
+      "height": 2796,
+      "bytes": 161349,
+      "sha256": "ac785586d4f9038e56a58bd170b194b800fd288493467257eda580472b25706a",
+      "cssViewport": [
+        430,
+        932
+      ],
+      "deviceScaleFactor": 3
+    },
+    {
+      "path": "storePhone-home.png",
+      "width": 1290,
+      "height": 2796,
+      "bytes": 2093775,
+      "sha256": "ca4011b8fb70eeb8d0f7641f5cf5335fd4c2e856be8338ad21ca6eaec91f4d63",
+      "cssViewport": [
+        430,
+        932
+      ],
+      "deviceScaleFactor": 3
+    },
+    {
+      "path": "storePhone-load.png",
+      "width": 1290,
+      "height": 2796,
+      "bytes": 123946,
+      "sha256": "ea6b5690a83e839014ae6473836d7cff415abb15a7f36d4d3868c79729c4c7f7",
+      "cssViewport": [
+        430,
+        932
+      ],
+      "deviceScaleFactor": 3
+    },
+    {
+      "path": "storePhone-split.png",
+      "width": 1290,
+      "height": 2796,
+      "bytes": 154164,
+      "sha256": "ef696b0d2868f0877f723fdd3da8cab6f933d49de83a92846863fbca51096cac",
+      "cssViewport": [
+        430,
+        932
+      ],
+      "deviceScaleFactor": 3
+    },
+    {
+      "path": "storeTablet-completed.png",
+      "width": 2064,
+      "height": 2752,
+      "bytes": 137809,
+      "sha256": "260b8555c7fd8726291982b83ff7157cd9512df9ef3aba2dbfbf4c2026548e91",
+      "cssViewport": [
+        1032,
+        1376
+      ],
+      "deviceScaleFactor": 2
+    },
+    {
+      "path": "storeTablet-home.png",
+      "width": 2064,
+      "height": 2752,
+      "bytes": 3939055,
+      "sha256": "ce648324caa8155c79905d85321ff4ac5bdf3cda164e17f7c4215f8a351d717f",
+      "cssViewport": [
+        1032,
+        1376
+      ],
+      "deviceScaleFactor": 2
+    },
+    {
+      "path": "storeTablet-load.png",
+      "width": 2064,
+      "height": 2752,
+      "bytes": 108665,
+      "sha256": "e607b4d8fa8fcca29edfb60bc655749e63bdea990ca7d8d3809a740d1c9ad714",
+      "cssViewport": [
+        1032,
+        1376
+      ],
+      "deviceScaleFactor": 2
+    },
+    {
+      "path": "storeTablet-split.png",
+      "width": 2064,
+      "height": 2752,
+      "bytes": 127790,
+      "sha256": "146d722273ef321302a95e5af63857f013d39ece0985c3e3ec0b3e0f91b40644",
+      "cssViewport": [
+        1032,
+        1376
+      ],
+      "deviceScaleFactor": 2
+    }
+  ]
+}

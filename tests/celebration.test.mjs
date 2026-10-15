@@ -127,7 +127,7 @@ test("game feedback wiring: celebrate, retry nudge, pops, whistle and fanfare", 
 
 test("celebration styles are linked, honour reduced motion and never block taps", () => {
   const html = read("index.html"), css = read("src/celebration.css");
-  assert.match(html, /<link rel="stylesheet" href="src\/celebration\.css\?v=1\.13\.0" \/>/);
+  assert.match(html, /<link rel="stylesheet" href="src\/celebration\.css\?v=1\.14\.0" \/>/);
   assert.ok(html.indexOf("learning.css") < html.indexOf("celebration.css"));
   assert.match(css, /\.celebration-burst \{[^}]*pointer-events: none;/);
   assert.match(css, /\.celebration-burst \{[^}]*inset: 0;[^}]*overflow: hidden;/, "particles are clipped so phones never scroll sideways");

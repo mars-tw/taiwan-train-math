@@ -33,6 +33,19 @@ async function fixture(t) {
   return { root, temporary, put, read: (path) => readFile(join(root, path), "utf8") };
 }
 
+test("store drafts and local evidence never enter either public payload", async (t) => {
+  const { root, put, read } = await fixture(t);
+  await put("docs/store/DRAFT.md", "internal review draft");
+  await put("docs/store/screenshots/capture.png", "capture fixture");
+  await put("docs/evidence/run.json", "internal evidence");
+  await put("docs/OPTIM_PLAN_R3.md", "internal plan");
+  await put("docs/CODEX_RESPONSE_R3_STORE.md", "internal report");
+  await buildSite(root);
+  assert.equal(await read("dist/docs/credits.md"), "fixture");
+  for (const path of ["docs/store/DRAFT.md", "docs/store/screenshots/capture.png", "docs/evidence/run.json", "docs/OPTIM_PLAN_R3.md", "docs/CODEX_RESPONSE_R3_STORE.md"])
+    await assert.rejects(read(`dist/${path}`), { code: "ENOENT" });
+});
+
 test("a second build removes deleted assets and old output without publishing repository files", async (t) => {
   const { root, put, read } = await fixture(t);
   for (const path of ["README.md", "package.json", "scripts/local.mjs", "tests/local.test.mjs", ".git/config", "src/.env", "data/.cache/local.json"])

@@ -12,6 +12,10 @@ try { if ((await lstat(out)).isSymbolicLink()) throw new Error("Native output mu
 await buildSite(root);
 await rm(out, { recursive: true, force: true });
 await cp(join(root, "dist"), out, { recursive: true, dereference: false });
+// Existing web support URLs cover several games; none belongs in this game's offline app.
+const supportHub = join(out, "games");
+if (dirname(supportHub) !== out || basename(supportHub) !== "games") throw new Error("Invalid support hub output");
+await rm(supportHub, { recursive: true, force: true });
 await build({ entryPoints: [join(root, "native/host-entry.js")], outfile: join(out, "native-host.js"), bundle: true, format: "iife", target: "es2020", platform: "browser", minify: true });
 await cp(join(root, "native/native-ui.css"), join(out, "native-ui.css"));
 const documents = {};

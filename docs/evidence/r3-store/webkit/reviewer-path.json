@@ -1,0 +1,49 @@
+[
+  {
+    "name": "seCompactLandscape",
+    "width": 568,
+    "height": 320,
+    "status": "VERIFIED",
+    "coldStartToCompleted": true,
+    "reopenPersisted": true,
+    "wrongAnswerRetried": true,
+    "externalRequests": [],
+    "errors": [],
+    "elapsedMsConcurrentOnly": 7199
+  },
+  {
+    "name": "se",
+    "width": 375,
+    "height": 667,
+    "status": "VERIFIED",
+    "coldStartToCompleted": true,
+    "reopenPersisted": true,
+    "wrongAnswerRetried": true,
+    "externalRequests": [],
+    "errors": [],
+    "elapsedMsConcurrentOnly": 5792
+  },
+  {
+    "name": "ipad13",
+    "width": 1032,
+    "height": 1376,
+    "status": "VERIFIED",
+    "coldStartToCompleted": true,
+    "reopenPersisted": true,
+    "wrongAnswerRetried": true,
+    "externalRequests": [],
+    "errors": [],
+    "elapsedMsConcurrentOnly": 5987
+  },
+  {
+    "upperAgeLessons": "VERIFIED",
+    "visiblePassengers": true,
+    "backgroundEventsSimulated": true
+  },
+  {
+    "parentGate": "VERIFIED",
+    "wrongAnswerBlocked": true,
+    "backgroundRevoked": true,
+    "correctChallengeAllowed": true
+  }
+]

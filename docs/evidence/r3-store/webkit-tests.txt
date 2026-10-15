@@ -1,0 +1,27 @@
+✔ seCompactLandscape: cold launch, tutorial, three math goals, retry, pause, reopen, saved progress (7725.1495ms)
+✔ se: cold launch, tutorial, three math goals, retry, pause, reopen, saved progress (6223.179ms)
+✔ ipad13: cold launch, tutorial, three math goals, retry, pause, reopen, saved progress (6076.254ms)
+✔ upper age lessons show every passenger and preserve quantities when returning from background (14027.0291ms)
+✔ parent gate blocks links, rejects a wrong answer, revokes on background and allows only an answered challenge (1541.6231ms)
+✖ packaged first launch and signature work with network offline and local file responses only (108.9201ms)
+ℹ tests 6
+ℹ suites 0
+ℹ pass 5
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 35977.1956
+
+✖ failing tests:
+
+test at tests\store-review.e2e.mjs:75:1
+✖ packaged first launch and signature work with network offline and local file responses only (108.9201ms)
+  page.goto: WebKit encountered an internal error
+  Call log:
+  [2m  - navigating to "https://math.invalid/", waiting until "load"[22m
+
+      at TestContext.<anonymous> (C:\Users\digimkt\Desktop\遊戲\taiwan-train-math\tests\store-review.e2e.mjs:79:18) {
+    name: 'Error',
+    log: [ '  - navigating to "https://math.invalid/", waiting until "load"' ]
+  }

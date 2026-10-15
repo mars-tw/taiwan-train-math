@@ -1,0 +1,10 @@
+✔ seCompactLandscape: cold launch, tutorial, three math goals, retry, pause, reopen, saved progress (4310.5732ms)
+✔ upper age lessons show every passenger and preserve quantities when returning from background (5568.4825ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 2
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 10630.069

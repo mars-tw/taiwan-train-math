@@ -1,6 +1,6 @@
 {
   "name": "taiwan-train-math",
-  "version": "1.13.0",
+  "version": "1.14.0",
   "private": true,
   "type": "module",
   "description": "台灣 3–8 歲兒童的火車圖鑑與數學遊戲",
@@ -16,7 +16,8 @@
     "native:sync": "npm run native:build && npx cap sync && node scripts/configure-native-projects.mjs",
     "native:icons": "node scripts/generate-app-assets.mjs",
     "test:mobile": "node --test tests/mobile.e2e.mjs",
-    "capture:mobile": "node scripts/mobile-capture.mjs"
+    "capture:mobile": "node scripts/mobile-capture.mjs",
+    "test:store": "node --test tests/store-review.e2e.mjs"
   },
   "license": "Apache-2.0",
   "dependencies": {

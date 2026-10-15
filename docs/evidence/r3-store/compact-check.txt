@@ -1,0 +1,9 @@
+✔ seCompactLandscape: cold launch, tutorial, three math goals, retry, pause, reopen, saved progress (3734.2035ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 1
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 4111.2933

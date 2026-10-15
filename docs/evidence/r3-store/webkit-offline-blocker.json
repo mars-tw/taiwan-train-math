@@ -1,0 +1,10 @@
+{
+  "status": "BLOCKED",
+  "browserVersion": "26.5",
+  "engine": "Windows Playwright WebKit",
+  "fixture": "Only a local HTML string; no app source or assets loaded",
+  "offline": true,
+  "error": "page.goto: WebKit encountered an internal error",
+  "routeFulfillCalls": 0,
+  "inference": "The minimal non-app fixture reproduces the failure. Suspected host offline-routing limitation; native app offline behavior remains unverified."
+}

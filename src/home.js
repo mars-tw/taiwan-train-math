@@ -1,6 +1,6 @@
-import { LEVELS, GAMES, allowedGames } from "./engine.js?v=1.13.0";
-import { storyMarkup } from "./story.js?v=1.13.0";
-import { fieldbookMarkup } from "./fieldbook.js?v=1.13.0";
+import { LEVELS, GAMES, allowedGames } from "./engine.js?v=1.14.0";
+import { storyMarkup } from "./story.js?v=1.14.0";
+import { fieldbookMarkup } from "./fieldbook.js?v=1.14.0";
 
 export const PLAYROOM_CATEGORIES = Object.freeze([
   { id: "math", name: "數學", icon: "123", games: ["count", "order", "compare", "boarding", "pattern", "clock"] },

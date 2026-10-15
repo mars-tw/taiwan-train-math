@@ -1,5 +1,5 @@
-import { STORAGE_KEY, readProgress } from "./engine.js?v=1.13.0";
-import { TRIP_SESSION_KEY, readTripSession } from "./trip-session.js?v=1.13.0";
+import { STORAGE_KEY, readProgress } from "./engine.js?v=1.14.0";
+import { TRIP_SESSION_KEY, readTripSession } from "./trip-session.js?v=1.14.0";
 const MAX_BACKUP = 262144;
 const temporary = values => ({ getItem: key => Object.hasOwn(values, key) ? values[key] : null });
 export function encodeBackup(progress, session = null, { trains } = {}) {

@@ -1,0 +1,222 @@
+[
+  {
+    "name": "seCompact",
+    "width": 320,
+    "height": 568,
+    "status": "VERIFIED",
+    "coldStartToCompleted": true,
+    "reopenPersisted": true,
+    "wrongAnswerRetried": true,
+    "externalRequests": [],
+    "errors": [],
+    "elapsedMsConcurrentOnly": 3340
+  },
+  {
+    "name": "seCompactLandscape",
+    "width": 568,
+    "height": 320,
+    "status": "VERIFIED",
+    "coldStartToCompleted": true,
+    "reopenPersisted": true,
+    "wrongAnswerRetried": true,
+    "externalRequests": [],
+    "errors": [],
+    "elapsedMsConcurrentOnly": 3754
+  },
+  {
+    "name": "phoneLarge",
+    "width": 440,
+    "height": 956,
+    "status": "VERIFIED",
+    "coldStartToCompleted": true,
+    "reopenPersisted": true,
+    "wrongAnswerRetried": true,
+    "externalRequests": [],
+    "errors": [],
+    "elapsedMsConcurrentOnly": 3494
+  },
+  {
+    "name": "ipad11",
+    "width": 834,
+    "height": 1194,
+    "status": "VERIFIED",
+    "coldStartToCompleted": true,
+    "reopenPersisted": true,
+    "wrongAnswerRetried": true,
+    "externalRequests": [],
+    "errors": [],
+    "elapsedMsConcurrentOnly": 3767
+  },
+  {
+    "name": "ipad11Landscape",
+    "width": 1194,
+    "height": 834,
+    "status": "VERIFIED",
+    "coldStartToCompleted": true,
+    "reopenPersisted": true,
+    "wrongAnswerRetried": true,
+    "externalRequests": [],
+    "errors": [],
+    "elapsedMsConcurrentOnly": 6286
+  },
+  {
+    "name": "se",
+    "width": 375,
+    "height": 667,
+    "status": "VERIFIED",
+    "coldStartToCompleted": true,
+    "reopenPersisted": true,
+    "wrongAnswerRetried": true,
+    "externalRequests": [],
+    "errors": [],
+    "elapsedMsConcurrentOnly": 7291
+  },
+  {
+    "name": "seLandscape",
+    "width": 667,
+    "height": 375,
+    "status": "VERIFIED",
+    "coldStartToCompleted": true,
+    "reopenPersisted": true,
+    "wrongAnswerRetried": true,
+    "externalRequests": [],
+    "errors": [],
+    "elapsedMsConcurrentOnly": 8381
+  },
+  {
+    "name": "phone",
+    "width": 430,
+    "height": 932,
+    "status": "VERIFIED",
+    "coldStartToCompleted": true,
+    "reopenPersisted": true,
+    "wrongAnswerRetried": true,
+    "externalRequests": [],
+    "errors": [],
+    "elapsedMsConcurrentOnly": 4076
+  },
+  {
+    "name": "phoneLandscape",
+    "width": 932,
+    "height": 430,
+    "status": "VERIFIED",
+    "coldStartToCompleted": true,
+    "reopenPersisted": true,
+    "wrongAnswerRetried": true,
+    "externalRequests": [],
+    "errors": [],
+    "elapsedMsConcurrentOnly": 4633
+  },
+  {
+    "name": "ipad",
+    "width": 768,
+    "height": 1024,
+    "status": "VERIFIED",
+    "coldStartToCompleted": true,
+    "reopenPersisted": true,
+    "wrongAnswerRetried": true,
+    "externalRequests": [],
+    "errors": [],
+    "elapsedMsConcurrentOnly": 5317
+  },
+  {
+    "name": "ipadLandscape",
+    "width": 1024,
+    "height": 768,
+    "status": "VERIFIED",
+    "coldStartToCompleted": true,
+    "reopenPersisted": true,
+    "wrongAnswerRetried": true,
+    "externalRequests": [],
+    "errors": [],
+    "elapsedMsConcurrentOnly": 8110
+  },
+  {
+    "name": "ipad13",
+    "width": 1032,
+    "height": 1376,
+    "status": "VERIFIED",
+    "coldStartToCompleted": true,
+    "reopenPersisted": true,
+    "wrongAnswerRetried": true,
+    "externalRequests": [],
+    "errors": [],
+    "elapsedMsConcurrentOnly": 6511
+  },
+  {
+    "name": "ipad13Landscape",
+    "width": 1376,
+    "height": 1032,
+    "status": "VERIFIED",
+    "coldStartToCompleted": true,
+    "reopenPersisted": true,
+    "wrongAnswerRetried": true,
+    "externalRequests": [],
+    "errors": [],
+    "elapsedMsConcurrentOnly": 5047
+  },
+  {
+    "name": "desktopShort",
+    "width": 1366,
+    "height": 600,
+    "status": "VERIFIED",
+    "coldStartToCompleted": true,
+    "reopenPersisted": true,
+    "wrongAnswerRetried": true,
+    "externalRequests": [],
+    "errors": [],
+    "elapsedMsConcurrentOnly": 7833
+  },
+  {
+    "name": "laptop",
+    "width": 1280,
+    "height": 640,
+    "status": "VERIFIED",
+    "coldStartToCompleted": true,
+    "reopenPersisted": true,
+    "wrongAnswerRetried": true,
+    "externalRequests": [],
+    "errors": [],
+    "elapsedMsConcurrentOnly": 8999
+  },
+  {
+    "name": "storePhone",
+    "width": 430,
+    "height": 932,
+    "status": "VERIFIED",
+    "coldStartToCompleted": true,
+    "reopenPersisted": true,
+    "wrongAnswerRetried": true,
+    "externalRequests": [],
+    "errors": [],
+    "elapsedMsConcurrentOnly": 10642
+  },
+  {
+    "name": "storeTablet",
+    "width": 1032,
+    "height": 1376,
+    "status": "VERIFIED",
+    "coldStartToCompleted": true,
+    "reopenPersisted": true,
+    "wrongAnswerRetried": true,
+    "externalRequests": [],
+    "errors": [],
+    "elapsedMsConcurrentOnly": 11501
+  },
+  {
+    "upperAgeLessons": "VERIFIED",
+    "visiblePassengers": true,
+    "backgroundEventsSimulated": true
+  },
+  {
+    "parentGate": "VERIFIED",
+    "wrongAnswerBlocked": true,
+    "backgroundRevoked": true,
+    "correctChallengeAllowed": true
+  },
+  {
+    "packagedOffline": "VERIFIED",
+    "missingFiles": [],
+    "nativeBridge": "Not exercised by a browser"
+  }
+]

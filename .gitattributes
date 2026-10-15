@@ -2,3 +2,12 @@
 docs/evidence/r2-mobile/*.json text eol=lf
 docs/evidence/r2-mobile/*.txt text eol=lf
 docs/evidence/r2-mobile/*.png binary
+docs/evidence/r3-store/**/*.json text eol=lf
+docs/evidence/r3-store/**/*.txt text eol=lf
+docs/evidence/r3-store/**/*.png binary
+docs/evidence/r3-store/*.json text eol=lf
+docs/evidence/r3-store/*.txt text eol=lf
+docs/evidence/r3-store/*.png binary
+docs/store/**/*.json text eol=lf
+docs/store/**/*.png binary
+docs/store/*.json text eol=lf

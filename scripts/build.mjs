@@ -16,7 +16,9 @@ async function publicFiles(root) {
     if (!info.isDirectory()) throw new Error(`公開素材必須是一般檔案或目錄：${path}`);
     for (const name of (await readdir(join(root, path))).sort()) {
       // Optimisation-round screenshots stay in the repository, not in the web or app package.
-      if (!name.startsWith(".") && `${path}/${name}` !== "docs/evidence") await visit(`${path}/${name}`);
+      const child = `${path}/${name}`;
+      if (!name.startsWith(".") && !["docs/evidence", "docs/store"].includes(child)
+        && !/^docs\/(?:OPTIM_PLAN_|CODEX_RESPONSE_)/.test(child)) await visit(child);
     }
   }
   for (const entry of publicEntries) await visit(entry);

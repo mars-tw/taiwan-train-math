@@ -1,0 +1,84 @@
+{
+  "status": "EXECUTED",
+  "measurementContext": "並發載量測，僅供參考",
+  "shippingPerformanceGate": "BLOCKED: requires uncontended physical devices",
+  "metric": "Headless rAF intervals, not CPU/GPU render time",
+  "results": [
+    {
+      "name": "mobile",
+      "scene": "home",
+      "runs": [
+        {
+          "frames": 120,
+          "p95": 16.700000000000273
+        },
+        {
+          "frames": 120,
+          "p95": 16.700000000000273
+        },
+        {
+          "frames": 120,
+          "p95": 16.799999999999955
+        }
+      ],
+      "p95Median": 16.700000000000273
+    },
+    {
+      "name": "mobile",
+      "scene": "dispatch",
+      "runs": [
+        {
+          "frames": 120,
+          "p95": 16.799999999999955
+        },
+        {
+          "frames": 120,
+          "p95": 16.799999999999955
+        },
+        {
+          "frames": 120,
+          "p95": 16.799999999999955
+        }
+      ],
+      "p95Median": 16.799999999999955
+    },
+    {
+      "name": "desktop",
+      "scene": "home",
+      "runs": [
+        {
+          "frames": 120,
+          "p95": 16.700000000000273
+        },
+        {
+          "frames": 120,
+          "p95": 16.700000000000273
+        },
+        {
+          "frames": 120,
+          "p95": 16.700000000000273
+        }
+      ],
+      "p95Median": 16.700000000000273
+    },
+    {
+      "name": "desktop",
+      "scene": "dispatch",
+      "runs": [
+        {
+          "frames": 120,
+          "p95": 16.700000000000273
+        },
+        {
+          "frames": 120,
+          "p95": 16.700000000000273
+        },
+        {
+          "frames": 120,
+          "p95": 16.799999999999727
+        }
+      ],
+      "p95Median": 16.700000000000273
+    }
+  ]
+}

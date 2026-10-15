@@ -1,0 +1,30 @@
+{
+  "status": "VERIFIED",
+  "platform": "win32",
+  "node": "v24.15.0",
+  "playwright": "1.61.1",
+  "browser": "Chromium headless",
+  "viewports": [
+    [
+      390,
+      844
+    ],
+    [
+      844,
+      390
+    ],
+    [
+      1366,
+      600
+    ],
+    [
+      1280,
+      640
+    ]
+  ],
+  "mobileInput": "touch",
+  "desktopInput": "mouse",
+  "motion": "reduced in functional and screenshot runs; default in reference performance sampling",
+  "nativePayloadWebVersion": "1.13.0",
+  "nativePayloadFiles": 197
+}

@@ -1,0 +1,10 @@
+{
+  "status": "VERIFIED",
+  "newArtwork": [],
+  "newAudio": [],
+  "newModels": [],
+  "uiOnly": ["mission card", "progress bar", "text collection stamps"],
+  "requiredImageModelSlug": "gpt-image-2",
+  "imageGenerationStatus": "BLOCKED: available interface cannot select or report the required exact model slug",
+  "existingAssets": "Existing train photographs, teaching visuals and sounds retained; no substitute artwork generated."
+}

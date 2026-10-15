@@ -1,0 +1,350 @@
+[
+  {
+    "name": "portrait",
+    "width": 390,
+    "height": 844,
+    "errors": [],
+    "overflow": false,
+    "controls": [
+      {
+        "id": "trip-exit",
+        "text": "← 遊戲室",
+        "width": 66.953125,
+        "height": 48,
+        "inView": true,
+        "unblocked": true
+      },
+      {
+        "id": "question-replay",
+        "text": "🔊",
+        "width": 48,
+        "height": 48,
+        "inView": true,
+        "unblocked": true
+      },
+      {
+        "id": "game-fullscreen",
+        "text": "⛶",
+        "width": 48,
+        "height": 48,
+        "inView": true,
+        "unblocked": true
+      },
+      {
+        "id": "",
+        "text": "",
+        "width": 48,
+        "height": 60,
+        "inView": true,
+        "unblocked": true
+      },
+      {
+        "id": "",
+        "text": "",
+        "width": 48,
+        "height": 60,
+        "inView": true,
+        "unblocked": true
+      },
+      {
+        "id": "",
+        "text": "",
+        "width": 48,
+        "height": 60,
+        "inView": true,
+        "unblocked": true
+      },
+      {
+        "id": "",
+        "text": "",
+        "width": 48,
+        "height": 60,
+        "inView": true,
+        "unblocked": true
+      },
+      {
+        "id": "hint-show",
+        "text": "☀ 一起想一想",
+        "width": 99.1875,
+        "height": 48,
+        "inView": true,
+        "unblocked": true
+      },
+      {
+        "id": "",
+        "text": "",
+        "width": 110,
+        "height": 56,
+        "inView": true,
+        "unblocked": true
+      },
+      {
+        "id": "",
+        "text": "",
+        "width": 110,
+        "height": 56,
+        "inView": true,
+        "unblocked": true
+      }
+    ]
+  },
+  {
+    "name": "landscape",
+    "width": 844,
+    "height": 390,
+    "errors": [],
+    "overflow": false,
+    "controls": [
+      {
+        "id": "trip-exit",
+        "text": "← 遊戲室",
+        "width": 71.1875,
+        "height": 48,
+        "inView": true,
+        "unblocked": true
+      },
+      {
+        "id": "question-replay",
+        "text": "🔊",
+        "width": 48,
+        "height": 48,
+        "inView": true,
+        "unblocked": true
+      },
+      {
+        "id": "game-fullscreen",
+        "text": "⛶",
+        "width": 48,
+        "height": 48,
+        "inView": true,
+        "unblocked": true
+      },
+      {
+        "id": "",
+        "text": "",
+        "width": 48,
+        "height": 60,
+        "inView": true,
+        "unblocked": true
+      },
+      {
+        "id": "hint-show",
+        "text": "☀ 一起想一想",
+        "width": 99.1875,
+        "height": 48,
+        "inView": true,
+        "unblocked": true
+      },
+      {
+        "id": "",
+        "text": "",
+        "width": 110,
+        "height": 56,
+        "inView": true,
+        "unblocked": true
+      },
+      {
+        "id": "",
+        "text": "",
+        "width": 110,
+        "height": 56,
+        "inView": true,
+        "unblocked": true
+      },
+      {
+        "id": "",
+        "text": "♪",
+        "width": 48,
+        "height": 48,
+        "inView": true,
+        "unblocked": false
+      }
+    ]
+  },
+  {
+    "name": "desktopShort",
+    "width": 1366,
+    "height": 600,
+    "errors": [],
+    "overflow": false,
+    "controls": [
+      {
+        "id": "trip-exit",
+        "text": "← 遊戲室",
+        "width": 71.1875,
+        "height": 48,
+        "inView": true,
+        "unblocked": true
+      },
+      {
+        "id": "question-replay",
+        "text": "🔊",
+        "width": 48,
+        "height": 48,
+        "inView": true,
+        "unblocked": true
+      },
+      {
+        "id": "game-fullscreen",
+        "text": "⛶",
+        "width": 48,
+        "height": 48,
+        "inView": true,
+        "unblocked": true
+      },
+      {
+        "id": "",
+        "text": "",
+        "width": 48,
+        "height": 60,
+        "inView": true,
+        "unblocked": true
+      },
+      {
+        "id": "",
+        "text": "",
+        "width": 48,
+        "height": 60,
+        "inView": true,
+        "unblocked": true
+      },
+      {
+        "id": "",
+        "text": "",
+        "width": 48,
+        "height": 60,
+        "inView": true,
+        "unblocked": true
+      },
+      {
+        "id": "",
+        "text": "",
+        "width": 48,
+        "height": 60,
+        "inView": true,
+        "unblocked": true
+      },
+      {
+        "id": "hint-show",
+        "text": "☀ 一起想一想",
+        "width": 99.1875,
+        "height": 48,
+        "inView": true,
+        "unblocked": true
+      },
+      {
+        "id": "",
+        "text": "",
+        "width": 110,
+        "height": 56,
+        "inView": true,
+        "unblocked": true
+      },
+      {
+        "id": "",
+        "text": "",
+        "width": 110,
+        "height": 56,
+        "inView": true,
+        "unblocked": true
+      },
+      {
+        "id": "",
+        "text": "♪",
+        "width": 48,
+        "height": 48,
+        "inView": true,
+        "unblocked": true
+      }
+    ]
+  },
+  {
+    "name": "laptop",
+    "width": 1280,
+    "height": 640,
+    "errors": [],
+    "overflow": false,
+    "controls": [
+      {
+        "id": "trip-exit",
+        "text": "← 遊戲室",
+        "width": 71.1875,
+        "height": 48,
+        "inView": true,
+        "unblocked": true
+      },
+      {
+        "id": "question-replay",
+        "text": "🔊",
+        "width": 48,
+        "height": 48,
+        "inView": true,
+        "unblocked": true
+      },
+      {
+        "id": "game-fullscreen",
+        "text": "⛶",
+        "width": 48,
+        "height": 48,
+        "inView": true,
+        "unblocked": true
+      },
+      {
+        "id": "",
+        "text": "",
+        "width": 48,
+        "height": 60,
+        "inView": true,
+        "unblocked": true
+      },
+      {
+        "id": "",
+        "text": "",
+        "width": 48,
+        "height": 60,
+        "inView": true,
+        "unblocked": true
+      },
+      {
+        "id": "",
+        "text": "",
+        "width": 48,
+        "height": 60,
+        "inView": true,
+        "unblocked": true
+      },
+      {
+        "id": "hint-show",
+        "text": "☀ 一起想一想",
+        "width": 99.1875,
+        "height": 48,
+        "inView": true,
+        "unblocked": true
+      },
+      {
+        "id": "",
+        "text": "",
+        "width": 110,
+        "height": 56,
+        "inView": true,
+        "unblocked": true
+      },
+      {
+        "id": "",
+        "text": "",
+        "width": 110,
+        "height": 56,
+        "inView": true,
+        "unblocked": true
+      },
+      {
+        "id": "",
+        "text": "♪",
+        "width": 48,
+        "height": 48,
+        "inView": true,
+        "unblocked": true
+      }
+    ]
+  }
+]

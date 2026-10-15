@@ -24,6 +24,10 @@ jobs:
     env:
       DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
     steps:
+      - name: Read the current source version
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - name: Verify the existing native artifact provenance
         env:
           GH_API_TOKEN: ${{ github.token }}
@@ -89,6 +93,10 @@ jobs:
           WIDTH, HEIGHT = 1206, 2622
           ZIP_SHA = 'af68d534c038d28e3a4a4c70b3083f2f09693d2411dfd6e9b4919169a986e85b'
           MANIFEST_SHA = 'bf095e5d865549d10e12bad6d8f24d8de9181b86dd61f06c3e247f4f858514f4'
+          # A pinned historical package must never masquerade as current source.
+          EXPECTED_WEB_VERSION = json.loads(pathlib.Path('package.json').read_text(encoding='utf-8'))['version']
+          if not re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+', EXPECTED_WEB_VERSION):
+              raise ValueError('Invalid current source version')
 
           def verify_payload(zip_path, manifest_path):
               if hashlib.sha256(zip_path.read_bytes()).hexdigest() != ZIP_SHA:
@@ -98,7 +106,7 @@ jobs:
                   raise ValueError('Native manifest differs from the verified device payload')
               manifest = json.loads(raw_manifest)
               if (manifest.get('appId') != APP_ID or manifest.get('remoteServer') is not False
-                  or manifest.get('webSourceVersion') != '1.11.0' or manifest.get('webDir') != 'dist-native'
+                  or manifest.get('webSourceVersion') != EXPECTED_WEB_VERSION or manifest.get('webDir') != 'dist-native'
                   or not isinstance(manifest.get('files'), list) or len(manifest['files']) != 165):
                   raise ValueError('Unexpected native payload manifest')
               seen, total = set(), 0
@@ -128,7 +136,7 @@ jobs:
                       total += len(data)
               if total != manifest.get('bytes'):
                   raise ValueError('Native payload byte total mismatch')
-              return {'appId': APP_ID, 'version': '1.0.0', 'build': '1', 'webVersion': '1.11.0',
+              return {'appId': APP_ID, 'version': '1.0.0', 'build': '1', 'webVersion': manifest['webSourceVersion'],
                       'simulatorZipSha256': ZIP_SHA, 'payloadManifestSha256': MANIFEST_SHA,
                       'verifiedPayloadFiles': len(seen), 'verifiedPayloadBytes': total}
 

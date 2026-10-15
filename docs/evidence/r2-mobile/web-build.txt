@@ -1,0 +1,5 @@
+
+> taiwan-train-math@1.13.0 build
+> node scripts/build.mjs
+
+已建立 dist（194 個檔案）：可部署於 GitHub Pages 或一般靜態主機。

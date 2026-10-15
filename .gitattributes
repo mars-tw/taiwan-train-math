@@ -1,0 +1,4 @@
+# Preserve auditable evidence bytes across Windows and Linux checkouts.
+docs/evidence/r2-mobile/*.json text eol=lf
+docs/evidence/r2-mobile/*.txt text eol=lf
+docs/evidence/r2-mobile/*.png binary

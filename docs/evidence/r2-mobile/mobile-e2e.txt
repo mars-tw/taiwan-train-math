@@ -1,0 +1,21 @@
+
+> taiwan-train-math@1.13.0 test:mobile
+> node --test tests/mobile.e2e.mjs
+
+✔ all 36 mission cards launch the matching age game through the real menu (11687.5239ms)
+✔ portrait: touch complete a chapter, pause/reload, claim gift, persist stamp and unlock next goal (4663.3214ms)
+✔ portrait: all age-appropriate activities retain reachable controls and pause on a scrolled page (30765.5672ms)
+✔ landscape: touch complete a chapter, pause/reload, claim gift, persist stamp and unlock next goal (4549.4673ms)
+✔ landscape: all age-appropriate activities retain reachable controls and pause on a scrolled page (30931.3934ms)
+✔ desktopShort: touch complete a chapter, pause/reload, claim gift, persist stamp and unlock next goal (4171.3094ms)
+✔ desktopShort: all age-appropriate activities retain reachable controls and pause on a scrolled page (29148.3198ms)
+✔ laptop: touch complete a chapter, pause/reload, claim gift, persist stamp and unlock next goal (4562.2783ms)
+✔ laptop: all age-appropriate activities retain reachable controls and pause on a scrolled page (28217.4228ms)
+ℹ tests 9
+ℹ suites 0
+ℹ pass 9
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 149057.2582

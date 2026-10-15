@@ -1,0 +1,48 @@
+{
+  "status": "EXECUTED",
+  "measurementContext": "並發載量測，僅供參考",
+  "shippingPerformanceGate": "BLOCKED: requires uncontended physical devices",
+  "metric": "headless Chromium home requestAnimationFrame interval; not CPU/GPU render time",
+  "results": [
+    {
+      "name": "mobile",
+      "width": 390,
+      "height": 844,
+      "runs": [
+        {
+          "frames": 120,
+          "p95": 16.700000000000273
+        },
+        {
+          "frames": 120,
+          "p95": 16.700000000000273
+        },
+        {
+          "frames": 120,
+          "p95": 16.700000000000273
+        }
+      ],
+      "medianP95": 16.700000000000273
+    },
+    {
+      "name": "desktop",
+      "width": 1366,
+      "height": 600,
+      "runs": [
+        {
+          "frames": 120,
+          "p95": 16.700000000000273
+        },
+        {
+          "frames": 120,
+          "p95": 16.700000000000273
+        },
+        {
+          "frames": 120,
+          "p95": 16.799999999999727
+        }
+      ],
+      "medianP95": 16.700000000000273
+    }
+  ]
+}

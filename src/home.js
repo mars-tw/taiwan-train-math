@@ -1,5 +1,6 @@
-import { LEVELS, GAMES, allowedGames } from "./engine.js?v=1.12.0";
-import { storyMarkup } from "./story.js?v=1.12.0";
+import { LEVELS, GAMES, allowedGames } from "./engine.js?v=1.13.0";
+import { storyMarkup } from "./story.js?v=1.13.0";
+import { fieldbookMarkup } from "./fieldbook.js?v=1.13.0";
 
 export const PLAYROOM_CATEGORIES = Object.freeze([
   { id: "math", name: "數學", icon: "123", games: ["count", "order", "compare", "boarding", "pattern", "clock"] },
@@ -73,5 +74,5 @@ export function playroomMarkup({ progress, esc, category, routeMarkup, journeyMa
     const challenges = later.length ? `<details class="playroom-later"><summary>更多挑戰 · 5 歲以上</summary><div class="playroom-game-list">${later.map(gameCard).join("")}</div></details>` : "";
     return `<section class="playroom-game-panel" id="playroom-panel-${group.id}" role="tabpanel" aria-labelledby="playroom-tab-${group.id}" tabindex="0" ${group.id === active ? "" : "hidden"}><p class="playroom-category-note">${escape(LEVELS[level].age)} · ${playable} 種可以玩${group.id === "math" ? " · 可以先從數數開始" : ""}</p><div class="playroom-game-list">${games}</div>${challenges}</section>`;
   }).join("");
-  return `<section class="playroom-page" id="playroom" aria-labelledby="playroom-title"><header class="playroom-heading"><div><a href="#home" class="playroom-home-link">← 看星光高鐵故事</a><h1 id="playroom-title">遊戲室</h1><p>選一個遊戲，搭喜歡的列車出發。</p></div>${ageButton(level, escape)}</header>${resumeMarkup(resume, level, escape)}${selectedCopy}<div class="playroom-category-tabs" role="tablist" aria-label="遊戲分類">${tabs}</div><p class="playroom-notice" id="home-notice" role="status"></p>${panels}${routesMarkup({ progress, level, escape, routeMarkup, journeyMarkup })}</section>`;
+  return `<section class="playroom-page" id="playroom" aria-labelledby="playroom-title"><header class="playroom-heading"><div><a href="#home" class="playroom-home-link">← 看星光高鐵故事</a><h1 id="playroom-title">遊戲室</h1><p>選一個遊戲，搭喜歡的列車出發。</p></div>${ageButton(level, escape)}</header>${resumeMarkup(resume, level, escape)}${fieldbookMarkup(progress)}${selectedCopy}<div class="playroom-category-tabs" role="tablist" aria-label="遊戲分類">${tabs}</div><p class="playroom-notice" id="home-notice" role="status"></p>${panels}${routesMarkup({ progress, level, escape, routeMarkup, journeyMarkup })}</section>`;
 }

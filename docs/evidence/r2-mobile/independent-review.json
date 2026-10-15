@@ -1,0 +1,8 @@
+{
+  "status": "BLOCKED",
+  "tool": "devspace_chatgpt_list_workers",
+  "attempts": 2,
+  "error": "Mcp error: -32603: Internal error",
+  "delegationAccepted": false,
+  "independentReviewCompleted": false
+}

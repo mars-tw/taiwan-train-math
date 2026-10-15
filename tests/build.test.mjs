@@ -108,3 +108,14 @@ test("a linked dist target is rejected without removing or writing its external 
   assert.equal(await readFile(join(outside, "private.txt"), "utf8"), "outside file");
   await assert.rejects(readFile(join(outside, "index.html")), { code: "ENOENT" });
 });
+
+test("optimisation-round screenshots stay out of the web and app package", async (t) => {
+  const { root, put, read } = await fixture(t);
+  await put("docs/evidence/r1/after-home.webp", "screenshot");
+  await put("docs/evidence/r1/after-audit.json", "{}");
+  await put("docs/OPTIM_PLAN_R1.md", "plan");
+  await buildSite(root);
+  assert.equal(await read("dist/docs/credits.md"), "fixture");
+  for (const path of ["docs/evidence/r1/after-home.webp", "docs/evidence/r1/after-audit.json"])
+    await assert.rejects(read(`dist/${path}`), { code: "ENOENT" });
+});

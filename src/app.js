@@ -13,47 +13,48 @@ import {
   memoryTurn,
   rememberTrip,
   seededRandom,
-} from "./engine.js?v=1.11.0";
-import { arithmeticScene, parseArithmeticAnswer } from "./arithmetic-ui.js?v=1.11.0";
-import { homeMarkup, playroomMarkup, starterPractice } from "./home.js?v=1.11.0";
-import { countingScene, discoveryMarkup } from "./learning-ui.js?v=1.11.0";
-import { learningGuide } from "./learning-guide.js?v=1.11.0";
-import { learningDiscovery } from "./learning-content.js?v=1.11.0";
+} from "./engine.js?v=1.12.0";
+import { arithmeticScene, parseArithmeticAnswer } from "./arithmetic-ui.js?v=1.12.0";
+import { homeMarkup, playroomMarkup, starterPractice } from "./home.js?v=1.12.0";
+import { countingScene, discoveryMarkup } from "./learning-ui.js?v=1.12.0";
+import { learningGuide } from "./learning-guide.js?v=1.12.0";
+import { learningDiscovery } from "./learning-content.js?v=1.12.0";
 import {
   activityScene,
   patternToken,
   patternName,
-} from "./activities.js?v=1.11.0";
-import { mountStory, newStoryState } from "./story.js?v=1.11.0";
+} from "./activities.js?v=1.12.0";
+import { mountStory, newStoryState } from "./story.js?v=1.12.0";
 import {
   newAdventureState,
   trackConnected,
   changeShare,
   SOUVENIRS,
-} from "./adventure.js?v=1.11.0";
+} from "./adventure.js?v=1.12.0";
 import {
   adventureScene,
   souvenirMarkup,
   souvenirCollection,
   giftDetailMarkup,
-} from "./adventure-ui.js?v=1.11.0";
-import { newPuzzleState, selectPuzzlePiece, placePuzzlePiece, puzzleScene } from "./puzzle.js?v=1.11.0";
-import { newExplorerState, selectLuggage, putLuggage, moveMaze, explorerScene } from "./explorers.js?v=1.11.0";
-import { enqueueGift, offerGifts, claimGift } from "./rewards.js?v=1.11.0";
-import { attachPuzzleTouch } from "./puzzle-touch.js?v=1.11.0";
-import { saveTripSession, readTripSession, clearTripSession, TRIP_SESSION_KEY } from "./trip-session.js?v=1.11.0";
-import { newWorkshopState, appendCommand, removeCommand, evaluateProgram, addWeight, removeWeight, weightTotal, workshopScene } from "./workshop.js?v=1.11.0";
-import { newDiscoveryState, selectMosaicColor, paintMosaicCell, resetMosaic, findDifference, discoveryScene } from "./discovery.js?v=1.11.0";
-import { JOURNEYS, journeyById, journeyMarkup } from "./journeys.js?v=1.11.0";
-import { displayTrain, trainImage, verifiedPhoto, photoLabel, photoGameTrains, samePhotoIdentity } from "./train-images.js?v=1.11.0";
-import { newTicketsState, selectTicket, payToken, returnToken, ticketTotals, ticketsScene } from "./tickets.js?v=1.11.0";
-import { createPhotoLoader } from "./photo-loader.js?v=1.11.0";
-import { createProgramPlayback } from "./program-playback.js?v=1.11.0";
-import { resolvePage } from "./navigation.js?v=1.11.0";
-import { backAction, attachNativeLifecycle } from "./native-runtime.js?v=1.11.0";
-import { encodeBackup, decodeBackup } from "./progress-backup.js?v=1.11.0";
-import { LEARNING_SOURCES } from "./learning-content.js?v=1.11.0";
-import { photoCreditsMarkup, trainSourceLinkMarkup, parentResourcesMarkup } from "./parent-resources.js?v=1.11.0";
+} from "./adventure-ui.js?v=1.12.0";
+import { newPuzzleState, selectPuzzlePiece, placePuzzlePiece, puzzleScene } from "./puzzle.js?v=1.12.0";
+import { newExplorerState, selectLuggage, putLuggage, moveMaze, explorerScene } from "./explorers.js?v=1.12.0";
+import { enqueueGift, offerGifts, claimGift } from "./rewards.js?v=1.12.0";
+import { attachPuzzleTouch } from "./puzzle-touch.js?v=1.12.0";
+import { saveTripSession, readTripSession, clearTripSession, TRIP_SESSION_KEY } from "./trip-session.js?v=1.12.0";
+import { newWorkshopState, appendCommand, removeCommand, evaluateProgram, addWeight, removeWeight, weightTotal, workshopScene } from "./workshop.js?v=1.12.0";
+import { newDiscoveryState, selectMosaicColor, paintMosaicCell, resetMosaic, findDifference, discoveryScene } from "./discovery.js?v=1.12.0";
+import { JOURNEYS, journeyById, journeyMarkup } from "./journeys.js?v=1.12.0";
+import { displayTrain, trainImage, verifiedPhoto, photoLabel, photoGameTrains, samePhotoIdentity } from "./train-images.js?v=1.12.0";
+import { newTicketsState, selectTicket, payToken, returnToken, ticketTotals, ticketsScene } from "./tickets.js?v=1.12.0";
+import { createPhotoLoader } from "./photo-loader.js?v=1.12.0";
+import { createProgramPlayback } from "./program-playback.js?v=1.12.0";
+import { resolvePage } from "./navigation.js?v=1.12.0";
+import { backAction, attachNativeLifecycle } from "./native-runtime.js?v=1.12.0";
+import { encodeBackup, decodeBackup } from "./progress-backup.js?v=1.12.0";
+import { LEARNING_SOURCES } from "./learning-content.js?v=1.12.0";
+import { photoCreditsMarkup, trainSourceLinkMarkup, parentResourcesMarkup } from "./parent-resources.js?v=1.12.0";
+import { playCue, praiseWord, encourageWord, burstMarkup, tripStars, starRow, PASSENGER_OUTFITS, PASSENGER_SKIN } from "./celebration.js?v=1.12.0";
 
 const nativeHost = window.TrainMathNative;
 if (nativeHost?.native) {
@@ -295,32 +296,17 @@ function cancelVoice() {
   if (nativeHost?.native) { nativeHost.cancelSpeech(); return; }
   if ("speechSynthesis" in window) window.speechSynthesis.cancel();
 }
-async function chime() {
+async function cue(name) {
   if (!progress.effects) return;
   try {
     audioContext ||= new (window.AudioContext || window.webkitAudioContext)();
     await audioContext.resume();
     if (!progress.effects || document.hidden) return;
-    [523.25, 659.25, 783.99].forEach((frequency, i) => {
-      const o = audioContext.createOscillator(),
-        g = audioContext.createGain();
-      o.type = "sine";
-      o.frequency.value = frequency;
-      g.gain.setValueAtTime(0, audioContext.currentTime + i * 0.12);
-      g.gain.linearRampToValueAtTime(
-        0.055,
-        audioContext.currentTime + i * 0.12 + 0.025,
-      );
-      g.gain.exponentialRampToValueAtTime(
-        0.001,
-        audioContext.currentTime + i * 0.12 + 0.3,
-      );
-      o.connect(g).connect(audioContext.destination);
-      o.start(audioContext.currentTime + i * 0.12);
-      o.stop(audioContext.currentTime + i * 0.12 + 0.32);
-    });
+    playCue(audioContext, name);
   } catch {}
 }
+const chime = () => cue("correct");
+const motionReduced = () => progress.reduceMotion || motionPreference.matches;
 function image(t, cls = "", lazy = true, contentVersion = "1.8.0") {
   const original = trainImage(t, contentVersion), src = original ? photoLoader.source(original) : null;
   const real = ["1.7.0", "1.8.0"].includes(contentVersion);
@@ -431,6 +417,7 @@ function clearDeparture() {
 }
 function depart() {
   if (departureToken) return;
+  cue("whistle");
   if (
     !["home", "playroom"].includes(view) ||
     progress.reduceMotion ||
@@ -628,8 +615,9 @@ function dotCard(n) {
     ? '<span class="zero-dots">沒有</span>'
     : `<span class="dot-card" aria-label="${n} 個點">${Array.from({ length: n }, () => "<i></i>").join("")}</span>`;
 }
+// Friendly passengers: a face, rosy cheeks and bright outfits (see celebration.js gate).
 const person = (i, clicked = false, extra = "") =>
-  `<svg viewBox="0 0 48 60" aria-hidden="true" class="person-svg ${extra}"><circle cx="24" cy="12" r="9" fill="${["#e6b08d", "#bf886d", "#d5a383"][i % 3]}"/><path d="M15 11q0-15 18-4v6q-3-9-18-2" fill="#343d40"/><rect x="12" y="24" width="24" height="24" rx="9" fill="${clicked ? "#1c7e70" : ["#eeaa64", "#698b93", "#a6a081", "#ac817a"][i % 4]}"/><path d="M18 47v9m12-9v9" stroke="#334b54" stroke-width="7" stroke-linecap="round"/>${clicked ? '<path d="M18 35l4 4 9-10" fill="none" stroke="white" stroke-width="3"/>' : ""}</svg>`;
+  `<svg viewBox="0 0 48 60" aria-hidden="true" class="person-svg ${extra}"><circle cx="24" cy="13" r="10" fill="${PASSENGER_SKIN[i % PASSENGER_SKIN.length]}"/><path d="M14 12q0-16 20-5v5q-4-9-20 0" fill="#3a3330"/><circle cx="20.5" cy="14" r="1.6" fill="#2b2524"/><circle cx="27.5" cy="14" r="1.6" fill="#2b2524"/><circle cx="17.5" cy="17.5" r="2" fill="#f28c8c" opacity=".55"/><circle cx="30.5" cy="17.5" r="2" fill="#f28c8c" opacity=".55"/><path d="M21 18.5q3 2.6 6 0" fill="none" stroke="#2b2524" stroke-width="1.4" stroke-linecap="round"/><rect x="12" y="25" width="24" height="23" rx="9" fill="${clicked ? "#1c7e70" : PASSENGER_OUTFITS[i % PASSENGER_OUTFITS.length]}"/><path d="M18 47v9m12-9v9" stroke="#334b54" stroke-width="7" stroke-linecap="round"/>${clicked ? '<path d="M18 36l4 4 9-10" fill="none" stroke="white" stroke-width="3"/>' : ""}</svg>`;
 function ticketPile(n) {
   return `<div class="ticket-pile">${Array.from({ length: n }, () => '<span class="tiny-ticket" aria-hidden="true">🎟</span>').join("")}</div>`;
 }
@@ -666,12 +654,13 @@ function answerMarkup(q) {
   return `<div class="answers ${q.game === "identify" ? "picture-answers" : ""}">${q.choices
     .map((value) => {
       const disabled = trip.solved;
+      const mark = trip.solved && isCorrect(q, ["count", "boarding", "clock"].includes(q.game) ? Number(value) : value) ? " answer-correct" : !trip.solved && trip.retryPulse && String(trip.lastWrong) === String(value) ? " answer-retry" : "";
       if (q.game === "identify") {
         const t = gameById(value);
-        return `<button class="answer-card" data-answer="${value}" ${disabled ? "disabled" : ""}>${gameImage(t)}<strong>${esc(t.name)}</strong><small>${esc(t.model)}</small></button>`;
+        return `<button class="answer-card${mark}" data-answer="${value}" ${disabled ? "disabled" : ""}>${gameImage(t)}<strong>${esc(t.name)}</strong><small>${esc(t.model)}</small></button>`;
       }
       if (q.game === "pattern")
-        return `<button class="answer-number pattern-answer" data-answer="${esc(value)}" ${disabled ? "disabled" : ""} aria-label="${patternName(q, value)}">${patternToken(q, value)}<small>${patternName(q, value)}</small></button>`;
+        return `<button class="answer-number pattern-answer${mark}" data-answer="${esc(value)}" ${disabled ? "disabled" : ""} aria-label="${patternName(q, value)}">${patternToken(q, value)}<small>${patternName(q, value)}</small></button>`;
       const label =
         q.game === "clock"
           ? clockLabel(value)
@@ -680,7 +669,7 @@ function answerMarkup(q) {
             : q.level === "small"
               ? dotCard(value)
               : value;
-      return `<button class="answer-number ${q.game === "clock" ? "clock-answer" : ""}" data-answer="${esc(value)}" ${disabled ? "disabled" : ""} aria-label="${["compare", "clock"].includes(q.game) ? label : `答案 ${value}`}">${label}</button>`;
+      return `<button class="answer-number ${q.game === "clock" ? "clock-answer" : ""}${mark}" data-answer="${esc(value)}" ${disabled ? "disabled" : ""} aria-label="${["compare", "clock"].includes(q.game) ? label : `答案 ${value}`}">${label}</button>`;
     })
     .join("")}</div>`;
 }
@@ -701,6 +690,15 @@ function spokenQuestionText(q) {
   return q.prompt + ' ' + action + ' ' + guide.help +
     (q.game === 'program' ? ' ' + (main.querySelector('.program-status')?.textContent || '') : '');
 }
+// The little train drives from the previous stop to the new one after a station change.
+function glideProgressTrain(fromIndex) {
+  if (!Number.isInteger(fromIndex) || motionReduced()) return;
+  const train = main.querySelector(".progress-train"), from = main.querySelectorAll(".progress-stop i")[fromIndex];
+  if (!train?.animate || !from) return;
+  const a = from.getBoundingClientRect(), b = train.getBoundingClientRect();
+  const dx = Math.round(a.left + a.width / 2 - (b.left + b.width / 2));
+  if (Math.abs(dx) > 1) train.animate([{ transform: `translateX(${dx}px)` }, { transform: "translateX(0)" }], { duration: 650, easing: "cubic-bezier(.3,.7,.3,1)" });
+}
 function renderQuestion() {
   const focusedControl = !pointerInteraction && main.contains(document.activeElement) ? document.activeElement.id : null;
   if (!trip || trip.awarded) return;
@@ -717,9 +715,12 @@ function renderQuestion() {
   }
   document.body.classList.add("in-game");
   document.body.dataset.game = q.game;
-  main.innerHTML = `<div class="game-wrap"><div class="game-top"><button id="trip-exit" class="text-btn" aria-label="暫停旅程，回遊戲室">← 遊戲室</button><span class="game-name">${gameLabels[q.game]}</span><div class="game-tools"><button id="question-replay" class="icon-btn" aria-label="聽題目">🔊</button>${fullscreenButton()}</div></div><div class="trip-progress" aria-label="第 ${trip.index + 1} 站，共 ${trip.questions.length} 站">${trip.questions.map((station, i) => `<span class="progress-stop ${i < trip.index ? "done" : ""} ${i === trip.index ? "current" : ""}"><i>${i < trip.index ? "✓" : i + 1}</i><small>${esc(route?.stationLabels[q.level][i] || stationNames[station.game])}</small></span>`).join("")}</div><section class="game-panel">${questionHeading(q)}<div class="game-stage" id="game-stage">${gameScene(q)}</div>${answerMarkup(q)}${completedDiscovery(q)}<div class="feedback ${trip.solved ? "success" : ""}" role="status" aria-live="polite">${esc(trip.feedback || "")}</div><div class="question-actions" id="game-actions"><button id="hint-show" class="text-btn" ${trip.solved ? "disabled" : ""}>☀ 一起想一想</button>${trip.solved ? `<button id="question-next" class="primary-btn">${trip.index === trip.questions.length - 1 ? "抵達終點，收集紀念章" : "前往下一站"} →</button>` : ""}</div></section><div class="trip-train-note">${image(trip.train)}<span><strong>${esc(displayTrain(trip.train).name)}</strong><small>${esc(displayTrain(trip.train).model)} · 今天一起旅行的列車</small></span><button data-speak="${trip.train.id}" class="icon-btn" aria-label="聽今天的列車名字">♪</button></div></div>`;
+  main.innerHTML = `<div class="game-wrap"><div class="game-top"><button id="trip-exit" class="text-btn" aria-label="暫停旅程，回遊戲室">← 遊戲室</button><span class="game-name">${gameLabels[q.game]}</span><div class="game-tools"><button id="question-replay" class="icon-btn" aria-label="聽題目">🔊</button>${fullscreenButton()}</div></div><div class="trip-progress" aria-label="第 ${trip.index + 1} 站，共 ${trip.questions.length} 站">${trip.questions.map((station, i) => { const starred = i < trip.index || (i === trip.index && trip.solved); return `<span class="progress-stop ${i < trip.index ? "done" : ""} ${i === trip.index ? "current" : ""} ${starred ? "starred" : ""}"><i>${starred ? "★" : i + 1}${i === trip.index ? '<span class="progress-train" aria-hidden="true">🚆</span>' : ""}</i><small>${esc(route?.stationLabels[q.level][i] || stationNames[station.game])}</small></span>`; }).join("")}</div><section class="game-panel ${trip.celebrate ? "celebrating" : ""}">${trip.celebrate ? burstMarkup({ seed: trip.meta.seed + trip.index * 7919, reduced: motionReduced(), label: trip.praise }) : ""}${questionHeading(q)}<div class="game-stage" id="game-stage">${gameScene(q)}</div>${answerMarkup(q)}${completedDiscovery(q)}<div class="feedback ${trip.solved ? "success" : trip.feedback && trip.feedback === trip.retryText ? "retry" : ""} ${trip.retryPulse ? "nudge" : ""}" role="status" aria-live="polite">${esc(trip.feedback || "")}</div><div class="question-actions" id="game-actions"><button id="hint-show" class="text-btn" ${trip.solved ? "disabled" : ""}>☀ 一起想一想</button>${trip.solved ? `<button id="question-next" class="primary-btn">${trip.index === trip.questions.length - 1 ? "抵達終點，收集紀念章" : "前往下一站"} →</button>` : ""}</div></section><div class="trip-train-note">${image(trip.train)}<span><strong>${esc(displayTrain(trip.train).name)}</strong><small>${esc(displayTrain(trip.train).model)} · 今天一起旅行的列車</small></span><button data-speak="${trip.train.id}" class="icon-btn" aria-label="聽今天的列車名字">♪</button></div></div>`;
+  const glideFrom = trip.glideFrom;
+  trip.celebrate = false; trip.retryPulse = false; trip.glideFrom = null;
   arrangeGameActions(q);
   watchGameDock();
+  glideProgressTrain(glideFrom);
   preparePhotoDisplay(photoStatus);
   for (const [selector, position] of Object.entries(questionScroll.positions)) {
     const element = main.querySelector(selector);
@@ -824,7 +825,9 @@ function answer(value) {
   const q = trip.questions[trip.index];
   if (isCorrect(q, value)) {
     trip.solved = true;
-    trip.feedback = "完成了！" + learningGuide(q, trip).success;
+    trip.praise = praiseWord(trip.meta.seed + trip.index + trip.attempts);
+    trip.feedback = trip.praise + learningGuide(q, trip).success;
+    trip.celebrate = true;
     chime();
     speak(trip.feedback);
     renderQuestion();
@@ -832,7 +835,11 @@ function answer(value) {
     revealFeedback();
   } else {
     trip.attempts++;
-    trip.feedback = "還沒答對，再想一次。需要幫忙時，可以點「一起想一想」。";
+    trip.feedback = encourageWord(trip.meta.seed + trip.attempts) + "還沒答對，再想一次。需要幫忙時，可以點「一起想一想」。";
+    trip.retryText = trip.feedback;
+    trip.retryPulse = true;
+    trip.lastWrong = Array.isArray(value) ? null : value;
+    cue("retry");
     speak(trip.feedback);
     renderQuestion();
     revealFeedback();
@@ -864,6 +871,7 @@ function submitArithmetic() {
 function next() {
   if (!trip?.solved || trip.awarded) return;
   if (trip.index < trip.questions.length - 1) {
+    trip.glideFrom = trip.index;
     trip.index++;
     Object.assign(trip, {
       attempts: 0,
@@ -876,6 +884,9 @@ function next() {
       counted: new Set(),
       boardingInput: "",
       feedback: "",
+      retryText: "",
+      lastWrong: null,
+      praise: "",
     });
     prepareQuestionState(trip.questions[trip.index]);
     renderQuestion();
@@ -982,7 +993,8 @@ function finishTrip() {
   const t = displayTrain(trip.train);
   const route = journeyById(trip.meta.journey);
   trip.giftChoices = progress.giftOffer.map(id => SOUVENIRS.find(item => item.id === id)).filter(Boolean);
-  main.innerHTML = `<div class="finish-wrap"><div class="eyebrow dark">JOURNEY COMPLETED</div><h1>${route ? esc(route.name + "，任務完成！") : "抵達終點，做得好！"}</h1><p>${route ? esc(route.arrivalText) : "每一次發現，都值得一枚紀念章。"}</p><div class="finish-stamp">${image(t, "", false)}<span class="finish-stars" aria-hidden="true">✦</span><h2>${esc(t.name)}</h2><p>${esc(t.model)}</p><div class="stamp-seal">我的鐵道旅程 · 完成 ✓</div></div><p class="finish-note">今天認識了${esc(t.name)}。下次再一起出發吧！</p><div id="trip-gift">${souvenirMarkup(trip, { esc })}</div><div class="finish-actions"><button id="trip-new" class="primary-btn">換台列車，玩新任務 →</button><button id="trip-again" class="secondary-btn">同台列車，再練新題</button><a href="#stamps" class="secondary-btn">看看我的集章</a><a href="#home" class="text-btn">休息一下</a></div></div>`;
+  main.innerHTML = `<div class="finish-wrap ${motionReduced() ? "" : "finish-animate"}">${burstMarkup({ seed: trip.meta.seed, reduced: motionReduced(), count: 24 })}<div class="eyebrow dark">JOURNEY COMPLETED</div><h1>${route ? esc(route.name + "，任務完成！") : "抵達終點，做得好！"}</h1><p>${route ? esc(route.arrivalText) : "每一次發現，都值得一枚紀念章。"}</p><div class="finish-stamp">${image(t, "", false)}<span class="finish-stars" aria-hidden="true">✦</span><h2>${esc(t.name)}</h2><p>${esc(t.model)}</p><div class="stamp-seal">我的鐵道旅程 · 完成 ✓</div></div>${starRow(tripStars(trip).earned, { esc })}<p class="finish-note">今天認識了${esc(t.name)}。下次再一起出發吧！</p><div id="trip-gift">${souvenirMarkup(trip, { esc })}</div><div class="finish-actions"><button id="trip-new" class="primary-btn">換台列車，玩新任務 →</button><button id="trip-again" class="secondary-btn">同台列車，再練新題</button><a href="#stamps" class="secondary-btn">看看我的集章</a><a href="#home" class="text-btn">休息一下</a></div></div>`;
+  cue("fanfare");
   speak(`抵達終點，做得好！今天一起搭乘了${t.name}。`);
   main.focus({ preventScroll: pointerInteraction });
 }
@@ -1129,6 +1141,7 @@ document.addEventListener("click", async (event) => {
     const i = Number(b.dataset.count);
     if (!trip.counted.has(i)) {
       trip.counted.add(i);
+      cue("tick");
       announce("這位乘客已作記號，請你自己數。" );
       $("#game-stage").innerHTML = gameScene(trip.questions[trip.index]);
       saveCurrentTrip();
@@ -1244,6 +1257,7 @@ document.addEventListener("click", async (event) => {
       $(".feedback").textContent = trip.feedback;
     } else if (trip.discovery.differencesFound.size === q.answer) answer(q.answer);
     else {
+      cue("pop");
       trip.feedback = "找到一處了！再看看其他地方。";
       renderQuestion();
       document.querySelector("[data-difference-cell]:not(:disabled)")?.focus({ preventScroll: pointerInteraction });
@@ -1334,6 +1348,7 @@ document.addEventListener("click", async (event) => {
     trip.found.add(index);
     if (trip.found.size === q.answer) answer(q.answer);
     else {
+      cue("pop");
       renderQuestion();
       document.querySelector("[data-find]:not(:disabled)")?.focus({ preventScroll: pointerInteraction });
       announce(`找到第 ${trip.found.size} 個寶物！`);
@@ -1374,6 +1389,7 @@ document.addEventListener("click", async (event) => {
       if (trip.memory.open.length === 2) $("#memory-hide")?.focus({ preventScroll: pointerInteraction });
       else document.querySelector("[data-memory]:not(:disabled)")?.focus({ preventScroll: pointerInteraction });
       const t = byId(q.deck[index]);
+      if (trip.memory.matched.length > before.matched.length) cue("pop");
       announce(
         `${t.cardLabel}${trip.memory.matched.length > before.matched.length ? "，找到一對！" : ""}`,
       );
@@ -1473,6 +1489,7 @@ document.addEventListener("click", async (event) => {
       renderQuestion();
       document.querySelector("[data-ticket-pay]")?.focus({ preventScroll: pointerInteraction });
       break;
+    case "hero-play":
     case "lobby-start":
       practice = starterPractice(progress);
       selectedJourney = null;
@@ -1857,7 +1874,7 @@ try {
   const controller = new AbortController();
   const deadline = setTimeout(() => controller.abort(), 15000);
   let response;
-  try { response = await fetch("data/trains.json?v=1.11.0", { signal: controller.signal }); }
+  try { response = await fetch("data/trains.json?v=1.12.0", { signal: controller.signal }); }
   finally { clearTimeout(deadline); }
   if (!response.ok) throw new Error("Content unavailable");
   catalogue = await response.json();

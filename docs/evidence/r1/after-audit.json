@@ -1,0 +1,146 @@
+{
+ "desktop": {
+  "errors": [],
+  "external": [],
+  "startInView": {
+   "top": 1144,
+   "bottom": 1219,
+   "inView": false,
+   "vh": 768
+  },
+  "heroInView": {
+   "top": 438,
+   "bottom": 504,
+   "w": 221,
+   "h": 66,
+   "inView": true
+  },
+  "homeSmall": [],
+  "gameSmall": [],
+  "answersInView": [
+   true,
+   true
+  ],
+  "nextInView": true,
+  "overflowAfterCorrect": false,
+  "burstShown": 1,
+  "finishSmall": [],
+  "playroomSmall": []
+ },
+ "desktopShort": {
+  "errors": [],
+  "external": [],
+  "startInView": {
+   "top": 1144,
+   "bottom": 1219,
+   "inView": false,
+   "vh": 600
+  },
+  "heroInView": {
+   "top": 438,
+   "bottom": 504,
+   "w": 221,
+   "h": 66,
+   "inView": true
+  },
+  "homeSmall": [],
+  "gameSmall": [],
+  "answersInView": [
+   true,
+   true
+  ],
+  "nextInView": true,
+  "overflowAfterCorrect": false,
+  "burstShown": 1,
+  "finishSmall": [],
+  "playroomSmall": []
+ },
+ "portrait": {
+  "errors": [],
+  "external": [],
+  "startInView": {
+   "top": 1087,
+   "bottom": 1161,
+   "inView": false,
+   "vh": 844
+  },
+  "heroInView": {
+   "top": 283,
+   "bottom": 345,
+   "w": 213,
+   "h": 62,
+   "inView": true
+  },
+  "homeSmall": [],
+  "gameSmall": [],
+  "answersInView": [
+   true,
+   true
+  ],
+  "nextInView": true,
+  "overflowAfterCorrect": false,
+  "burstShown": 1,
+  "finishSmall": [],
+  "playroomSmall": []
+ },
+ "landscape": {
+  "errors": [],
+  "external": [],
+  "startInView": {
+   "top": 1038,
+   "bottom": 1113,
+   "inView": false,
+   "vh": 390
+  },
+  "heroInView": {
+   "top": 263,
+   "bottom": 321,
+   "w": 201,
+   "h": 58,
+   "inView": true
+  },
+  "homeSmall": [],
+  "gameSmall": [],
+  "answersInView": [
+   true,
+   true
+  ],
+  "nextInView": true,
+  "overflowAfterCorrect": false,
+  "burstShown": 1,
+  "finishSmall": [],
+  "playroomSmall": []
+ },
+ "tablet": {
+  "errors": [],
+  "external": [],
+  "startInView": {
+   "top": 1129,
+   "bottom": 1204,
+   "inView": false,
+   "vh": 768
+  },
+  "heroInView": {
+   "top": 423,
+   "bottom": 489,
+   "w": 221,
+   "h": 66,
+   "inView": true
+  },
+  "homeSmall": [],
+  "gameSmall": [],
+  "answersInView": [
+   true,
+   true
+  ],
+  "nextInView": true,
+  "overflowAfterCorrect": false,
+  "burstShown": 1,
+  "finishSmall": [],
+  "playroomSmall": []
+ },
+ "reducedMotion": {
+  "burst": 0,
+  "feedback": "好厲害！一位配一個數，最後的數表示總人數。"
+ }
+}

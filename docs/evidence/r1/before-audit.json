@@ -1,0 +1,83 @@
+{
+ "desktop": {
+  "errors": [],
+  "external": [],
+  "startInView": {
+   "top": 1065,
+   "bottom": 1140,
+   "inView": false,
+   "vh": 768
+  },
+  "homeSmall": [
+   "A.current\"首頁\" 28x87",
+   "A.\"遊戲室\" 42x87",
+   "BUTTON#sound-toggle.icon-btn\"♪\" 42x42",
+   "BUTTON#settings-open.settings-btn\"家長設定 ⚙\" 89x42"
+  ],
+  "gameSmall": [
+   "A.current\"首頁\" 28x87",
+   "A.\"遊戲室\" 42x87",
+   "BUTTON#sound-toggle.icon-btn\"♪\" 42x42",
+   "BUTTON#settings-open.settings-btn\"家長設定 ⚙\" 89x42",
+   "BUTTON#question-replay.icon-btn\"🔊\" 42x42",
+   "BUTTON#game-fullscreen.icon-btn\"⛶\" 42x42"
+  ],
+  "finishSmall": [
+   "BUTTON#about-open.\"關於與素材來源\" 89x20"
+  ],
+  "playroomSmall": [
+   "A.\"首頁\" 28x87",
+   "A.current\"遊戲室\" 42x87",
+   "BUTTON#sound-toggle.icon-btn\"♪\" 42x42",
+   "BUTTON#settings-open.settings-btn\"家長設定 ⚙\" 89x42"
+  ]
+ },
+ "portrait": {
+  "errors": [],
+  "external": [],
+  "startInView": {
+   "top": 1005,
+   "bottom": 1079,
+   "inView": false,
+   "vh": 844
+  },
+  "homeSmall": [
+   "A.brand\"🚆小小列車長TAIWA\" 206x40"
+  ],
+  "gameSmall": [],
+  "finishSmall": [
+   "A.brand\"🚆小小列車長TAIWA\" 206x40"
+  ],
+  "playroomSmall": [
+   "A.brand\"🚆小小列車長TAIWA\" 206x40"
+  ]
+ },
+ "landscape": {
+  "errors": [],
+  "external": [],
+  "startInView": {
+   "top": 1039,
+   "bottom": 1115,
+   "inView": false,
+   "vh": 390
+  },
+  "homeSmall": [],
+  "gameSmall": [],
+  "finishSmall": [],
+  "playroomSmall": []
+ },
+ "tablet": {
+  "errors": [],
+  "external": [],
+  "startInView": {
+   "top": 1050,
+   "bottom": 1125,
+   "inView": false,
+   "vh": 768
+  },
+  "homeSmall": [],
+  "gameSmall": [],
+  "finishSmall": [],
+  "playroomSmall": []
+ }
+}

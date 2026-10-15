@@ -1,0 +1,349 @@
+/* R1 好玩＋美觀：開始按鈕、糖果按鈕、答對／答錯回饋、進度小列車與終點慶祝。 */
+
+/* 首頁首屏的大開始鈕 */
+.story-play {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 64px;
+  margin-top: 22px;
+  padding: 10px 22px 10px 14px;
+  border: 0;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #ffb347 0%, #f27a2e 100%);
+  color: #fff;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  box-shadow: 0 6px 0 #b4501b, 0 12px 24px #0006;
+  text-shadow: 0 1px 1px #9a3f0f;
+  position: relative;
+}
+/* 光圈呼吸，按鈕本身不移動，好瞄準 */
+.story-play::after {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  border-radius: inherit;
+  border: 3px solid #ffd27a;
+  opacity: 0;
+  pointer-events: none;
+  animation: story-play-glow 2.2s ease-out infinite;
+}
+.story-play-icon {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: #fff;
+  font-size: 26px;
+  text-shadow: none;
+}
+.story-play b { font-size: 22px; }
+.story-play:hover { background: linear-gradient(180deg, #ffbf5e 0%, #f5843a 100%); }
+.story-play:active { transform: translateY(4px); box-shadow: 0 2px 0 #b4501b, 0 6px 14px #0005; }
+.story-play:focus-visible { outline: 4px solid #fff3c4; outline-offset: 4px; }
+@keyframes story-play-glow {
+  0% { opacity: 0.9; transform: scale(0.96); }
+  70%, 100% { opacity: 0; transform: scale(1.12); }
+}
+.story-copy .story-controls { margin-top: 16px; }
+.story-map-link { font-size: 14px; }
+
+/* 糖果按鈕：有厚度、按下會下沉 */
+.answer-number,
+.answer-card {
+  border: 3px solid #cfe3d6;
+  background: linear-gradient(180deg, #ffffff 0%, #f1f9f3 100%);
+  box-shadow: 0 5px 0 #b5d2c1;
+  transition: transform 0.08s ease, box-shadow 0.08s ease, border-color 0.15s ease;
+}
+.answer-number:hover:not(:disabled),
+.answer-card:hover:not(:disabled) {
+  border-color: #2f9a6a;
+  background: linear-gradient(180deg, #ffffff 0%, #e6f6ea 100%);
+}
+.answer-number:active:not(:disabled),
+.answer-card:active:not(:disabled) {
+  transform: translateY(4px);
+  box-shadow: 0 1px 0 #b5d2c1;
+}
+.dot-card i { background: #f27a2e; box-shadow: inset 0 -2px 0 #0002; }
+.question-actions > .primary-btn,
+.finish-actions .primary-btn,
+.lobby-primary {
+  box-shadow: 0 5px 0 #a8441a;
+  transition: transform 0.08s ease, box-shadow 0.08s ease;
+}
+.question-actions > .primary-btn:active:not(:disabled),
+.finish-actions .primary-btn:active,
+.lobby-primary:active {
+  transform: translateY(4px);
+  box-shadow: 0 1px 0 #a8441a;
+}
+
+/* 題目區：淡淡的天空 */
+.in-game .game-stage {
+  background: linear-gradient(180deg, #e8f5fd 0%, #f3faf0 62%, #edf5e1 100%);
+  border-color: #d2e5dc;
+}
+.in-game .question-head h1 { color: #1d4a4c; }
+
+/* 答對 */
+.answers .answer-correct,
+.answers .answer-correct:disabled {
+  opacity: 1;
+  position: relative;
+  border-color: #2fa864;
+  background: linear-gradient(180deg, #f2fff5 0%, #d4f3de 100%);
+  box-shadow: 0 5px 0 #2a8f53;
+  animation: answer-correct-pop 0.5s cubic-bezier(.3,1.6,.5,1) both;
+}
+.answers .answer-correct::after {
+  content: "✓";
+  position: absolute;
+  top: -12px;
+  right: -10px;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: #2fa864;
+  color: #fff;
+  font-size: 17px;
+  font-weight: 800;
+  box-shadow: 0 2px 6px #0003;
+}
+@keyframes answer-correct-pop {
+  0% { transform: scale(0.9); }
+  60% { transform: scale(1.1); }
+  100% { transform: scale(1); }
+}
+
+/* 答錯：輕輕搖，不懲罰 */
+.answers .answer-retry {
+  border-color: #f0a020;
+  animation: answer-wiggle 0.45s ease both;
+}
+@keyframes answer-wiggle {
+  0%, 100% { transform: translateX(0) rotate(0); }
+  20% { transform: translateX(-6px) rotate(-3deg); }
+  45% { transform: translateX(5px) rotate(2deg); }
+  70% { transform: translateX(-3px) rotate(-1deg); }
+}
+
+/* 回饋列 */
+.feedback.success,
+.question-actions > .feedback.success {
+  background: #dff5e6;
+  color: #17643c;
+  border-left: 5px solid #2fa864;
+  font-size: 16px;
+  font-weight: 700;
+  animation: feedback-rise 0.35s ease both;
+}
+.feedback.retry,
+.question-actions > .feedback.retry {
+  background: #fff3d1;
+  color: #74470a;
+  border-left: 5px solid #f0a020;
+  font-size: 15px;
+}
+.feedback.nudge { animation: feedback-nudge 0.4s ease both; }
+@keyframes feedback-rise {
+  from { transform: translateY(6px); opacity: 0.4; }
+  to { transform: none; opacity: 1; }
+}
+@keyframes feedback-nudge {
+  0%, 100% { transform: translateX(0); }
+  30% { transform: translateX(-5px); }
+  65% { transform: translateX(4px); }
+}
+
+/* 慶祝彩帶：只是裝飾，不擋點擊 */
+.game-panel { position: relative; }
+/* 特效層蓋滿面板並裁切，彩帶不會撐出橫向捲動 */
+.celebration-burst {
+  --burst-top: 34%;
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: inherit;
+  z-index: 30;
+  pointer-events: none;
+}
+.celebration-burst > i {
+  position: absolute;
+  left: calc(50% - 5px);
+  top: calc(var(--burst-top) - 5px);
+  width: 10px;
+  height: 10px;
+  background: var(--c);
+  opacity: 0;
+  animation: burst-fly 1.1s cubic-bezier(.12,.75,.3,1) var(--d) both;
+}
+.celebration-burst > .burst-dot { border-radius: 50%; }
+.celebration-burst > .burst-ribbon { width: 6px; height: 15px; border-radius: 3px; }
+.celebration-burst > .burst-star {
+  width: 16px;
+  height: 16px;
+  clip-path: polygon(50% 0, 62% 36%, 100% 38%, 70% 60%, 80% 100%, 50% 76%, 20% 100%, 30% 60%, 0 38%, 38% 36%);
+}
+@keyframes burst-fly {
+  0% { opacity: 1; transform: translate(0, 0) scale(0.4) rotate(0); }
+  65% { opacity: 1; transform: translate(var(--x), var(--y)) scale(1) rotate(var(--r)); }
+  100% { opacity: 0; transform: translate(var(--x), calc(var(--y) + 70px)) scale(0.8) rotate(var(--r)); }
+}
+.praise-pop {
+  position: absolute;
+  left: 50%;
+  top: var(--burst-top);
+  transform: translate(-50%, -50%);
+  white-space: nowrap;
+  padding: 8px 22px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #ffd25e 0%, #ff9b3d 100%);
+  color: #fff;
+  font-size: 30px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  text-shadow: 0 2px 0 #c0601c;
+  box-shadow: 0 6px 0 #d0702a, 0 12px 24px #0003;
+  animation: praise-pop 1.5s cubic-bezier(.3,1.5,.5,1) both;
+}
+@keyframes praise-pop {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.3); }
+  18% { opacity: 1; transform: translate(-50%, -50%) scale(1.12); }
+  30% { transform: translate(-50%, -50%) scale(1); }
+  78% { opacity: 1; transform: translate(-50%, -60%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -90%) scale(0.95); }
+}
+
+/* 進度：小列車停在目前這站，完成站變金星 */
+.progress-stop i { position: relative; }
+.progress-stop.current i { color: transparent; border-width: 3px; box-shadow: 0 0 0 4px #ffe6c9; }
+.progress-train {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 20px;
+  line-height: 1;
+  color: #203d40;
+  font-family: "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif;
+  pointer-events: none;
+}
+.progress-stop.starred i,
+.progress-stop.done i {
+  background: linear-gradient(180deg, #ffd25e 0%, #f5a623 100%);
+  border-color: #e09115;
+  color: #fff;
+  font-size: 18px;
+  text-shadow: 0 1px 0 #b8700a;
+}
+.progress-stop.current.starred i { color: transparent; }
+.trip-progress::before,
+.trip-progress:before { height: 4px; border-radius: 2px; background: repeating-linear-gradient(90deg, #c9b79a 0 6px, transparent 6px 10px), #e9e2d2; }
+
+/* 終點：蓋章、星星、彩帶 */
+.finish-wrap { position: relative; }
+.finish-wrap > .celebration-burst { --burst-top: 260px; }
+.finish-animate .finish-stamp { animation: stamp-drop 0.7s cubic-bezier(.3,1.4,.5,1) 0.15s both; }
+.finish-animate .finish-stamp .stamp-seal { animation: seal-thump 0.45s ease 0.8s both; }
+@keyframes stamp-drop {
+  0% { opacity: 0; transform: translateY(-40px) scale(1.15) rotate(-4deg); }
+  70% { opacity: 1; transform: translateY(4px) scale(0.98) rotate(1deg); }
+  100% { opacity: 1; transform: none; }
+}
+@keyframes seal-thump {
+  0% { transform: scale(2); opacity: 0; }
+  60% { transform: scale(0.92); opacity: 1; }
+  100% { transform: scale(1); }
+}
+.stamp-seal { border-color: #e0703a; color: #c4551f; font-weight: 700; }
+.finish-star-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  margin: 4px auto 10px;
+}
+.finish-star-row > span {
+  font-size: 34px;
+  line-height: 1;
+  color: #f5a623;
+  text-shadow: 0 2px 0 #c77c0a, 0 0 12px #ffd25e;
+}
+.finish-animate .finish-star-row > span { animation: star-in 0.45s cubic-bezier(.3,1.6,.5,1) calc(1s + var(--i) * 0.15s) both; }
+.finish-star-row > small { flex: 0 0 100%; color: #7a5a12; font-size: 14px; font-weight: 700; }
+@keyframes star-in {
+  0% { opacity: 0; transform: scale(0.2) rotate(-60deg); }
+  100% { opacity: 1; transform: none; }
+}
+
+/* 頁首與遊戲內圖示鈕不小於 48px */
+.header-actions .icon-btn,
+.game-tools .icon-btn { min-width: 48px; min-height: 48px; }
+
+/* 桌機：底部操作列跟著畫面，答案不需捲動 */
+@media (min-width: 1101px) and (pointer: fine) {
+  .main-nav a { min-width: 48px; display: inline-flex; justify-content: center; }
+  .in-game .question-actions {
+    position: sticky;
+    bottom: 0;
+    z-index: 15;
+    margin: 16px -12px 0;
+    padding: 12px;
+    border-radius: 14px;
+    background: #fffffff2;
+    box-shadow: 0 -8px 18px -12px #203d4040;
+  }
+}
+@media (min-width: 1101px) and (pointer: fine) and (max-height: 920px) {
+  .in-game .game-wrap { margin-top: 12px; margin-bottom: 24px; }
+  .in-game .trip-progress { margin: 10px auto 14px; }
+  .in-game .question-icon { display: none; }
+  .in-game .game-panel { padding: 20px 28px; }
+  .in-game .question-head h1 { font-size: 24px; line-height: 1.4; }
+  .in-game .game-stage { margin: 14px 0; min-height: 150px; padding: 16px; }
+}
+
+/* 手機：開始鈕放大到手指好按 */
+@media (max-width: 760px) {
+  .story-play { min-height: 60px; font-size: 21px; margin-top: 16px; }
+  .story-play-icon { width: 42px; height: 42px; font-size: 24px; }
+  .praise-pop { font-size: 24px; padding: 6px 16px; }
+  .progress-train { font-size: 16px; }
+  .finish-wrap > .celebration-burst { --burst-top: 200px; }
+}
+
+/* 手機橫放：標題縮成兩行，讓開始鈕留在首屏 */
+@media (orientation: landscape) and (max-height: 500px) {
+  .story-copy { padding-top: 12px; }
+  .story-copy h1 { font-size: 26px; margin: 8px 0; line-height: 1.3; }
+  .story-copy h1 span { display: inline; }
+  .story-copy > p { font-size: 14px; line-height: 1.6; }
+  .story-play { margin-top: 10px; min-height: 56px; font-size: 19px; }
+  .story-play-icon { width: 38px; height: 38px; font-size: 22px; }
+}
+.trip-train-note .icon-btn { min-width: 48px; min-height: 48px; }
+@media (pointer: coarse), (max-width: 1100px) {
+  .site-header .brand { min-height: 48px; display: inline-flex; align-items: center; }
+}
+
+/* 減少動畫：全部特效停止 */
+.reduced-motion .celebration-burst { display: none; }
+@media (prefers-reduced-motion: reduce) {
+  .story-play::after,
+  .answers .answer-correct,
+  .answers .answer-retry,
+  .feedback.success,
+  .feedback.nudge,
+  .finish-animate .finish-stamp,
+  .finish-animate .finish-stamp .stamp-seal,
+  .finish-animate .finish-star-row > span { animation: none; }
+  .celebration-burst { display: none; }
+}

@@ -1,3 +1,9 @@
+> **專案整合公告｜Project merged**
+>
+> 本專案已併入 [島嶼交通學院｜Island Transport Academy（taiwan-island-drive）](https://github.com/mars-tw/taiwan-island-drive)。後續更新在新 repo 進行；本 repo 保留為歷史紀錄。
+>
+> This project has been merged into [Island Transport Academy (taiwan-island-drive)](https://github.com/mars-tw/taiwan-island-drive). Future updates will take place in the new repository; this repository is retained as a historical record.
+
 # 小小列車長｜台灣火車數學樂園
 
 給 **3–8 歲**小小鐵道迷的免費繁體中文遊戲，提供網頁及 Android／iPhone／iPad 原生專案。陪星光高鐵送信到海邊，打開故事任務，再選喜歡的真實列車，練習數數、簡單加減、排序、規律、裝箱、記憶、時鐘、空間方向、分享與尋寶。

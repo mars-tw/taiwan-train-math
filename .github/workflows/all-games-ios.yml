@@ -62,7 +62,7 @@ jobs:
           python3 - <<'PY'
           import hashlib,json,os,pathlib,re,time,subprocess
           tag=os.environ['SOURCE_TAG'];expected=os.environ['EXPECTED_CHECKSUMS_SHA256'].lower();project=os.environ['PROJECT_ID']
-          approved_inputs={'ashes-convoy': ('all-games-mobile-ci-20261007-r6', '5f647d1351119ca0d61aa2779ad9e33dc6e9afa3da34e7b68efb6517703ef6cc', 405759139), 'village-siege': ('trine-village-build3-20261020', '4c61ee332ac09b93446cdbbdd6bc3a7457b1c907a7df301f639cbe8940ab11d9', 417993013)}
+          approved_inputs={'ashes-convoy': ('emberline-ios-2.0.0-build3-20261020', 'de624af4e7276a4251114ff7bfa33f51cfcf72007dcfa2113eaf81b037029d9d', 417993626), 'village-siege': ('trine-village-build3-20261020', '4c61ee332ac09b93446cdbbdd6bc3a7457b1c907a7df301f639cbe8940ab11d9', 417993013)}
           if project not in approved_inputs:raise SystemExit('Unknown approved fixed source project')
           approved_tag,approved_pin,approved_release_id=approved_inputs[project]
           known=['ashes-convoy','island-flight-school','night-train-watch-protocol','pixel-idle-farm-skill','storm-apocalypse','taiwan-train-school','tower-defense-skill','village-siege','web-card-game-skill']
@@ -161,7 +161,7 @@ jobs:
           python3 - <<'PY'
           import hashlib,json,os,pathlib,re
           tag=os.environ['SOURCE_TAG'];expected=os.environ['EXPECTED_CHECKSUMS_SHA256'].lower();project=os.environ['PROJECT_ID']
-          approved_inputs={'ashes-convoy': ('all-games-mobile-ci-20261007-r6', '5f647d1351119ca0d61aa2779ad9e33dc6e9afa3da34e7b68efb6517703ef6cc', 405759139), 'village-siege': ('trine-village-build3-20261020', '4c61ee332ac09b93446cdbbdd6bc3a7457b1c907a7df301f639cbe8940ab11d9', 417993013)}
+          approved_inputs={'ashes-convoy': ('emberline-ios-2.0.0-build3-20261020', 'de624af4e7276a4251114ff7bfa33f51cfcf72007dcfa2113eaf81b037029d9d', 417993626), 'village-siege': ('trine-village-build3-20261020', '4c61ee332ac09b93446cdbbdd6bc3a7457b1c907a7df301f639cbe8940ab11d9', 417993013)}
           if project not in approved_inputs:raise SystemExit('Unknown approved relay project')
           approved_tag,approved_pin,approved_release_id=approved_inputs[project]
           if tag!=approved_tag or expected!=approved_pin:raise SystemExit('Relay requires the fixed approved release/checksum pin')

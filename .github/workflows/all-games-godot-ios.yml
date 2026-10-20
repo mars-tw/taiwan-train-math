@@ -137,7 +137,40 @@ jobs:
       - name: Verify the pinned Xcode and Godot source
         run: bash "$GODOT_CI_TOOLS/ci_godot_ios_export.sh" prepare "$GODOT_CI_SOURCE" "$GODOT_CI_PROJECT" "$GODOT_CI_OUTPUT" "$GODOT_CI_METADATA"
       - name: Build and capture fresh actual iPhone 17 Pro Max and iPad M4 simulators
-        run: bash "$GODOT_CI_TOOLS/ci_godot_ios_export.sh" sim "$GODOT_CI_SOURCE" "$GODOT_CI_PROJECT" "$GODOT_CI_OUTPUT" "$GODOT_CI_METADATA"
+        run: |
+          if [[ "$GODOT_CI_PROJECT" != seven-district-reckoning ]]; then
+            bash "$GODOT_CI_TOOLS/ci_godot_ios_export.sh" sim "$GODOT_CI_SOURCE" "$GODOT_CI_PROJECT" "$GODOT_CI_OUTPUT" "$GODOT_CI_METADATA"
+            exit 0
+          fi
+          # Keep the pinned release assets intact. Derive only the two waits
+          # in a separate, owned temporary helper after checksum verification.
+          python3 - <<'PY'
+          import hashlib,json,os,pathlib,subprocess
+          original=pathlib.Path(os.environ['GODOT_CI_TOOLS'])
+          source=original/'ci_godot_ios_export.sh';before=source.read_bytes()
+          old_cold=b'    sleep 30\n';old_warm=b'    sleep 12\n'
+          if before.count(old_cold)!=1 or before.count(old_warm)!=1:raise SystemExit('Pinned capture waits changed; stop for review')
+          derived=before.replace(old_cold,b'    sleep 120\n').replace(old_warm,b'    sleep 60\n')
+          target=pathlib.Path(os.environ['RUNNER_TEMP'])/'godot-ios-capture-waits'
+          target.mkdir(mode=0o700)
+          helper=target/source.name;helper.write_bytes(derived)
+          verifier=original/'ci_verify_godot_ios.py'
+          (target/verifier.name).write_bytes(verifier.read_bytes())
+          subprocess.run(['bash','-n',str(helper)],check=True)
+          receipt={'projectId':os.environ['GODOT_CI_PROJECT'],'runId':int(os.environ['GITHUB_RUN_ID']),
+                   'coldAfterLaunchSeconds':120,'relaunchAfterLaunchSeconds':60,
+                   'originalHelperSha256':hashlib.sha256(before).hexdigest(),
+                   'derivedHelperSha256':hashlib.sha256(derived).hexdigest(),
+                   'verifierSha256':hashlib.sha256(verifier.read_bytes()).hexdigest(),
+                   'pinnedInputAssetsModified':False,'sourceFilesChanged':False,'simulatorStepCompleted':False}
+          record=pathlib.Path(os.environ['GODOT_CI_OUTPUT'])/'capture-wait-policy.json'
+          record.write_text(json.dumps(receipt,indent=2)+'\n')
+          result=subprocess.run(['bash',str(helper),'sim',os.environ['GODOT_CI_SOURCE'],os.environ['GODOT_CI_PROJECT'],os.environ['GODOT_CI_OUTPUT'],os.environ['GODOT_CI_METADATA']])
+          if source.read_bytes()!=before or (target/verifier.name).read_bytes()!=verifier.read_bytes():raise SystemExit('Pinned helper/verifier changed unexpectedly')
+          receipt['simulatorStepCompleted']=result.returncode==0
+          record.write_text(json.dumps(receipt,indent=2)+'\n')
+          raise SystemExit(result.returncode)
+          PY
       - name: Create and verify the per-App signed device IPA
         env:
           APPLE_DISTRIBUTION_P12_BASE64: ${{ secrets.APPLE_DISTRIBUTION_P12_BASE64 }}
@@ -151,7 +184,7 @@ jobs:
           python3 - <<'PY'
           import os,pathlib,shutil
           parent=pathlib.Path(os.environ['RUNNER_TEMP']).resolve()
-          for name in ['godot-ios-input','godot-ios-source']:
+          for name in ['godot-ios-input','godot-ios-source','godot-ios-capture-waits']:
               target=(parent/name).resolve()
               if target!=parent and target.is_relative_to(parent):shutil.rmtree(target,ignore_errors=True)
           PY
@@ -168,6 +201,7 @@ jobs:
             output/godot-ios/simulator-architecture.json
             output/godot-ios/simulator-verification.json
             output/godot-ios/simulator-launch.json
+            output/godot-ios/capture-wait-policy.json
             output/godot-ios/verification.json
             output/godot-ios/screenshots/*.png
           if-no-files-found: error

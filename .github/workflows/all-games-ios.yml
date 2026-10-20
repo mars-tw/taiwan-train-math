@@ -11,11 +11,11 @@ on:
         required: true
         type: string
       project:
-        description: 'Ashes-only approved tablet aspect source repair package'
+        description: 'Fixed approved Ashes or Trine Frontier source package'
         required: true
         default: ashes-convoy
         type: choice
-        options: [ashes-convoy]
+        options: [ashes-convoy, village-siege]
 permissions:
   contents: read
 concurrency:
@@ -34,7 +34,7 @@ jobs:
         run: |
           python3 - <<'PY'
           import json,os
-          known=['ashes-convoy']
+          known=['ashes-convoy','village-siege']
           selected=os.environ['SELECTED_PROJECT']
           if selected not in known:raise SystemExit('Unknown explicit approved repair adapter')
           with open(os.environ['GITHUB_OUTPUT'],'a') as out:out.write('matrix='+json.dumps({'project':[selected]})+'\n')
@@ -62,9 +62,9 @@ jobs:
           python3 - <<'PY'
           import hashlib,json,os,pathlib,re,time,subprocess
           tag=os.environ['SOURCE_TAG'];expected=os.environ['EXPECTED_CHECKSUMS_SHA256'].lower();project=os.environ['PROJECT_ID']
-          approved_tag='all-games-mobile-ci-20261007-r6'
-          approved_pin='5f647d1351119ca0d61aa2779ad9e33dc6e9afa3da34e7b68efb6517703ef6cc'
-          approved_release_id=405759139
+          approved_inputs={'ashes-convoy': ('all-games-mobile-ci-20261007-r6', '5f647d1351119ca0d61aa2779ad9e33dc6e9afa3da34e7b68efb6517703ef6cc', 405759139), 'village-siege': ('trine-village-build3-20261020', '4c61ee332ac09b93446cdbbdd6bc3a7457b1c907a7df301f639cbe8940ab11d9', 417993013)}
+          if project not in approved_inputs:raise SystemExit('Unknown approved fixed source project')
+          approved_tag,approved_pin,approved_release_id=approved_inputs[project]
           known=['ashes-convoy','island-flight-school','night-train-watch-protocol','pixel-idle-farm-skill','storm-apocalypse','taiwan-train-school','tower-defense-skill','village-siege','web-card-game-skill']
           if tag!=approved_tag or expected!=approved_pin or project not in known:raise SystemExit('Only the fixed approved source tag/checksum and explicit Web adapter are allowed')
           repository='mars-tw/taiwan-train-math'
@@ -161,7 +161,10 @@ jobs:
           python3 - <<'PY'
           import hashlib,json,os,pathlib,re
           tag=os.environ['SOURCE_TAG'];expected=os.environ['EXPECTED_CHECKSUMS_SHA256'].lower();project=os.environ['PROJECT_ID']
-          if tag!='all-games-mobile-ci-20261007-r6' or expected!='5f647d1351119ca0d61aa2779ad9e33dc6e9afa3da34e7b68efb6517703ef6cc':raise SystemExit('Relay requires the fixed approved release/checksum pin')
+          approved_inputs={'ashes-convoy': ('all-games-mobile-ci-20261007-r6', '5f647d1351119ca0d61aa2779ad9e33dc6e9afa3da34e7b68efb6517703ef6cc', 405759139), 'village-siege': ('trine-village-build3-20261020', '4c61ee332ac09b93446cdbbdd6bc3a7457b1c907a7df301f639cbe8940ab11d9', 417993013)}
+          if project not in approved_inputs:raise SystemExit('Unknown approved relay project')
+          approved_tag,approved_pin,approved_release_id=approved_inputs[project]
+          if tag!=approved_tag or expected!=approved_pin:raise SystemExit('Relay requires the fixed approved release/checksum pin')
           repository='mars-tw/taiwan-train-math'
           if os.environ['GITHUB_REPOSITORY']!=repository:raise SystemExit('Unexpected caller repository')
           staging=pathlib.Path(os.environ['RUNNER_TEMP'],'native-release')
@@ -171,7 +174,7 @@ jobs:
               file=staging/name;maximum=1024**3 if name.endswith('.zip') else 1024*1024
               if not file.is_file() or file.is_symlink() or not 0<file.stat().st_size<=maximum:raise SystemExit('Invalid or oversized relayed input')
           provenance=json.loads((staging/'input-provenance.json').read_text(encoding='utf-8'))
-          approved={'repository':repository,'releaseTag':tag,'releaseId':405759139,'releaseDraft':True,'projectId':project,'checksumManifestSha256':expected,'helpersExecuted':False,'gameExecuted':False,'appleSecretsUsed':False}
+          approved={'repository':repository,'releaseTag':tag,'releaseId':approved_release_id,'releaseDraft':True,'projectId':project,'checksumManifestSha256':expected,'helpersExecuted':False,'gameExecuted':False,'appleSecretsUsed':False}
           if provenance!=approved:raise SystemExit('Same-run source provenance does not match the approved inputs')
           checksum_file=staging/'SHA256SUMS'
           if hashlib.sha256(checksum_file.read_bytes()).hexdigest()!=expected:raise SystemExit('Public checksum manifest differs from the approved pin')

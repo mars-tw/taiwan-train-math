@@ -1,6 +1,6 @@
 #!/bin/bash
 # Unsigned capture only. Uses approved source/verifier; signing helper/tag remain frozen.
-# Cold30/warm60 waits follow actual Pro Max startup probe; no UI resizing.
+# Trine cold120/warm60; other projects retain cold30/warm60. No UI resizing.
 set -euo pipefail
 phase="${1:?sim required}"
 [[ "$phase" == sim ]] || { echo "Unsigned capture only"; exit 2; }
@@ -106,6 +106,8 @@ print(json.load(open(sys.argv[1]))['appId'])
 PY
 )"
   mkdir -p "$out/screenshots"
+  cold_wait=30
+  if [[ "$project" == village-siege ]]; then cold_wait=120; fi
   for kind in iphone ipad; do
     if [[ "$kind" == iphone ]]; then device="$phone"; else device="$tablet"; fi
     safe_cmd "$kind-boot" xcrun simctl boot "$device"
@@ -118,7 +120,7 @@ PY
     safe_cmd "$kind-statusbar" xcrun simctl status_bar "$device" override --time 9:41 --dataNetwork wifi --wifiMode active --wifiBars 3 --batteryState charged --batteryLevel 100
     safe_cmd "$kind-install" xcrun simctl install "$device" "$simulator_app"
     safe_cmd "$kind-launch" xcrun simctl launch "$device" "$app_id"
-    sleep 30
+    sleep "$cold_wait"
     safe_cmd "$kind-cold-shot" xcrun simctl io "$device" screenshot --type=png "$scratch/$kind-cold.png"
     safe_cmd "$kind-terminate" xcrun simctl terminate "$device" "$app_id"
     safe_cmd "$kind-relaunch" xcrun simctl launch "$device" "$app_id"
@@ -137,7 +139,7 @@ for(const device of ['iphone','ipad'])for(const moment of ['cold','relaunch']){
  await sharp(source).removeAlpha().png({palette:false}).toFile(path.join(process.env.SCREENSHOT_OUTPUT,`${device}-${moment}.png`));
 }
 JS
-  python3 - "$out" "$project" "$scratch" <<'PY'
+  python3 - "$out" "$project" "$scratch" "$cold_wait" <<'PY'
 import hashlib,json,pathlib,struct,sys
 p=pathlib.Path(sys.argv[1]);devices=pathlib.Path(sys.argv[3]);shots=[]
 for f in sorted((p/'screenshots').glob('*.png')):
@@ -146,7 +148,7 @@ for f in sorted((p/'screenshots').glob('*.png')):
  kind='iphone' if f.name.startswith('iphone-') else 'ipad'
  device_name=(devices/('phone-name' if kind=='iphone' else 'tablet-name')).read_text()
  shots.append({'file':'screenshots/'+f.name,'deviceName':device_name,'width':w,'height':h,'nativeResolution':True,'uiResized':False,'sha256':hashlib.sha256(data).hexdigest()})
-(p/'simulator-launch.json').write_text(json.dumps({'projectId':sys.argv[2],'captureHelperRevision':'repository-unsigned-capture-warm60','phoneDeviceName':(devices/'phone-name').read_text(),'tabletDeviceName':(devices/'tablet-name').read_text(),'iosRuntimeVersion':(devices/'runtime-version').read_text(),'actualSimulator':True,'freshDevices':True,'coldLaunchWaitSeconds':30,'relaunchWaitSeconds':60,'screenshots':shots,'interactiveGameplayTested':False,'physicalDeviceTested':False,'speakerOutputTested':False,'loadedSceneRequiresVisualReview':True},indent=2)+'\n')
+(p/'simulator-launch.json').write_text(json.dumps({'projectId':sys.argv[2],'captureHelperRevision':'repository-unsigned-capture-trine-cold120-warm60','phoneDeviceName':(devices/'phone-name').read_text(),'tabletDeviceName':(devices/'tablet-name').read_text(),'iosRuntimeVersion':(devices/'runtime-version').read_text(),'actualSimulator':True,'freshDevices':True,'coldLaunchWaitSeconds':int(sys.argv[4]),'relaunchWaitSeconds':60,'screenshots':shots,'interactiveGameplayTested':False,'physicalDeviceTested':False,'speakerOutputTested':False,'loadedSceneRequiresVisualReview':True},indent=2)+'\n')
 PY
   echo "Fresh iPhone/iPad capture finished for $project; loaded UI requires visual review"
   exit 0

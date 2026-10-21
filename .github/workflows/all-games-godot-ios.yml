@@ -3,6 +3,10 @@ name: Sign approved Godot iOS games and capture actual simulators
 on:
   workflow_dispatch:
     inputs:
+      boot_diagnostic:
+        description: Collect one phone launch only; always reports incomplete acceptance
+        type: boolean
+        default: false
       boot_validation:
         description: Validate debug and release boot only; no store upload
         type: boolean
@@ -257,7 +261,7 @@ jobs:
               for k,v in {'BOOT_TOOLS':base,'BOOT_SOURCE':source,'BOOT_METADATA':base/(mode+'-source.json'),'BOOT_OUT':out}.items():env.write(k+'='+str(v)+'\n')
           PY
       - name: Measure cold launch and relaunch on actual phone and tablet simulators
-        run: python3 "$BOOT_TOOLS/ci_ios_boot.py" --source "$BOOT_SOURCE" --metadata "$BOOT_METADATA" --output "$BOOT_OUT" --mode "${{ matrix.mode }}"
+        run: python3 "$BOOT_TOOLS/ci_ios_boot.py" --source "$BOOT_SOURCE" --metadata "$BOOT_METADATA" --output "$BOOT_OUT" --mode "${{ matrix.mode }}" ${{ inputs.boot_diagnostic && '--diagnostic' || '' }}
       - name: Export verified release device IPA locally without store upload
         if: matrix.mode == 'release'
         env:

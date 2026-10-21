@@ -185,7 +185,7 @@ jobs:
   boot:
     if: inputs.project_id == 'seven-district-reckoning' && github.ref == 'refs/heads/main' && github.repository == 'mars-tw/taiwan-train-math'
     runs-on: macos-15
-    timeout-minutes: 120
+    timeout-minutes: 240
     strategy:
       fail-fast: false
       matrix:

@@ -263,7 +263,9 @@ jobs:
       - name: Measure cold launch and relaunch on actual phone and tablet simulators
         run: python3 "$BOOT_TOOLS/ci_ios_boot.py" --source "$BOOT_SOURCE" --metadata "$BOOT_METADATA" --output "$BOOT_OUT" --mode "${{ matrix.mode }}" ${{ inputs.boot_diagnostic && '--diagnostic' || '' }}
       - name: Export verified release device IPA locally without store upload
-        if: matrix.mode == 'release'
+        # A failed simulator gate must remain failed, but preserve a device
+        # build for the requested future cloud-device investigation as well.
+        if: always() && matrix.mode == 'release' && env.BOOT_SOURCE != ''
         env:
           APPLE_DISTRIBUTION_P12_BASE64: ${{ secrets.APPLE_DISTRIBUTION_P12_BASE64 }}
           APPLE_DISTRIBUTION_P12_PASSWORD: ${{ secrets.APPLE_DISTRIBUTION_P12_PASSWORD }}

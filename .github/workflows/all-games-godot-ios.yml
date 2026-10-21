@@ -185,7 +185,7 @@ jobs:
   boot:
     if: inputs.project_id == 'seven-district-reckoning' && github.ref == 'refs/heads/main' && github.repository == 'mars-tw/taiwan-train-math'
     runs-on: macos-15
-    timeout-minutes: 45
+    timeout-minutes: 120
     strategy:
       fail-fast: false
       matrix:
@@ -253,7 +253,7 @@ jobs:
           python3 - <<'PY'
           import os,pathlib,shutil
           root=pathlib.Path(os.environ['RUNNER_TEMP']).resolve()
-          for name in ['boot-input','boot-source','derived-debug','derived-release']:
+          for name in ['boot-input','boot-source','derived-debug','derived-release','boot-engine-debug','boot-engine-release','boot-simulator-debug','boot-simulator-release']:
               target=(root/name).resolve()
               if target!=root and target.is_relative_to(root):shutil.rmtree(target,ignore_errors=True)
           PY

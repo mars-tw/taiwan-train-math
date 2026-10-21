@@ -3,6 +3,10 @@ name: Sign approved Godot iOS games and capture actual simulators
 on:
   workflow_dispatch:
     inputs:
+      boot_validation:
+        description: Validate debug and release boot only; no store upload
+        type: boolean
+        default: false
       project_id:
         description: Explicit approved Godot project
         required: true
@@ -27,7 +31,7 @@ concurrency:
 
 jobs:
   fetch:
-    if: github.ref == 'refs/heads/main' && github.repository == 'mars-tw/taiwan-train-math'
+    if: github.ref == 'refs/heads/main' && github.repository == 'mars-tw/taiwan-train-math' && !inputs.boot_validation
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions:
@@ -206,3 +210,77 @@ jobs:
             output/godot-ios/screenshots/*.png
           if-no-files-found: error
           retention-days: 14
+
+  boot:
+    if: inputs.boot_validation && inputs.project_id == 'seven-district-reckoning' && github.ref == 'refs/heads/main' && github.repository == 'mars-tw/taiwan-train-math'
+    runs-on: macos-15-intel
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [debug, release]
+    permissions:
+      contents: write
+    environment: game-store-seven-district-reckoning
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
+    steps:
+      - name: Fetch only hash-pinned boot validation inputs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.release_tag }}
+          PIN: ${{ inputs.sums_sha256 }}
+          MODE: ${{ matrix.mode }}
+        run: |
+          python3 - <<'PY'
+          import hashlib,json,os,pathlib,re,subprocess
+          tag=os.environ['TAG'];pin=os.environ['PIN'];mode=os.environ['MODE'];repo='mars-tw/taiwan-train-math'
+          if not re.fullmatch(r'[A-Za-z0-9._-]{1,120}',tag) or not re.fullmatch('[0-9a-f]{64}',pin):raise SystemExit('Invalid source pin')
+          releases=json.loads(subprocess.check_output(['gh','api','--paginate','--slurp','repos/'+repo+'/releases?per_page=100']))
+          matches=[r for page in releases for r in page if r['tag_name']==tag and r['draft']]
+          if len(matches)!=1:raise SystemExit('Exactly one DRAFT source required')
+          base=pathlib.Path(os.environ['RUNNER_TEMP'])/'boot-input';base.mkdir()
+          files=['SHA256SUMS','SevenDistrict-'+mode+'.zip',mode+'-source.json','ci_ios_boot.py','ci_godot_ios_export.sh','ci_verify_godot_ios.py']
+          for file in files:subprocess.run(['gh','release','download',tag,'-R',repo,'-p',file,'-D',str(base)],check=True,capture_output=True)
+          if hashlib.sha256((base/'SHA256SUMS').read_bytes()).hexdigest()!=pin:raise SystemExit('Manifest pin mismatch')
+          entries={}
+          for line in (base/'SHA256SUMS').read_text().splitlines():
+              match=re.fullmatch(r'([0-9a-f]{64})  ([A-Za-z0-9._-]+)',line)
+              if not match or match[2] in entries:raise SystemExit('Invalid checksum record')
+              entries[match[2]]=match[1]
+          for file in files[1:]:
+              if entries.get(file)!=hashlib.sha256((base/file).read_bytes()).hexdigest():raise SystemExit('Input hash mismatch')
+          source=pathlib.Path(os.environ['RUNNER_TEMP'])/'boot-source'
+          out=pathlib.Path(os.environ['GITHUB_WORKSPACE'])/'output/boot'/mode;out.mkdir(parents=True)
+          subprocess.run(['python3',str(base/'ci_verify_godot_ios.py'),'source','--zip',str(base/('SevenDistrict-'+mode+'.zip')),'--metadata',str(base/(mode+'-source.json')),'--project','seven-district-reckoning','--root',str(source),'--output',str(out/'source-verification.json')],check=True)
+          with open(os.environ['GITHUB_ENV'],'a') as env:
+              for k,v in {'BOOT_TOOLS':base,'BOOT_SOURCE':source,'BOOT_METADATA':base/(mode+'-source.json'),'BOOT_OUT':out}.items():env.write(k+'='+str(v)+'\n')
+          PY
+      - name: Measure cold launch and relaunch on actual phone and tablet simulators
+        run: python3 "$BOOT_TOOLS/ci_ios_boot.py" --source "$BOOT_SOURCE" --metadata "$BOOT_METADATA" --output "$BOOT_OUT" --mode "${{ matrix.mode }}"
+      - name: Export verified release device IPA locally without store upload
+        if: matrix.mode == 'release'
+        env:
+          APPLE_DISTRIBUTION_P12_BASE64: ${{ secrets.APPLE_DISTRIBUTION_P12_BASE64 }}
+          APPLE_DISTRIBUTION_P12_PASSWORD: ${{ secrets.APPLE_DISTRIBUTION_P12_PASSWORD }}
+          APPLE_APPSTORE_PROFILE_BASE64: ${{ secrets.APPLE_APPSTORE_PROFILE_BASE64 }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: bash "$BOOT_TOOLS/ci_godot_ios_export.sh" sign "$BOOT_SOURCE" seven-district-reckoning "$BOOT_OUT" "$BOOT_METADATA"
+      - name: Preserve console, BOOT timestamps, original PNGs and device IPA
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: seven-ios-boot-${{ matrix.mode }}-${{ github.run_id }}
+          path: output/boot
+          if-no-files-found: error
+          retention-days: 14
+      - name: Remove owned temporary inputs, sources and build directories
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import os,pathlib,shutil
+          root=pathlib.Path(os.environ['RUNNER_TEMP']).resolve()
+          for name in ['boot-input','boot-source','derived-debug','derived-release']:
+              target=(root/name).resolve()
+              if target!=root and target.is_relative_to(root):shutil.rmtree(target,ignore_errors=True)
+          PY
